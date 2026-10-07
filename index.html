@@ -592,15 +592,37 @@
       position:fixed; inset:0; z-index:60; display:flex; flex-direction:column;
       align-items:center; justify-content:center; gap:38px; cursor:pointer;
       background:#010409; overflow:hidden;
-      transition:opacity .9s ease, visibility .9s ease;
+      transition:opacity 1.4s ease, visibility 1.4s ease;
     }
     .intro.hide { opacity:0; visibility:hidden; pointer-events:none; }
     .intro-stars { position:absolute; inset:0; width:100%; height:100%; display:block; }
     .intro-logo { position:relative; text-align:center; user-select:none; margin:0 12px; }
-    /* Industrial pipe frame (2026-10-06, per Han): cyberpunk neon-sign housing. */
+    /* Space-station signpost (2026-10-06, per Han): the neon sign hangs on an
+       industrial pole, its arrow pointing down at Earth. */
+    .signpost { display:flex; flex-direction:column; align-items:center; }
+    .sign-pole {
+      width:12px; height:54px; margin-top:-2px; position:relative;
+      background:linear-gradient(90deg,#14171a,#4b535a 40%,#5c666e 50%,#4b535a 60%,#14171a);
+      box-shadow:inset 0 0 0 1px #08090b,0 4px 10px rgba(0,0,0,.6);
+    }
+    .sign-pole::before {
+      content:""; position:absolute; top:-5px; left:50%; transform:translateX(-50%);
+      width:28px; height:11px; border-radius:3px;
+      background:linear-gradient(180deg,#3a4046,#1c2024);
+      box-shadow:inset 0 1px 2px rgba(255,255,255,.25),0 2px 4px rgba(0,0,0,.6);
+    }
+    .sign-arrow {
+      margin-top:-2px; width:0; height:0;
+      border-left:15px solid transparent; border-right:15px solid transparent;
+      border-top:20px solid #46ff7d;
+      filter:drop-shadow(0 0 10px rgba(70,255,125,.9)) drop-shadow(0 0 26px rgba(70,255,125,.45));
+      animation:arrowPulse 1.7s ease-in-out infinite;
+    }
+    @keyframes arrowPulse{0%,100%{opacity:1;transform:translateY(0);}50%{opacity:.55;transform:translateY(7px);}}
+    /* Industrial pipe frame (2026-10-06, per Han): cyberpunk green neon-sign housing. */
     .neon-frame {
       position:relative; display:inline-block;
-      padding:clamp(18px,3.6vw,34px) clamp(30px,5.5vw,58px);
+      padding:clamp(14px,2.8vw,24px) clamp(22px,4.5vw,44px);
       background:linear-gradient(180deg,rgba(10,13,16,.72),rgba(4,6,8,.78));
       border:5px solid #33393f; border-radius:12px;
       box-shadow:
@@ -609,18 +631,18 @@
         inset 0 0 0 2px #0b0d0f,
         0 0 0 2px #060708,
         0 10px 34px rgba(0,0,0,.6),
-        0 0 44px rgba(255,45,120,.28),
-        0 0 110px rgba(64,255,205,.14);
+        0 0 44px rgba(70,255,125,.28),
+        0 0 110px rgba(70,255,125,.14);
     }
     /* neon tube running inside the pipe */
     .neon-frame::before {
       content:""; position:absolute; inset:10px; border-radius:7px; pointer-events:none;
-      border:2px solid #ff2d78;
-      box-shadow:0 0 8px #ff2d78,0 0 22px rgba(255,45,120,.75),inset 0 0 10px rgba(255,45,120,.7);
+      border:2px solid #46ff7d;
+      box-shadow:0 0 8px #46ff7d,0 0 22px rgba(70,255,125,.75),inset 0 0 10px rgba(70,255,125,.7);
     }
     .neon-frame .bolt { position:absolute; width:13px; height:13px; border-radius:50%;
       background:radial-gradient(circle at 35% 30%,#eef2f5,#9aa3ab 55%,#3a4046 100%);
-      box-shadow:inset 0 -2px 3px rgba(0,0,0,.65),0 1px 3px rgba(0,0,0,.7),0 0 6px rgba(255,45,120,.35); }
+      box-shadow:inset 0 -2px 3px rgba(0,0,0,.65),0 1px 3px rgba(0,0,0,.7),0 0 6px rgba(70,255,125,.35); }
     .neon-frame .bolt.tl{top:7px;left:7px;} .neon-frame .bolt.tr{top:7px;right:7px;}
     .neon-frame .bolt.bl{bottom:7px;left:7px;} .neon-frame .bolt.br{bottom:7px;right:7px;}
     .intro-logo .shadow-layer, .intro-logo .typed-layer {
@@ -634,11 +656,11 @@
       position:absolute; inset:0; color:#fff;
       text-shadow:
         0 0 4px #fff,
-        0 0 10px #ff9ec7,
-        0 0 24px #ff2d78,
-        0 0 55px #ff2d78,
-        0 0 95px rgba(255,45,120,.6),
-        0 0 150px rgba(255,45,120,.32);
+        0 0 10px #b8ffd2,
+        0 0 24px #46ff7d,
+        0 0 55px #46ff7d,
+        0 0 95px rgba(70,255,125,.6),
+        0 0 150px rgba(70,255,125,.32);
     }
     .intro-logo .typed-inner { position:relative; display:inline-block; }
     .intro-logo .typed-layer .ch { visibility:hidden; display:inline-block; }
@@ -657,11 +679,10 @@
     .intro-logo .typed-layer .ch.on { visibility:visible; }
     .intro-logo .caret {
       display:inline-block; width:.09em; height:1em; margin-left:.12em; vertical-align:-.06em;
-      background:#ffd7e8; box-shadow:0 0 18px rgba(255,45,120,.95),0 0 40px rgba(255,45,120,.5);
+      background:#ffd7e8; box-shadow:0 0 18px rgba(70,255,125,.95),0 0 40px rgba(70,255,125,.5);
       animation:caret-blink .8s steps(1) infinite;
     }
     @keyframes caret-blink { 0%,55% { opacity:1; } 56%,100% { opacity:0; } }
-    .intro.zoom .intro-logo { transform:scale(9); opacity:0; transition:transform 1.15s ease-in, opacity 1.15s ease-in; }
     .intro-continue {
       position:relative; font:700 .8rem/1.6 "Manrope",sans-serif; letter-spacing:.34em; text-indent:.34em;
       color:#eafffb; text-shadow:0 0 16px rgba(64,255,205,.8); text-align:center; padding:0 16px;
@@ -780,16 +801,16 @@
       letter-spacing:.05em; color:#fff; text-align:center; white-space:nowrap; margin:0 16px;
       text-shadow:
         0 0 4px #fff,
-        0 0 10px #a4f7e6,
-        0 0 24px #2de8c8,
-        0 0 55px #2de8c8,
-        0 0 95px rgba(45,232,200,.55);
+        0 0 10px #b8ffd2,
+        0 0 24px #46ff7d,
+        0 0 55px #46ff7d,
+        0 0 95px rgba(70,255,125,.55);
     }
     .city-entry-name .ch { visibility:hidden; display:inline-block; }
     .city-entry-name .ch.on { visibility:visible; animation:type-punch .22s ease-out; }
     .city-entry-caret {
       display:inline-block; width:.09em; height:1em; margin-left:.12em; vertical-align:-.06em;
-      background:#d8fff6; box-shadow:0 0 18px rgba(45,232,200,.95),0 0 40px rgba(45,232,200,.5);
+      background:#d9ffe6; box-shadow:0 0 18px rgba(70,255,125,.95),0 0 40px rgba(70,255,125,.5);
       animation:caret-blink .8s steps(1) infinite;
     }
     .city-entry-sub {
@@ -810,10 +831,14 @@
   <div class="intro" id="intro" role="button" tabindex="0" aria-label="Enter Espil Online">
     <canvas class="intro-stars" id="intro-stars" aria-hidden="true"></canvas>
     <div class="intro-logo" id="intro-logo" aria-label="Espil Online">
-      <div class="neon-frame">
-        <span class="bolt tl"></span><span class="bolt tr"></span><span class="bolt bl"></span><span class="bolt br"></span>
-        <p class="shadow-layer" aria-hidden="true">Espil Online</p>
-        <p class="typed-layer" aria-hidden="true"><span class="typed-inner" id="intro-typed"></span></p>
+      <div class="signpost">
+        <div class="neon-frame">
+          <span class="bolt tl"></span><span class="bolt tr"></span><span class="bolt bl"></span><span class="bolt br"></span>
+          <p class="shadow-layer" aria-hidden="true">Espil Online</p>
+          <p class="typed-layer" aria-hidden="true"><span class="typed-inner" id="intro-typed"></span></p>
+        </div>
+        <div class="sign-pole" aria-hidden="true"></div>
+        <div class="sign-arrow" aria-hidden="true"></div>
       </div>
     </div>
     <div class="intro-continue" id="intro-continue">TAP OR PRESS ANY KEY TO CONTINUE</div>
@@ -3846,9 +3871,11 @@
     /* Hooks for the intro + city info panel scripts. */
     window.__espilGlobe={
       beginEarthReveal:function(){
-        /* The station origin view was removed (2026-10-06, per Han): the page
-           opens directly on the Earth orbit view. */
-        orbitDistance=6.6;targetDistance=Math.max(6.6,2.12/(Math.tan(camera.fov*Math.PI/360)*camera.aspect));
+        /* Seamless entry (2026-10-06, per Han): the camera starts further out
+           and glides into the orbit view while the intro fades — one motion. */
+        var defaultD=Math.max(6.6,2.12/(Math.tan(camera.fov*Math.PI/360)*camera.aspect));
+        targetDistance=defaultD;
+        orbitDistance=defaultD*1.45;
         placeCamera();
       },
       skipStationReveal:function(){/* no-op: the station reveal no longer exists */}
@@ -3872,7 +3899,7 @@
     var BREATHE_MS=850; /* the beat between the two words */
     var TYPE_MIN=50,TYPE_JITTER=50; /* 50-100ms per char: brisk, natural keystroke rhythm */
     var CARET_LINGER=800; /* caret keeps blinking briefly after typing, then the continue prompt */
-    var done=false,continued=false,earthReady=false,typedDone=false,caretGone=false,idx=0;
+    var done=false,continued=false,earthReady=false,typedDone=false,idx=0;
     var reduced=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     window.__espilIntroActive=true;
     /* Starfield */
@@ -3922,7 +3949,7 @@
       typed.insertBefore(caret,spans[0]||null);
     }
     function maybeShowContinue(){
-      if(typedDone&&caretGone&&earthReady&&!done){
+      if(typedDone&&earthReady&&!done){
         done=true;
         if(logo)logo.classList.add('done');
         if(cont)cont.classList.add('show');
@@ -3931,10 +3958,9 @@
     function typeStep(){
       if(idx>=spans.length){
         typedDone=true;
-        /* Caret blinks on for 2s after the last letter, then disappears. */
+        /* The caret keeps blinking (2026-10-06, per Han); the continue prompt
+           appears shortly after typing completes. */
         setTimeout(function(){
-          if(caret&&caret.parentNode)caret.parentNode.removeChild(caret);
-          caretGone=true;
           maybeShowContinue();
         },CARET_LINGER);
         return;
@@ -3955,12 +3981,11 @@
       if(continued||!done||!intro)return;continued=true;
       window.__espilIntroActive=false;
       if(window.EspilAudio&&window.EspilAudio.pop)window.EspilAudio.pop();
-      intro.classList.add('zoom');
-      setTimeout(function(){
-        intro.classList.add('hide');
-        beginEarth();
-        setTimeout(function(){if(intro.parentNode)intro.parentNode.removeChild(intro);},1000);
-      },1150);
+      /* Seamless (2026-10-06, per Han): the camera starts gliding toward Earth
+         while the intro fades — one continuous motion, no cut. */
+      beginEarth();
+      intro.classList.add('hide');
+      setTimeout(function(){if(intro.parentNode)intro.parentNode.removeChild(intro);},1600);
     }
     function boot(){
       if(!intro)return;
