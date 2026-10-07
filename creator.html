@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="data:,">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <title>캐릭터 커스텀 창</title>
+  <style>
+    :root{
+      color-scheme:light dark;
+      --bg:#d8e0dc;--stage:#eef2ef;--panel:#f8faf9;--surface:#fff;--ink:#17201d;--muted:#66736d;
+      --line:#bdc8c3;--line-strong:#87978f;--accent:#bbff28;--accent-ink:#162000;--dark:#16201c;
+      --shadow:0 20px 60px rgba(19,34,28,.2);--checker-a:#d5ddd9;--checker-b:#c8d2cd;--white:#fff;
+    }
+    @media(prefers-color-scheme:dark){:root{
+      --bg:#0c1210;--stage:#101714;--panel:#18211d;--surface:#222c27;--ink:#edf5f1;--muted:#9dacA5;
+      --line:#36443e;--line-strong:#5b6e65;--accent:#bbff28;--accent-ink:#162000;--dark:#080d0b;
+      --shadow:0 24px 72px rgba(0,0,0,.55);--checker-a:#101714;--checker-b:#18211d;--white:#fff;
+    }}
+    *{box-sizing:border-box}
+    html,body{margin:0;width:100%;min-height:100%;overflow:hidden;font-family:"Noto Sans KR",sans-serif;background:var(--bg);color:var(--ink)}
+    button,input{font:inherit;color:inherit}
+    button{cursor:pointer}
+    .stage{position:relative;width:100vw;height:100dvh;overflow:hidden;display:grid;place-items:center;touch-action:none;background-color:var(--checker-a);background-image:linear-gradient(45deg,var(--checker-b) 25%,transparent 25%),linear-gradient(-45deg,var(--checker-b) 25%,transparent 25%),linear-gradient(45deg,transparent 75%,var(--checker-b) 75%),linear-gradient(-45deg,transparent 75%,var(--checker-b) 75%);background-position:0 0,0 12px,12px -12px,-12px 0;background-size:24px 24px}
+    .stage:before{content:"";position:absolute;width:min(78vw,900px);height:min(78vw,900px);border-radius:50%;background:radial-gradient(circle,color-mix(in srgb,var(--accent) 18%,transparent),transparent 69%);pointer-events:none}
+    .ground{position:absolute;z-index:1;left:50%;bottom:6.5%;width:min(42vw,520px);height:7%;transform:translateX(-50%);border-radius:50%;background:radial-gradient(ellipse,rgba(0,0,0,.34),transparent 70%);filter:blur(12px);opacity:.45}
+    .avatar-wrap{position:relative;z-index:2;width:min(108vmin,980px);aspect-ratio:1;transform:scale(var(--zoom,1));transform-origin:50% 58%;transition:transform .22s ease;user-select:none;isolation:isolate}
+    .sprite-stack{position:absolute;inset:0;animation:idle 2.8s cubic-bezier(.45,.04,.55,.96) infinite;transform-origin:50% 76%;will-change:transform}
+    .sprite-stack img{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:contain;-webkit-user-drag:none;pointer-events:none}
+    .sprite-stack .base{z-index:1}
+    .sprite-stack .overlay{filter:hue-rotate(var(--hue,0deg));z-index:2}
+    .sprite-stack .hair{z-index:3}
+    @keyframes idle{
+      0%,100%{transform:translate(0,0) rotate(0deg)}
+      12.5%{transform:translate(-5px,-5px) rotate(-2.4deg)}
+      25%{transform:translate(-8px,0) rotate(-1.4deg)}
+      37.5%{transform:translate(-3px,-3px) rotate(-.7deg)}
+      50%{transform:translate(0,1px) rotate(0deg)}
+      62.5%{transform:translate(5px,-5px) rotate(2.4deg)}
+      75%{transform:translate(8px,0) rotate(1.4deg)}
+      87.5%{transform:translate(3px,-3px) rotate(.7deg)}
+    }
+    .nametag{position:absolute;z-index:8;top:7%;left:50%;min-width:88px;max-width:190px;transform:translateX(-50%);padding:7px 12px 8px;border:2px solid rgba(255,255,255,.78);border-radius:5px;background:rgba(23,32,29,.88);box-shadow:0 3px 0 rgba(0,0,0,.28);color:#fff;text-align:center;font-size:12px;font-weight:800;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:opacity .15s}
+    .nametag.empty{opacity:.48}
+    .sparkles{position:absolute;z-index:7;inset:17% 25% 28%;pointer-events:none}
+    .spark{position:absolute;left:var(--x);top:var(--y);width:var(--s);height:var(--s);opacity:0;transform:scale(.2) rotate(0);background:var(--accent);clip-path:polygon(50% 0,62% 38%,100% 50%,62% 62%,50% 100%,38% 62%,0 50%,38% 38%)}
+    .sparkles.play .spark{animation:spark .72s cubic-bezier(.2,.72,.2,1) var(--d) both}
+    @keyframes spark{0%{opacity:0;transform:scale(.15) rotate(0)}38%{opacity:1;transform:scale(1) rotate(45deg)}100%{opacity:0;transform:scale(.25) rotate(92deg) translateY(-12px)}}
+    .zoom-tools{position:absolute;z-index:10;left:max(14px,env(safe-area-inset-left));bottom:max(16px,calc(env(safe-area-inset-bottom) + 12px));display:flex;gap:6px;padding:6px;border:1px solid var(--line);border-radius:12px;background:color-mix(in srgb,var(--panel) 92%,transparent);box-shadow:var(--shadow)}
+    .tool{width:39px;height:39px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-size:18px;font-weight:900;line-height:1}.tool:hover{border-color:var(--ink)}
+    .floating-panel{position:absolute;z-index:12;top:clamp(12px,3vh,28px);right:clamp(12px,2.5vw,30px);width:min(370px,38vw);max-height:calc(100dvh - 2 * clamp(12px,3vh,28px));display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--line);border-radius:16px 5px 16px 16px;background:color-mix(in srgb,var(--panel) 96%,transparent);box-shadow:var(--shadow)}
+    .panel-top{padding:10px 11px 9px;border-bottom:1px solid var(--line)}
+    .tabs{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+    .tab{height:39px;border:1px solid var(--line);border-radius:8px;background:var(--surface);display:flex;align-items:center;justify-content:center;gap:7px;font-size:11px;font-weight:800}
+    .tab svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8}.tab.active{border-color:var(--dark);background:var(--dark);color:#fff;box-shadow:inset 0 -3px var(--accent)}
+    .name-field{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:8px;margin-top:8px}.name-field label{font-size:9px;font-weight:800;color:var(--muted)}.name-field input{min-width:0;height:33px;border:1px solid var(--line);border-radius:7px;background:var(--surface);padding:0 9px;font-size:11px;outline:none}.name-field input:focus{border-color:var(--ink);box-shadow:0 0 0 2px var(--accent)}
+    .panel-scroll{min-height:0;overflow:auto;padding:10px 11px 12px;scrollbar-width:thin;scrollbar-color:var(--line-strong) transparent}
+    .control-row,.block-head{display:flex;align-items:center;justify-content:space-between;gap:8px}.control-row{margin-bottom:8px}.control-row h2,.block h2{margin:0;font-size:11px}.count,.block-head output{font-size:8px;color:var(--muted)}
+    .gender{display:grid;grid-template-columns:1fr 1fr;width:102px;border:1px solid var(--line);border-radius:7px;overflow:hidden}.gender button{border:0;background:var(--surface);padding:6px 8px;font-size:9px;font-weight:800}.gender button+button{border-left:1px solid var(--line)}.gender button.active{background:var(--dark);color:#fff}
+    .styles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+    .style-card{position:relative;aspect-ratio:1;border:1px solid var(--line);border-radius:7px;background:var(--surface);overflow:hidden;padding:0}.style-card:hover{border-color:var(--ink)}.style-card.active{border:3px solid var(--accent);box-shadow:inset 0 0 0 1px var(--dark)}.style-card img{display:block;width:100%;height:100%;object-fit:cover}.style-card .no{position:absolute;left:3px;bottom:3px;min-width:18px;padding:2px 4px;border-radius:3px;background:rgba(12,18,16,.76);color:#fff;font:800 8px "Barlow Condensed",sans-serif}.style-card.active:after{content:"✓";position:absolute;right:3px;top:3px;width:16px;height:16px;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:var(--accent-ink);font-size:9px;font-weight:900}
+    .block{margin-top:12px}.block-head{margin-bottom:7px}.colors{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}.color{aspect-ratio:1;border:1px solid var(--line);border-radius:50%;padding:3px;background:var(--surface)}.color:before{content:"";display:block;width:100%;height:100%;border-radius:50%;background:var(--swatch)}.color.active{border:3px solid var(--ink);padding:2px;box-shadow:0 0 0 2px var(--accent)}
+    details.soon{margin-top:12px;border-top:1px solid var(--line);padding-top:9px}details.soon summary{list-style:none;display:flex;align-items:center;justify-content:space-between;cursor:pointer;font-size:9px;font-weight:800;color:var(--muted)}details.soon summary::-webkit-details-marker{display:none}details.soon summary:after{content:"＋";font-size:14px}details.soon[open] summary:after{content:"−"}.soon-list{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px}.soon-list span{padding:4px 6px;border:1px solid var(--line);border-radius:5px;color:var(--muted);font-size:8px}.soon-list span:after{content:" · 준비 중";opacity:.68}
+    .panel-foot{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:9px 11px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--panel)}.random,.reset{border-radius:8px;padding:9px 8px;font-size:10px;font-weight:800}.random{border:0;background:var(--dark);color:#fff}.reset{border:1px solid var(--line);background:var(--surface)}
+    .panel-collapse{display:none}
+    button:focus-visible,summary:focus-visible{outline:3px solid color-mix(in srgb,var(--accent) 78%,#000);outline-offset:2px}
+    .toast{position:absolute;z-index:20;left:50%;bottom:18px;transform:translate(-50%,14px);opacity:0;pointer-events:none;transition:.18s;background:var(--dark);color:#fff;border:1px solid var(--line-strong);border-radius:7px;padding:8px 12px;font-size:9px}.toast.show{opacity:1;transform:translate(-50%,0)}
+    @media(max-width:700px){
+      .avatar-wrap{width:min(110vmin,720px)}.ground{left:50%;width:54vw;bottom:16%}.nametag{top:5%;font-size:9px;min-width:68px;padding:5px 8px}
+      .floating-panel{top:20%;right:0;width:48px;max-height:none;border-radius:12px 0 0 12px;overflow:visible;transition:width .2s ease,bottom .2s ease,transform .2s ease}.floating-panel .panel-top{padding:4px;border:0}.floating-panel .tabs{grid-template-columns:1fr;gap:4px}.floating-panel .tab{width:39px;height:39px;gap:0;border-radius:8px;font-size:0}.floating-panel .tab svg{width:19px;height:19px}.floating-panel .name-field,.floating-panel .panel-scroll,.floating-panel .panel-foot{display:none}
+      .floating-panel.mobile-open{top:auto;right:8px;bottom:max(8px,env(safe-area-inset-bottom));left:8px;width:auto;max-height:min(36dvh,300px);overflow:hidden;border-radius:13px}.floating-panel.mobile-open .panel-top{padding:6px 45px 6px 6px;border-bottom:1px solid var(--line)}.floating-panel.mobile-open .tabs{grid-template-columns:1fr 1fr;gap:4px}.floating-panel.mobile-open .tab{width:auto;height:31px;gap:4px;font-size:8px}.floating-panel.mobile-open .tab svg{width:14px;height:14px}.floating-panel.mobile-open .name-field{display:grid;gap:4px;margin-top:5px}.floating-panel.mobile-open .name-field label{font-size:7px}.floating-panel.mobile-open .name-field input{height:26px;padding:0 6px;font-size:8px}.floating-panel.mobile-open .panel-scroll{display:block;padding:6px;overflow:auto}.floating-panel.mobile-open .panel-foot{display:grid;gap:4px;padding:5px 6px calc(6px + env(safe-area-inset-bottom))}.panel-collapse{position:absolute;right:7px;top:7px;width:31px;height:31px;border:1px solid var(--line);border-radius:7px;background:var(--surface);font-size:16px;font-weight:800;line-height:1}.floating-panel.mobile-open .panel-collapse{display:grid;place-items:center}
+      .control-row{margin-bottom:5px;gap:4px}.control-row h2,.block h2{font-size:8px}.count,.block-head output{font-size:6px}.gender{width:68px;border-radius:5px}.gender button{padding:4px 3px;font-size:7px}.styles{grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}.style-card{border-radius:5px}.style-card .no{font-size:6px;min-width:13px;padding:1px 3px}.style-card.active{border-width:2px}.style-card.active:after{width:12px;height:12px;font-size:6px}.block{margin-top:7px}.block-head{margin-bottom:4px}.colors{gap:4px;max-width:260px}.color{padding:2px}.color.active{border-width:2px;padding:1px;box-shadow:0 0 0 1px var(--accent)}details.soon{margin-top:7px;padding-top:6px}details.soon summary{font-size:7px}.soon-list{gap:2px;margin-top:4px}.soon-list span{font-size:6px;padding:3px}.random,.reset{padding:7px 3px;border-radius:6px;font-size:7px}.zoom-tools{left:7px;bottom:max(8px,env(safe-area-inset-bottom));padding:4px;gap:3px;border-radius:9px;transition:bottom .2s ease}.stage.panel-open .zoom-tools{bottom:calc(min(36dvh,300px) + 16px)}.tool{width:32px;height:32px;border-radius:6px;font-size:15px}.toast{bottom:52px;font-size:7px}.stage.panel-open .toast{bottom:calc(min(36dvh,300px) + 18px)}.sparkles{inset:20% 28% 30%}
+    }
+    @media(max-width:360px){.floating-panel.mobile-open{left:5px;right:5px}.styles{gap:3px}}
+    @media(prefers-reduced-motion:reduce){*{transition:none!important}.sprite-stack{animation:none}.sparkles.play .spark{animation:none}}
+  </style>
+</head>
+<body>
+<main class="stage" aria-label="캐릭터 미리보기와 커스텀 패널">
+  <div class="ground" aria-hidden="true"></div>
+  <a href="index.html" style="position:absolute;z-index:50;top:calc(12px + env(safe-area-inset-top));left:14px;padding:9px 15px;border-radius:999px;border:1px solid rgba(134,238,228,.35);background:rgba(4,16,20,.66);color:#ddfffc;font:700 .66rem/1 Manrope,sans-serif;letter-spacing:.14em;text-decoration:none;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)">&larr; EARTH</a>
+  <div class="avatar-wrap" id="avatarStack">
+    <div class="sprite-stack" aria-label="캐릭터 스프라이트">
+      <img class="base" src="assets/cc-web/base.webp" alt="둥근 귀의 캐릭터 기본 몸체">
+      <img class="overlay eyes" id="eyeLayer" src="assets/cc-web/eyes/eyes-m-basic.webp" alt="선택한 눈 스타일">
+      <img class="overlay hair" id="hairLayer" src="assets/cc-web/hair/hair-m-spikycrop.webp" alt="선택한 헤어 스타일">
+    </div>
+    <div class="nametag empty" id="nametag">이름 없음</div>
+    <div class="sparkles" id="sparkles" aria-hidden="true">
+      <i class="spark" style="--x:8%;--y:44%;--s:22px;--d:0s"></i><i class="spark" style="--x:26%;--y:8%;--s:13px;--d:.07s"></i><i class="spark" style="--x:74%;--y:12%;--s:18px;--d:.12s"></i><i class="spark" style="--x:88%;--y:48%;--s:12px;--d:.04s"></i><i class="spark" style="--x:60%;--y:73%;--s:16px;--d:.16s"></i>
+    </div>
+  </div>
+
+  <div class="zoom-tools" aria-label="미리보기 크기">
+    <button class="tool" id="minus" aria-label="축소">−</button><button class="tool" id="plus" aria-label="확대">+</button><button class="tool" id="fit" aria-label="확대 초기화">↺</button>
+  </div>
+
+  <aside class="floating-panel" id="floatingPanel" aria-label="캐릭터 옵션">
+    <div class="panel-top">
+      <nav class="tabs" role="tablist" aria-label="커스텀 카테고리">
+        <button class="tab active" data-tab="hair" role="tab" aria-selected="true" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 11c0-5 2.8-8 7-8s7 3 7 8v7M5 12c3-1 5-3 6-6 2 3 4 4 8 5"/></svg><span>헤어</span></button>
+        <button class="tab" data-tab="eyes" role="tab" aria-selected="false" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-5 9.5-5 9.5 5 9.5 5-3.5 5-9.5 5-9.5-5-9.5-5Z"/><circle cx="12" cy="12" r="2.4"/></svg><span>눈</span></button>
+      </nav>
+      <button class="panel-collapse" id="panelCollapse" type="button" aria-label="옵션 패널 접기">⌄</button>
+      <div class="name-field"><label for="userName">이름</label><input id="userName" type="text" maxlength="12" autocomplete="off" placeholder="캐릭터 이름" aria-describedby="nameHint"></div>
+      <span id="nameHint" hidden>입력한 이름이 캐릭터 머리 위에 표시됩니다.</span>
+    </div>
+    <div class="panel-scroll">
+      <div class="control-row">
+        <div><h2 id="styleHeading">헤어 스타일</h2><div class="count" id="styleCount">남 7종 · 전체 14종</div></div>
+        <div class="gender" aria-label="헤어 성별 선택"><button class="active" data-gender="m" aria-pressed="true">남</button><button data-gender="f" aria-pressed="false">여</button></div>
+      </div>
+      <div class="styles" id="styles" role="listbox" aria-label="스타일 선택"></div>
+      <section class="block" aria-label="색상 선택">
+        <div class="block-head"><h2 id="colorHeading">헤어 색상</h2><output id="colorName">빨강</output></div>
+        <div class="colors" id="colors"></div>
+      </section>
+      <details class="soon"><summary>다른 슬롯 · 준비 중</summary><div class="soon-list"><span>모자</span><span>상의</span><span>하의</span><span>신발</span><span>무기</span></div></details>
+    </div>
+    <div class="panel-foot"><button class="random" id="random">전체 랜덤</button><button class="reset" id="reset">초기화</button></div>
+  </aside>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</main>
+<script>
+(function(){
+  var data={
+    hair:{
+      m:[['m-spikycrop','스파이키컷'],['m-sidepart','옆가르마'],['m-twoblock','투블럭'],['m-bowl','바가지컷'],['m-layered','레이어드'],['m-centerpart','가운데가르마'],['m-wave','내추럴웨이브']],
+      f:[['f-bob','단발'],['f-bun','로우번'],['f-ponytail','하이포니테일'],['f-twintails','트윈테일'],['f-long','롱스트레이트'],['f-braid','사이드브레이드'],['f-wavybob','웨이브단발']]
+    },
+    eyes:{
+      m:[['m-basic','베이직'],['m-sharp','샤프'],['m-fierce','카리스마'],['m-sleepy','나른한']],
+      f:[['f-gentle','부드러운'],['f-cateye','캣아이'],['f-happy','웃는눈'],['f-doe','초롱초롱']]
+    }
+  };
+  var colorList=[
+    {name:'빨강',hue:0,swatch:'#ef4035'},{name:'주황',hue:30,swatch:'#ff871d'},{name:'노랑',hue:55,swatch:'#ffd933'},
+    {name:'초록',hue:120,swatch:'#39b75e'},{name:'파랑',hue:230,swatch:'#3888eb'},{name:'남색',hue:265,swatch:'#3943a8'},{name:'보라',hue:285,swatch:'#934bbb'}
+  ];
+  var initial={tab:'hair',hairGender:'m',eyesGender:'m',hair:'m-spikycrop',eyes:'m-basic',hairColor:0,eyesColor:0,zoom:1};
+  var state=Object.assign({},initial);
+  var styles=document.getElementById('styles'),colors=document.getElementById('colors');
+  var hairLayer=document.getElementById('hairLayer'),eyeLayer=document.getElementById('eyeLayer'),stack=document.getElementById('avatarStack');
+  var sparkles=document.getElementById('sparkles'),toast=document.getElementById('toast'),nameInput=document.getElementById('userName'),nametag=document.getElementById('nametag');
+  var stage=document.querySelector('.stage'),floatingPanel=document.getElementById('floatingPanel'),panelCollapse=document.getElementById('panelCollapse'),mobileQuery=window.matchMedia('(max-width:700px)');
+  function genderKey(){return state.tab==='hair'?'hairGender':'eyesGender'}
+  function setPanelOpen(open){
+    floatingPanel.classList.toggle('mobile-open',open);stage.classList.toggle('panel-open',open);
+    document.querySelectorAll('.tab[data-tab]').forEach(function(tab){tab.setAttribute('aria-expanded',mobileQuery.matches&&open?'true':'false')});
+  }
+  function notify(text){toast.textContent=text;toast.classList.add('show');clearTimeout(window.customToast);window.customToast=setTimeout(function(){toast.classList.remove('show')},900)}
+  function sparkle(){sparkles.classList.remove('play');void sparkles.offsetWidth;sparkles.classList.add('play')}
+  function renderStyles(){
+    var gender=state[genderKey()],current=state[state.tab];styles.innerHTML='';
+    data[state.tab][gender].forEach(function(item,index){
+      var button=document.createElement('button');button.className='style-card'+(item[0]===current?' active':'');button.setAttribute('role','option');button.setAttribute('aria-selected',item[0]===current?'true':'false');button.setAttribute('aria-label',item[1]);
+      button.innerHTML='<img src="assets/cc-web/thumbs/'+(state.tab==='hair'?'hair-':'eyes-')+item[0]+'.webp" alt=""><span class="no">'+String(index+1).padStart(2,'0')+'</span>';
+      button.addEventListener('click',function(){state[state.tab]=item[0];updateLayers();renderStyles();sparkle();notify(item[1]+' 적용')});styles.appendChild(button);
+    });
+    document.getElementById('styleCount').textContent=(gender==='m'?'남 ':'여 ')+data[state.tab][gender].length+'종 · 전체 '+(data[state.tab].m.length+data[state.tab].f.length)+'종';
+  }
+  function renderColors(){
+    var selected=state.tab==='hair'?state.hairColor:state.eyesColor;colors.innerHTML='';
+    colorList.forEach(function(color,index){var b=document.createElement('button');b.className='color'+(selected===index?' active':'');b.style.setProperty('--swatch',color.swatch);b.setAttribute('aria-label',color.name);b.setAttribute('aria-pressed',selected===index?'true':'false');b.addEventListener('click',function(){if(state.tab==='hair')state.hairColor=index;else state.eyesColor=index;updateLayers();renderColors();sparkle();notify(color.name+' 적용')});colors.appendChild(b)});
+    document.getElementById('colorName').textContent=colorList[selected].name;
+  }
+  function updateLayers(){
+    hairLayer.src='assets/cc-web/hair/hair-'+state.hair+'.webp';eyeLayer.src='assets/cc-web/eyes/eyes-'+state.eyes+'.webp';
+    hairLayer.style.setProperty('--hue',colorList[state.hairColor].hue+'deg');eyeLayer.style.setProperty('--hue',colorList[state.eyesColor].hue+'deg');
+  }
+  function renderPanel(){
+    var isHair=state.tab==='hair';document.getElementById('styleHeading').textContent=isHair?'헤어 스타일':'눈 스타일';document.getElementById('colorHeading').textContent=isHair?'헤어 색상':'눈 색상';
+    var key=genderKey();document.querySelectorAll('.gender button').forEach(function(b){var active=b.dataset.gender===state[key];b.classList.toggle('active',active);b.setAttribute('aria-pressed',active?'true':'false')});
+    document.querySelector('.gender').setAttribute('aria-label',(isHair?'헤어':'눈')+' 성별 선택');renderStyles();renderColors();
+  }
+  document.querySelectorAll('.tab[data-tab]').forEach(function(tab){tab.addEventListener('click',function(){if(mobileQuery.matches&&!floatingPanel.classList.contains('mobile-open'))setPanelOpen(true);state.tab=tab.dataset.tab;document.querySelectorAll('.tab[data-tab]').forEach(function(t){var active=t===tab;t.classList.toggle('active',active);t.setAttribute('aria-selected',active?'true':'false')});renderPanel()})});
+  panelCollapse.addEventListener('click',function(){setPanelOpen(false)});
+  if(mobileQuery.addEventListener)mobileQuery.addEventListener('change',function(){setPanelOpen(false)});else mobileQuery.addListener(function(){setPanelOpen(false)});
+  document.querySelectorAll('.gender button').forEach(function(button){button.addEventListener('click',function(){var key=genderKey();state[key]=button.dataset.gender;var list=data[state.tab][state[key]],exists=list.some(function(x){return x[0]===state[state.tab]});if(!exists)state[state.tab]=list[0][0];updateLayers();renderPanel();sparkle();notify((button.dataset.gender==='m'?'남':'여')+' 스타일')})});
+  nameInput.addEventListener('input',function(){var value=nameInput.value.trim();nametag.textContent=value||'이름 없음';nametag.classList.toggle('empty',!value)});
+  document.getElementById('random').addEventListener('click',function(){['hair','eyes'].forEach(function(type){var gender=Math.random()<.5?'m':'f';state[type+'Gender']=gender;var list=data[type][gender];state[type]=list[Math.floor(Math.random()*list.length)][0];state[type+'Color']=Math.floor(Math.random()*colorList.length)});updateLayers();renderPanel();sparkle();notify('새 조합 완성')});
+  document.getElementById('reset').addEventListener('click',function(){state=Object.assign({},initial);nameInput.value='';nametag.textContent='이름 없음';nametag.classList.add('empty');stack.style.setProperty('--zoom',1);document.querySelectorAll('.tab[data-tab]').forEach(function(t){var active=t.dataset.tab==='hair';t.classList.toggle('active',active);t.setAttribute('aria-selected',active?'true':'false')});updateLayers();renderPanel();sparkle();notify('기본 조합으로 복원')});
+  document.getElementById('plus').addEventListener('click',function(){state.zoom=Math.min(1.45,state.zoom+.1);stack.style.setProperty('--zoom',state.zoom)});
+  document.getElementById('minus').addEventListener('click',function(){state.zoom=Math.max(.65,state.zoom-.1);stack.style.setProperty('--zoom',state.zoom)});
+  document.getElementById('fit').addEventListener('click',function(){state.zoom=1;stack.style.setProperty('--zoom',1)});
+  updateLayers();renderPanel();
+})();
+</script>
+</body>
+</html>

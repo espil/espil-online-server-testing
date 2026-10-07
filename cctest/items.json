@@ -1,0 +1,153 @@
+[
+  {
+    "id": "base_bottom_unisex",
+    "name": "기본 캐주얼 반바지",
+    "layer": "bottom",
+    "textureUrl": "assets/bottom/base_bottom_unisex.png"
+  },
+  {
+    "id": "bottom_jeans",
+    "layer": "bottom",
+    "name": "청바지",
+    "textureUrl": "assets/v2/bottoms/bottom_jeans.png"
+  },
+  {
+    "id": "bottom_shorts",
+    "layer": "bottom",
+    "name": "반바지",
+    "textureUrl": "assets/v2/bottoms/bottom_shorts.png"
+  },
+  {
+    "id": "cape_red",
+    "layer": "cape",
+    "name": "빨간 망토",
+    "prefabUrl": "assets/v2/capes/cape_red.glb"
+  },
+  {
+    "id": "base_face_unisex",
+    "name": "기본 모험가 얼굴",
+    "layer": "face",
+    "textureUrl": "assets/face/base_face_unisex.png"
+  },
+  {
+    "id": "face_cool",
+    "layer": "face",
+    "name": "시크",
+    "textureUrl": "assets/v2/faces/face_cool.png"
+  },
+  {
+    "id": "face_cute",
+    "layer": "face",
+    "name": "큐트",
+    "textureUrl": "assets/v2/faces/face_cute.png"
+  },
+  {
+    "id": "face_happy",
+    "layer": "face",
+    "name": "해피",
+    "textureUrl": "assets/v2/faces/face_happy.png"
+  },
+  {
+    "id": "base_hair_unisex",
+    "name": "기본 단정 숏컷",
+    "layer": "hair",
+    "prefabUrl": "assets/hair/base_hair_unisex.glb",
+    "offset": {
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ]
+    }
+  },
+  {
+    "id": "hair_bob",
+    "layer": "hair",
+    "name": "단발",
+    "prefabUrl": "assets/v2/hair/hair_bob.glb"
+  },
+  {
+    "id": "hair_long",
+    "layer": "hair",
+    "name": "긴생머리",
+    "prefabUrl": "assets/v2/hair/hair_long.glb"
+  },
+  {
+    "id": "hair_spiky",
+    "layer": "hair",
+    "name": "스파이키",
+    "prefabUrl": "assets/v2/hair/hair_spiky.glb"
+  },
+  {
+    "id": "hair_twintail",
+    "layer": "hair",
+    "name": "트윈테일",
+    "prefabUrl": "assets/v2/hair/hair_twintail.glb"
+  },
+  {
+    "hidesHair": true,
+    "id": "hat_cap",
+    "layer": "hat",
+    "name": "볼캡",
+    "prefabUrl": "assets/v2/hats/hat_cap.glb"
+  },
+  {
+    "hidesHair": false,
+    "id": "hat_crown",
+    "layer": "hat",
+    "name": "왕관",
+    "prefabUrl": "assets/v2/hats/hat_crown.glb"
+  },
+  {
+    "id": "hat_slime",
+    "name": "슬라임 모자",
+    "layer": "hat",
+    "prefabUrl": "assets/hat/hat_slime.glb",
+    "offset": {
+      "position": [
+        0,
+        0.28,
+        -0.05
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ]
+    },
+    "hidesHair": true
+  },
+  {
+    "id": "base_top_unisex",
+    "name": "기본 파스텔 티셔츠",
+    "layer": "top",
+    "textureUrl": "assets/top/base_top_unisex.png"
+  },
+  {
+    "id": "top_hoodie",
+    "layer": "top",
+    "name": "후드",
+    "textureUrl": "assets/v2/tops/top_hoodie.png"
+  },
+  {
+    "id": "top_tshirt",
+    "layer": "top",
+    "name": "티셔츠",
+    "textureUrl": "assets/v2/tops/top_tshirt.png"
+  }
+]

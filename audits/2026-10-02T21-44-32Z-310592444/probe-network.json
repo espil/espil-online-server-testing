@@ -1,0 +1,32 @@
+{
+  "probe_transport_ledger_active": true,
+  "external_requests": [
+    {
+      "url": "https://fonts.googleapis.com/css2?family=Manrope:wght@500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap",
+      "method": "GET",
+      "resource_type": "stylesheet"
+    }
+  ],
+  "external_requests_dropped": 0,
+  "external_requests_dropped_data_bearing": 0,
+  "transport_connections": [
+    {
+      "host": "artifact-capture.invalid",
+      "port": 443,
+      "connects": 1,
+      "bytes_up": 2002,
+      "bytes_down": 1243
+    },
+    {
+      "host": "fonts.googleapis.com",
+      "port": 443,
+      "connects": 1,
+      "bytes_up": 0,
+      "bytes_down": 0,
+      "policy_denied": true
+    }
+  ],
+  "transport_udp_attempts": 0,
+  "transport_overflow": 0,
+  "unexplained_transport_hosts": []
+}

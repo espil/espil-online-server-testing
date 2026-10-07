@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Slime Hat Preview</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<style>body{margin:0;background:#2a2a3e;overflow:hidden}canvas{display:block}#info{position:fixed;top:10px;left:10px;color:#fff;font-family:monospace;background:rgba(0,0,0,.6);padding:8px}</style>
+</head><body>
+<div id="info">Loading slime hat...</div>
+<script>
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x2a2a3e);
+const camera = new THREE.PerspectiveCamera(40, innerWidth/innerHeight, 0.1, 100);
+camera.position.set(1.5, 1.2, 2.5);
+camera.lookAt(0, 0.3, 0);
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+const d = new THREE.DirectionalLight(0xffffff, 1.0);
+d.position.set(3, 5, 4);
+scene.add(d);
+// Turntable
+let angle = 0;
+new THREE.GLTFLoader().load(
+  'https://raw.githubusercontent.com/espil/espil-online/main/assets/hat/hat_slime.glb',
+  gltf => {
+    const m = gltf.scene;
+    scene.add(m);
+    const box = new THREE.Box3().setFromObject(m);
+    const c = box.getCenter(new THREE.Vector3());
+    const s = box.getSize(new THREE.Vector3());
+    m.position.sub(c);
+    const maxDim = Math.max(s.x, s.y, s.z);
+    camera.position.setLength(maxDim * 2.2);
+    document.getElementById('info').textContent = 'Slime Hat - drag to rotate';
+    // Auto-rotate
+    (function anim(){
+      requestAnimationFrame(anim);
+      angle += 0.01;
+      m.rotation.y = angle;
+      renderer.render(scene, camera);
+    })();
+  },
+  undefined,
+  e => document.getElementById('info').textContent = 'Error: ' + e.message
+);
+// Drag rotate
+let dragging = false, lx = 0;
+renderer.domElement.addEventListener('pointerdown', e => { dragging = true; lx = e.clientX; });
+window.addEventListener('pointermove', e => { if (dragging) { angle += (e.clientX - lx) * 0.01; lx = e.clientX; } });
+window.addEventListener('pointerup', () => dragging = false);
+</script></body></html>

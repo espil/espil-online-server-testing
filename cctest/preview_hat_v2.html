@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Slime Hat v2</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<style>body{margin:0;background:#2a2a3e;overflow:hidden}canvas{display:block}#info{position:fixed;top:10px;left:10px;color:#fff;font-family:monospace;background:rgba(0,0,0,.6);padding:8px}</style>
+</head><body>
+<div id="info">Loading...</div>
+<script>
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x2a2a3e);
+const camera = new THREE.PerspectiveCamera(40, innerWidth/innerHeight, 0.1, 100);
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+const d = new THREE.DirectionalLight(0xffffff, 1.0);
+d.position.set(3, 5, 4);
+scene.add(d);
+let angle = 0, model = null;
+new THREE.GLTFLoader().load(
+  'https://raw.githubusercontent.com/espil/espil-online/main/assets/hat/hat_slime_v2.glb',
+  gltf => {
+    model = gltf.scene;
+    scene.add(model);
+    const box = new THREE.Box3().setFromObject(model);
+    const c = box.getCenter(new THREE.Vector3());
+    const s = box.getSize(new THREE.Vector3());
+    model.position.sub(c);
+    camera.position.setLength(Math.max(s.x, s.y, s.z) * 2.2);
+    camera.lookAt(0, 0, 0);
+    document.getElementById('info').textContent = 'Slime Hat v2 — drag to rotate';
+    (function anim(){ requestAnimationFrame(anim); angle += 0.01; model.rotation.y = angle; renderer.render(scene, camera); })();
+  },
+  undefined,
+  e => document.getElementById('info').textContent = 'Error: ' + e.message
+);
+let dragging = false, lx = 0;
+renderer.domElement.addEventListener('pointerdown', e => { dragging = true; lx = e.clientX; });
+window.addEventListener('pointermove', e => { if (dragging) { angle += (e.clientX - lx) * 0.01; lx = e.clientX; } });
+window.addEventListener('pointerup', () => dragging = false);
+</script></body></html>

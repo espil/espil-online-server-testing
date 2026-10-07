@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sprite Sheets Viewer</title>
+<style>
+body { background:#1a1a2e; color:#eee; font-family:sans-serif; margin:0; padding:20px; }
+h2 { color:#4ecdc4; margin-top:30px; }
+.sheet { background:#222; border-radius:8px; padding:10px; margin:10px 0; overflow-x:auto; }
+.sheet img { max-width:100%; image-rendering:pixelated; }
+.layer-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:10px; }
+.meta { font-size:12px; color:#888; }
+</style>
+</head>
+<body>
+<h1>2.5D Sprite Sheets</h1>
+<p class="meta">Pink Spiky Warrior Hair | Blue Wizard Robe | Anime Eyes | 12-frame walk + 8-frame idle</p>
+
+<h2>Walk Cycle (12 frames)</h2>
+<div class="sheet"><img src="walk_base.png" alt="walk base"></div>
+<div class="layer-grid">
+<div class="sheet"><h3>Hair</h3><img src="walk_hair.png"></div>
+<div class="sheet"><h3>Eyes (blink 3,7,11)</h3><img src="walk_eyes.png"></div>
+<div class="sheet"><h3>Robe</h3><img src="walk_robe.png"></div>
+</div>
+
+<h2>Idle (8 frames)</h2>
+<div class="sheet"><img src="idle_base.png" alt="idle base"></div>
+<div class="layer-grid">
+<div class="sheet"><h3>Hair</h3><img src="idle_hair.png"></div>
+<div class="sheet"><h3>Eyes (blink 3,7)</h3><img src="idle_eyes.png"></div>
+<div class="sheet"><h3>Robe</h3><img src="idle_robe.png"></div>
+</div>
+
+<h2>Frame Data</h2>
+<p><a href="walk.json" style="color:#4ecdc4">walk.json</a> | <a href="idle.json" style="color:#4ecdc4">idle.json</a></p>
+</body>
+</html>

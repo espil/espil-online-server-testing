@@ -1,0 +1,876 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="dark" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&amp;display=swap" rel="stylesheet" />
+  <title>ESPIL Online — Earth</title>
+  <style>
+    :root {
+      color-scheme:dark;
+      --space:#010306;
+      --ink:#f3f7f3;
+      --muted:#8fa5a7;
+      --signal:#86eee4;
+      --line:rgba(169,226,222,.2);
+    }
+    * { box-sizing:border-box; }
+    html,body { width:100%; height:100%; margin:0; overflow:hidden; overscroll-behavior:none; overscroll-behavior-y:none; background:var(--space); }
+    body { position:fixed; inset:0; color:var(--ink); font-family:"Manrope",sans-serif; touch-action:none; -webkit-overflow-scrolling:auto; }
+    button,canvas { -webkit-tap-highlight-color:transparent; }
+    .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+
+    .earth-frame {
+      position:relative;
+      width:100%;
+      height:100svh;
+      min-height:420px;
+      overflow:hidden;
+      isolation:isolate;
+      background:
+        radial-gradient(circle at 50% 49%,rgba(16,45,57,.35) 0,rgba(4,13,19,.15) 31%,rgba(1,3,6,0) 59%),
+        var(--space);
+      touch-action:none;
+      overscroll-behavior:none;
+    }
+    #globe-canvas { position:absolute; inset:0; display:block; width:100%; height:100%; outline:none; cursor:grab; touch-action:none; overscroll-behavior:none; }
+    #globe-canvas.is-dragging { cursor:grabbing; }
+    #globe-canvas:focus-visible { outline:1px solid var(--signal); outline-offset:-6px; }
+    .city-readout {
+      position:absolute;
+      z-index:2;
+      left:50%;
+      bottom:max(16px,env(safe-area-inset-bottom));
+      width:min(460px,calc(100% - 28px));
+      transform:translateX(-50%);
+      padding:10px 18px 9px;
+      border:1px solid rgba(134,238,228,.26);
+      border-radius:18px;
+      color:var(--ink);
+      background:linear-gradient(180deg,rgba(1,9,13,.94),rgba(1,5,8,.82));
+      box-shadow:0 0 0 1px rgba(0,0,0,.8) inset,0 16px 48px rgba(0,0,0,.48),0 0 28px rgba(81,217,208,.08);
+      text-align:center;
+      text-shadow:0 2px 16px #000;
+      pointer-events:auto;
+      overflow:hidden;
+    }
+    .city-readout::before,.city-readout::after {
+      content:"";
+      position:absolute;
+      z-index:3;
+      left:10px;
+      right:10px;
+      height:1px;
+      pointer-events:none;
+      background:linear-gradient(90deg,transparent,var(--signal),transparent);
+      box-shadow:0 0 10px rgba(134,238,228,.68);
+    }
+    .city-readout::before { top:72px; }
+    .city-readout::after { top:111px; }
+    .city-list {
+      position:relative;
+      height:165px;
+      overflow-y:auto;
+      overflow-x:hidden;
+      padding:62px 0;
+      scroll-snap-type:y mandatory;
+      scrollbar-width:none;
+      mask-image:linear-gradient(to bottom,transparent 0,#000 24%,#000 76%,transparent 100%);
+      -webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 24%,#000 76%,transparent 100%);
+      overscroll-behavior:contain;
+      touch-action:pan-y;
+    }
+    .city-list::-webkit-scrollbar { display:none; }
+    .city-name {
+      appearance:none;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      width:100%;
+      height:40px;
+      border:0;
+      padding:0 16px;
+      color:rgba(199,225,225,.36);
+      background:none;
+      font:600 .76rem/1 "Manrope",sans-serif;
+      letter-spacing:.12em;
+      cursor:pointer;
+      scroll-snap-align:center;
+      transition:color .18s ease,font-size .18s ease,text-shadow .18s ease,opacity .18s ease;
+      white-space:nowrap;
+    }
+    .city-name:hover,.city-name:focus-visible { color:rgba(221,255,252,.76); outline:none; }
+    .city-name.is-centered,.city-name.is-active {
+      color:#eafffd;
+      font-size:clamp(1rem,3.2vw,1.34rem);
+      font-weight:800;
+      letter-spacing:.16em;
+      text-shadow:0 0 7px rgba(181,255,248,.98),0 0 22px rgba(80,232,220,.78),0 0 42px rgba(25,174,164,.52);
+    }
+    .city-name.is-centered::before { content:"◆"; margin-right:10px; color:var(--signal); font-size:.58em; filter:drop-shadow(0 0 7px var(--signal)); }
+    .city-name.is-centered::after { content:"◆"; margin-left:10px; color:var(--signal); font-size:.58em; filter:drop-shadow(0 0 7px var(--signal)); }
+    .city-name.is-local { color:rgba(181,255,248,.62); }
+    .city-name.is-local:not(.is-centered)::before { content:"•"; margin-right:7px; color:var(--signal); }
+    .city-message {
+      min-height:1.2em;
+      margin-top:3px;
+      color:rgba(181,255,248,.74);
+      font:600 .66rem/1.2 "Manrope",sans-serif;
+      letter-spacing:.1em;
+    }
+    .city-message:empty::before { content:"SCROLL TO SELECT A CITY"; opacity:.62; }
+    .city-clock {
+      position:absolute;
+      z-index:4;
+      top:10px;
+      right:14px;
+      color:rgba(211,255,251,.76);
+      font:700 .66rem/1 "Manrope",sans-serif;
+      font-variant-numeric:tabular-nums;
+      letter-spacing:.14em;
+      text-shadow:0 0 10px rgba(80,232,220,.66);
+      pointer-events:none;
+    }
+    .city-phase {
+      display:none;
+      min-height:96px;
+      padding:24px 8px 4px;
+      align-items:center;
+      justify-content:center;
+      gap:16px;
+    }
+    .city-readout.is-city { width:min(520px,calc(100% - 28px)); }
+    .city-readout.is-city::before,.city-readout.is-city::after { display:none; }
+    .city-readout.is-city .city-list { display:none; }
+    .city-readout.is-city .city-phase { display:flex; }
+    .city-phase-name {
+      margin:0;
+      color:#eafffd;
+      font:800 clamp(1.08rem,3.2vw,1.5rem)/1.1 "Manrope",sans-serif;
+      letter-spacing:.12em;
+      text-shadow:0 0 8px rgba(181,255,248,.92),0 0 25px rgba(80,232,220,.54);
+    }
+    .city-return {
+      appearance:none;
+      border:1px solid rgba(134,238,228,.46);
+      border-radius:999px;
+      padding:9px 13px;
+      color:#ddfffc;
+      background:rgba(10,34,38,.72);
+      font:700 .65rem/1 "Manrope",sans-serif;
+      letter-spacing:.1em;
+      cursor:pointer;
+      box-shadow:0 0 15px rgba(80,232,220,.12);
+    }
+    .city-return:hover,.city-return:focus-visible { border-color:var(--signal); background:rgba(22,65,68,.78); outline:none; }
+    @media (max-width:640px) {
+      .earth-frame { min-height:360px; }
+      .city-readout { bottom:max(8px,env(safe-area-inset-bottom)); width:calc(100% - 18px); padding:8px 10px 8px; border-radius:14px; }
+      .city-list { height:145px; padding:52px 0; }
+      .city-name { height:40px; }
+      .city-readout::before { top:60px; }
+      .city-readout::after { top:99px; }
+      .city-clock { top:8px; right:10px; font-size:.61rem; }
+      .city-phase { min-height:92px; padding-top:25px; gap:10px; flex-wrap:wrap; }
+      .city-phase-name { width:100%; }
+      .city-return { padding:8px 12px; }
+    }
+    @media (prefers-reduced-motion:reduce) {
+      #globe-canvas { scroll-behavior:auto; }
+    }
+  </style>
+</head>
+<body>
+  <main class="earth-frame" id="earth-frame">
+    <canvas id="globe-canvas" role="application" tabindex="0" aria-label="Interactive fixed Earth with selectable city landmarks. Drag to orbit the camera, scroll to zoom, or choose a city for a tilted navigation view."></canvas>
+    <div class="city-readout" id="city-status">
+      <time class="city-clock" id="city-clock" aria-label="Local time"></time>
+      <div class="city-list" id="city-list" aria-label="City selector. Scroll the reel and choose the centered city."></div>
+      <div class="city-phase" id="city-phase" aria-hidden="true">
+        <h2 class="city-phase-name" id="city-phase-name"></h2>
+        <button class="city-return" id="city-return" type="button">RETURN TO EARTH</button>
+      </div>
+      <div class="city-message" id="city-message" aria-live="polite">Loading Earth surface…</div>
+    </div>
+    <span class="sr-only">Drag to orbit the camera around the fixed Earth. Scroll to move closer or farther away. Select a city landmark or city name to approach its boundary in a tilted, forward-looking navigation view.</span>
+  </main>
+
+  <script src="assets/three.min.js"></script>
+  <script>
+  (function(){
+    var reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var status=document.getElementById('city-message');
+    var clock=document.getElementById('city-clock');
+    var cityList=document.getElementById('city-list');
+    var cityPhasePanel=document.getElementById('city-phase');
+    var cityPhaseName=document.getElementById('city-phase-name');
+    var cityReturn=document.getElementById('city-return');
+    var frame=document.getElementById('earth-frame');
+    var canvas=document.getElementById('globe-canvas');
+    function updateClock(){
+      var now=new Date();
+      clock.dateTime=now.toISOString();
+      clock.textContent=now.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+      clock.setAttribute('aria-label','Local time '+clock.textContent);
+    }
+    updateClock();
+    window.setInterval(updateClock,1000);
+    if(!window.THREE||!frame||!canvas){status.textContent='Earth could not be rendered on this device';return;}
+
+    var scene=new THREE.Scene();
+    scene.fog=new THREE.FogExp2(0x010306,.0085);
+    var camera=new THREE.PerspectiveCamera(38,1,.01,100);
+    camera.position.set(0,0,6.6);
+    var renderer=new THREE.WebGLRenderer({canvas:canvas,alpha:true,antialias:true,powerPreference:'high-performance'});
+    renderer.setClearColor(0x010306,1);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+    renderer.outputEncoding=THREE.sRGBEncoding;
+    canvas.addEventListener('webglcontextlost',function(event){
+      event.preventDefault();
+      textureFailed=true;
+      status.textContent='Earth rendering paused — Edge lost its graphics context; enable hardware acceleration, then refresh';
+    },false);
+
+    function seeded(seed){return function(){seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};}
+    var random=seeded(8273641);
+    function gaussian(){return Math.sqrt(-2*Math.log(Math.max(.000001,random())))*Math.cos(2*Math.PI*random());}
+
+    /* Equatorial coordinates use Earth's north axis as +Y, so the sky stays fixed while the camera moves. */
+    var starSphere=new THREE.Group();
+    scene.add(starSphere);
+    var starPositions=[],starColors=[],starSizes=[],brightStars=[];
+    function addStar(raHours,decDegrees,radius,magnitude,temp,isCatalogued){
+      var ra=raHours*Math.PI/12,dec=decDegrees*Math.PI/180;
+      var cosD=Math.cos(dec),x=radius*cosD*Math.cos(ra),y=radius*Math.sin(dec),z=radius*cosD*Math.sin(ra);
+      starPositions.push(x,y,z);
+      var cool=Math.max(0,Math.min(1,(temp-3200)/7000));
+      starColors.push(.84+.16*cool,.72+.24*cool,1-.2*cool);
+      var size=Math.max(1.15,5.8-magnitude*1.13);
+      starSizes.push(size);
+      if(isCatalogued)brightStars.push({x:x,y:y,z:z,size:size});
+    }
+    /* Equatorial coordinates, apparent magnitudes and approximate temperatures for the brightest stars. */
+    var brightCatalog=[
+      [6.752,-16.716,-1.46,9940],[6.399,-52.696,-.74,7350],[14.261,19.182,-.05,4290],[18.615,38.784,.03,9600],
+      [5.279,45.998,.08,4970],[5.242,-8.202,.13,12100],[7.655,5.225,.34,6530],[1.628,-57.237,.46,15000],
+      [5.919,7.407,.50,3500],[14.063,-60.373,.61,25000],[12.443,-63.099,.76,28000],[19.846,8.868,.77,7550],
+      [4.599,16.509,.86,3900],[13.420,-11.161,.97,25300],[16.490,-26.432,.96,3660],[7.755,28.026,1.14,4660],
+      [22.961,-29.622,1.16,8590],[20.691,45.280,1.25,8520],[12.795,-59.689,1.25,27000],[10.139,11.967,1.35,12460],
+      [6.977,-28.972,1.50,22800],[7.577,31.888,1.58,8840],[12.519,-57.113,1.63,3620],[17.561,-37.104,1.62,25000],
+      [5.419,6.350,1.64,22000],[5.438,28.607,1.65,13800],[9.220,-69.717,1.67,15100],[5.604,-1.202,1.69,27500],
+      [22.137,-46.961,1.73,13800],[12.900,55.960,1.76,9400],[11.062,61.750,1.79,4660],[3.405,49.861,1.79,6350]
+    ];
+    var i;
+    brightCatalog.forEach(function(star){addStar(star[0],star[1],35+random()*5,star[2],star[3],true);});
+    /* A restrained faint-star bed supplies the unresolved background between catalogued guide stars. */
+    for(i=0;i<1200;i++){
+      addStar(random()*24,Math.asin(random()*2-1)*180/Math.PI,31+random()*14,2.1+Math.pow(random(),.4)*3.8,3400+random()*6500,false);
+    }
+    var milkyAxis=new THREE.Vector3(.33,.77,.54).normalize();
+    var helperA=new THREE.Vector3(0,1,0);
+    if(Math.abs(milkyAxis.dot(helperA))>.9)helperA.set(1,0,0);
+    var bandU=new THREE.Vector3().crossVectors(milkyAxis,helperA).normalize();
+    var bandV=new THREE.Vector3().crossVectors(milkyAxis,bandU).normalize();
+    for(i=0;i<2350;i++){
+      var angle=random()*Math.PI*2;
+      var latitude=gaussian()*.075;
+      var dir=bandU.clone().multiplyScalar(Math.cos(angle)*Math.cos(latitude)).add(bandV.clone().multiplyScalar(Math.sin(angle)*Math.cos(latitude))).add(milkyAxis.clone().multiplyScalar(Math.sin(latitude))).normalize();
+      var radius=33+random()*13;
+      var x=dir.x*radius,y=dir.y*radius,z=dir.z*radius;
+      starPositions.push(x,y,z);
+      var warmth=random();
+      starColors.push(.78+.22*warmth,.82+.15*warmth,1-.1*warmth);
+      starSizes.push(.65+Math.pow(random(),4)*2.4);
+    }
+    var starGeometry=new THREE.BufferGeometry();
+    starGeometry.setAttribute('position',new THREE.Float32BufferAttribute(starPositions,3));
+    starGeometry.setAttribute('color',new THREE.Float32BufferAttribute(starColors,3));
+    starGeometry.setAttribute('aSize',new THREE.Float32BufferAttribute(starSizes,1));
+    var starMaterial=new THREE.ShaderMaterial({
+      vertexColors:true,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,
+      vertexShader:'attribute float aSize;varying vec3 vColor;void main(){vColor=color;vec4 mvPosition=modelViewMatrix*vec4(position,1.0);gl_PointSize=aSize*(230.0/-mvPosition.z);gl_Position=projectionMatrix*mvPosition;}',
+      fragmentShader:'varying vec3 vColor;void main(){float d=length(gl_PointCoord-vec2(.5));float core=smoothstep(.5,.02,d);float glow=smoothstep(.5,.12,d)*.55;gl_FragColor=vec4(vColor,core+glow);}'
+    });
+    starSphere.add(new THREE.Points(starGeometry,starMaterial));
+
+    var trailPositions=[];
+    brightStars.slice(0,120).forEach(function(star){
+      var radius=Math.sqrt(star.x*star.x+star.z*star.z),base=Math.atan2(star.z,star.x),span=.034;
+      for(var s=0;s<7;s++){
+        var a1=base-span/2+(span*s/7),a2=base-span/2+(span*(s+1)/7);
+        trailPositions.push(radius*Math.cos(a1),star.y,radius*Math.sin(a1),radius*Math.cos(a2),star.y,radius*Math.sin(a2));
+      }
+    });
+    var trailGeometry=new THREE.BufferGeometry();
+    trailGeometry.setAttribute('position',new THREE.Float32BufferAttribute(trailPositions,3));
+    starSphere.add(new THREE.LineSegments(trailGeometry,new THREE.LineBasicMaterial({color:0xaed5df,transparent:true,opacity:.11,blending:THREE.AdditiveBlending,depthWrite:false})));
+
+    /* The planet is fixed in the equatorial frame; only the camera orbits it. */
+    var earthSpin=new THREE.Group();
+    earthSpin.rotation.y=-.55;
+    scene.add(earthSpin);
+    /*
+      The visible colour comes from the local Blue Marble image. The sphere itself is also carved
+      in the vertex shader from NASA GEBCO land-elevation data (0–6400 m), with restrained vertical
+      exaggeration so mountain systems remain legible at globe scale. Explicit ImageLoader paths
+      avoid Edge/mobile texture-decoder differences; PNG remains the colour-map fallback.
+    */
+    var earthMaterial=new THREE.MeshPhongMaterial({color:0x4b7180,shininess:7,specular:0x173945});
+    var earth=new THREE.Mesh(new THREE.SphereGeometry(2,256,128),earthMaterial);
+    earthSpin.add(earth);
+    var textureReady=false,textureFailed=false,reliefReady=false,reliefFailed=false;
+    function idleStatus(){
+      if(textureFailed)return 'Earth surface could not load — refresh Edge or enable hardware acceleration';
+      if(reliefFailed)return 'Earth terrain could not load — showing the surface without relief';
+      if(!textureReady)return 'Loading Earth surface…';
+      if(!reliefReady)return 'Carving Earth terrain…';
+      return '';
+    }
+    status.textContent=idleStatus();
+    function makeDataTexture(image){
+      var texture=new THREE.Texture(image);
+      texture.minFilter=THREE.LinearFilter;
+      texture.magFilter=THREE.LinearFilter;
+      texture.generateMipmaps=false;
+      texture.anisotropy=Math.min(4,renderer.capabilities.getMaxAnisotropy());
+      texture.needsUpdate=true;
+      return texture;
+    }
+    function applyEarthImage(image){
+      var texture=makeDataTexture(image);
+      texture.encoding=THREE.sRGBEncoding;
+      earthMaterial.color.setHex(0xffffff);
+      earthMaterial.map=texture;
+      earthMaterial.needsUpdate=true;
+      textureReady=true;
+      textureFailed=false;
+      status.textContent=idleStatus();
+    }
+    function applyElevationImage(image){
+      /* Bake elevation into the mesh positions: the silhouette and lighting come from real geometry. */
+      var sampleCanvas=document.createElement('canvas');
+      sampleCanvas.width=image.naturalWidth||image.width;
+      sampleCanvas.height=image.naturalHeight||image.height;
+      var sampleContext=sampleCanvas.getContext('2d',{willReadFrequently:true});
+      sampleContext.drawImage(image,0,0);
+      var pixels=sampleContext.getImageData(0,0,sampleCanvas.width,sampleCanvas.height).data;
+      var positions=earth.geometry.attributes.position;
+      var uvs=earth.geometry.attributes.uv;
+      var normal=new THREE.Vector3();
+      for(var vertex=0;vertex<positions.count;vertex++){
+        var u=uvs.getX(vertex),v=uvs.getY(vertex);
+        var px=Math.max(0,Math.min(sampleCanvas.width-1,Math.round(u*(sampleCanvas.width-1))));
+        var py=Math.max(0,Math.min(sampleCanvas.height-1,Math.round((1-v)*(sampleCanvas.height-1))));
+        var elevationValue=pixels[(py*sampleCanvas.width+px)*4]/255;
+        normal.set(positions.getX(vertex),positions.getY(vertex),positions.getZ(vertex)).normalize().multiplyScalar(2+elevationValue*.064);
+        positions.setXYZ(vertex,normal.x,normal.y,normal.z);
+      }
+      positions.needsUpdate=true;
+      earth.geometry.computeVertexNormals();
+      earth.geometry.computeBoundingSphere();
+      /* The same NASA field adds fine slope detail between geometry vertices. */
+      var elevation=makeDataTexture(image);
+      earthMaterial.bumpMap=elevation;
+      earthMaterial.bumpScale=.018;
+      earthMaterial.needsUpdate=true;
+      reliefReady=true;
+      reliefFailed=false;
+      status.textContent=idleStatus();
+    }
+    function loadEarthImage(url,onFailure){new THREE.ImageLoader().load(url,applyEarthImage,undefined,onFailure);}
+    /* The revision query defeats a stale Edge cache; PNG avoids a failing JPEG decoder/upload path. */
+    loadEarthImage('assets/earth-blue-marble-2026.jpg?rev=edge-20261002-3',function(){
+      loadEarthImage('assets/earth-blue-marble-fallback.png?rev=edge-20261002-3',function(){
+        textureFailed=true;
+        status.textContent=idleStatus();
+      });
+    });
+    new THREE.ImageLoader().load('assets/earth-elevation-nasa.jpg?rev=terrain-20261002-1',applyElevationImage,undefined,function(){
+      reliefFailed=true;
+      status.textContent=idleStatus();
+    });
+    var atmosphere=new THREE.Mesh(new THREE.SphereGeometry(2.105,96,64),new THREE.ShaderMaterial({transparent:true,side:THREE.BackSide,blending:THREE.AdditiveBlending,depthWrite:false,vertexShader:'varying vec3 vNormal;void main(){vNormal=normalize(normalMatrix*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',fragmentShader:'varying vec3 vNormal;void main(){float f=pow(0.74-dot(vNormal,vec3(0.0,0.0,1.0)),2.7);gl_FragColor=vec4(0.20,0.69,0.92,0.42)*f;}'}));
+    earthSpin.add(atmosphere);
+    scene.add(new THREE.HemisphereLight(0x7896a3,0x02090c,.3));
+    var sunlight=new THREE.DirectionalLight(0xfff7e8,2.05);
+    scene.add(sunlight);
+    var sunDisc=new THREE.Mesh(new THREE.SphereGeometry(.18,28,28),new THREE.MeshBasicMaterial({color:0xfff4ce,fog:false}));
+    scene.add(sunDisc);
+    var worldSunDirection=new THREE.Vector3(1,0,0);
+    /* Phase two uses the same astronomical sun vector to tint the city sky from daylight through twilight to night. */
+    var skyUniforms={
+      sunDirection:{value:worldSunDirection.clone()},
+      upDirection:{value:new THREE.Vector3(0,1,0)},
+      daylight:{value:1}
+    };
+    var citySky=new THREE.Mesh(new THREE.SphereGeometry(27,64,40),new THREE.ShaderMaterial({
+      side:THREE.BackSide,depthWrite:false,fog:false,uniforms:skyUniforms,
+      vertexShader:'varying vec3 vWorld;void main(){vec4 world=modelMatrix*vec4(position,1.0);vWorld=world.xyz;gl_Position=projectionMatrix*viewMatrix*world;}',
+      fragmentShader:'uniform vec3 sunDirection;uniform vec3 upDirection;uniform float daylight;varying vec3 vWorld;void main(){vec3 ray=normalize(vWorld-cameraPosition);float h=clamp(dot(ray,normalize(upDirection)),0.0,1.0);vec3 nightH=vec3(.018,.045,.09);vec3 nightT=vec3(.004,.009,.025);vec3 dayH=vec3(.42,.68,.82);vec3 dayT=vec3(.035,.22,.48);vec3 base=mix(mix(nightH,nightT,pow(h,.55)),mix(dayH,dayT,pow(h,.48)),daylight);float sun=max(dot(ray,normalize(sunDirection)),0.0);base+=vec3(1.0,.56,.28)*pow(sun,56.0)*(1.0-daylight*.35);base+=vec3(1.0,.92,.7)*pow(sun,420.0);gl_FragColor=vec4(base,1.0);}'
+    }));
+    citySky.visible=false;
+    scene.add(citySky);
+    /* Recompute the subsolar point from UTC, including Earth rotation, so the terminator tracks real time. */
+    function updateSunPosition(){
+      var now=new Date();
+      var julian=now.getTime()/86400000+2440587.5;
+      var days=julian-2451545.0;
+      var meanLong=(280.460+0.9856474*days)%360;
+      var anomaly=(357.528+0.9856003*days)*Math.PI/180;
+      var ecliptic=(meanLong+1.915*Math.sin(anomaly)+.020*Math.sin(2*anomaly))*Math.PI/180;
+      var obliquity=(23.439-.0000004*days)*Math.PI/180;
+      var rightAscension=Math.atan2(Math.cos(obliquity)*Math.sin(ecliptic),Math.cos(ecliptic));
+      var declination=Math.asin(Math.sin(obliquity)*Math.sin(ecliptic));
+      var centuries=days/36525;
+      var sidereal=(280.46061837+360.98564736629*days+.000387933*centuries*centuries-centuries*centuries*centuries/38710000)*Math.PI/180;
+      var subsolarLongitude=rightAscension-sidereal;
+      worldSunDirection.set(
+        Math.cos(declination)*Math.cos(subsolarLongitude),
+        Math.sin(declination),
+        -Math.cos(declination)*Math.sin(subsolarLongitude)
+      ).applyQuaternion(earthSpin.quaternion).normalize();
+      sunlight.position.copy(worldSunDirection).multiplyScalar(10);
+      sunDisc.position.copy(worldSunDirection).multiplyScalar(29);
+      skyUniforms.sunDirection.value.copy(worldSunDirection);
+      if(navigationReady){
+        var solarAltitude=worldSunDirection.dot(navigationNormal);
+        skyUniforms.daylight.value=Math.max(0,Math.min(1,(solarAltitude+.13)/.34));
+      }
+    }
+    updateSunPosition();
+    window.setInterval(updateSunPosition,30000);
+
+    var cityData=[
+      ['Vancouver',49.2827,-123.1207,'sails','Canada Place sails'],['San Francisco',37.7749,-122.4194,'bridge','Golden Gate Bridge'],['Los Angeles',34.0522,-118.2437,'star','Hollywood star'],['Chicago',41.8781,-87.6298,'tower','Willis Tower'],['Mexico City',19.4326,-99.1332,'pyramid','Sun Pyramid'],['New York',40.7128,-74.006,'liberty','Statue of Liberty'],['Toronto',43.6532,-79.3832,'needle','CN Tower'],
+      ['Rio de Janeiro',-22.9068,-43.1729,'christ','Christ the Redeemer'],['São Paulo',-23.5505,-46.6333,'beam','MASP'],['Buenos Aires',-34.6037,-58.3816,'obelisk','Obelisk'],['London',51.5072,-.1276,'clock','Big Ben'],['Paris',48.8566,2.3522,'eiffel','Eiffel Tower'],['Madrid',40.4168,-3.7038,'tree','Bear and strawberry tree'],['Rome',41.9028,12.4964,'colosseum','Colosseum'],['Berlin',52.52,13.405,'gate','Brandenburg Gate'],['Moscow',55.7558,37.6173,'domes','Saint Basil domes'],
+      ['Lagos',6.5244,3.3792,'theatre','National Theatre'],['Nairobi',-1.2921,36.8219,'spire','KICC'],['Cairo',30.0444,31.2357,'pyramid','Great Pyramid'],['Cape Town',-33.9249,18.4241,'mountain','Table Mountain'],['Istanbul',41.0082,28.9784,'mosque','Blue Mosque'],['Dubai',25.2048,55.2708,'burj','Burj Khalifa'],['Mumbai',19.076,72.8777,'gateway','Gateway of India'],['Delhi',28.6139,77.209,'arch','India Gate'],
+      ['Singapore',1.3521,103.8198,'merlion','Merlion'],['Bangkok',13.7563,100.5018,'temple','Wat Arun'],['Shanghai',31.2304,121.4737,'pearl','Oriental Pearl Tower'],['Hong Kong',22.3193,114.1694,'junk','Harbour junk'],['Beijing',39.9042,116.4074,'temple','Temple of Heaven'],['Seoul',37.5665,126.978,'needle','N Seoul Tower'],['Tokyo',35.6762,139.6503,'torii','Torii gate'],['Manila',14.5995,120.9842,'sun','Philippine sun'],['Jakarta',-6.2088,106.8456,'obelisk','National Monument'],['Sydney',-33.8688,151.2093,'sails','Sydney Opera House'],['Melbourne',-37.8136,144.9631,'station','Flinders Street Station'],['Auckland',-36.8509,174.7645,'needle','Sky Tower']
+    ];
+    var markers=[],markerGroup=new THREE.Group();
+    earthSpin.add(markerGroup);
+    function latLon(lat,lon,r){var phi=(90-lat)*Math.PI/180,theta=(lon+180)*Math.PI/180;return new THREE.Vector3(-r*Math.sin(phi)*Math.cos(theta),r*Math.cos(phi),r*Math.sin(phi)*Math.sin(theta));}
+    var landmarkMats={
+      stone:new THREE.MeshPhongMaterial({color:0xc7d0cc,specular:0x445a61,shininess:36}),
+      pale:new THREE.MeshPhongMaterial({color:0xe8ddd0,specular:0x80949a,shininess:52}),
+      bronze:new THREE.MeshPhongMaterial({color:0x9e7650,specular:0xd8af73,shininess:70}),
+      steel:new THREE.MeshPhongMaterial({color:0x718c97,specular:0xd9ffff,shininess:92}),
+      glass:new THREE.MeshPhongMaterial({color:0x32808e,emissive:0x082f36,specular:0xc9ffff,shininess:110,transparent:true,opacity:.9}),
+      dark:new THREE.MeshPhongMaterial({color:0x17262b,specular:0x7feadd,shininess:76}),
+      gold:new THREE.MeshPhongMaterial({color:0xd3a83c,emissive:0x2d1900,specular:0xffe7a3,shininess:105}),
+      green:new THREE.MeshPhongMaterial({color:0x537f69,specular:0xa5d0bd,shininess:42}),
+      glow:new THREE.MeshBasicMaterial({color:0x8ff4e8,transparent:true,opacity:.82,depthWrite:false})
+    };
+    function landmarkModel(type){
+      var model=new THREE.Group();
+      function add(geometry,material,x,y,z,rx,ry,rz){
+        var mesh=new THREE.Mesh(geometry,material||landmarkMats.stone);
+        mesh.position.set(x||0,y||0,z||0);mesh.rotation.set(rx||0,ry||0,rz||0);model.add(mesh);return mesh;
+      }
+      function box(w,h,d,x,y,z,mat){return add(new THREE.BoxGeometry(w,h,d),mat,x,y,z);}
+      function cylinder(rt,rb,h,x,y,z,mat,segments){return add(new THREE.CylinderGeometry(rt,rb,h,segments||12),mat,x,y,z);}
+      function cone(r,h,x,y,z,mat,segments){return add(new THREE.ConeGeometry(r,h,segments||12),mat,x,y,z);}
+      function sphere(r,x,y,z,mat){return add(new THREE.SphereGeometry(r,12,8),mat,x,y,z);}
+      function rod(ax,ay,az,bx,by,bz,r,mat){
+        var a=new THREE.Vector3(ax,ay,az),b=new THREE.Vector3(bx,by,bz),mid=a.clone().add(b).multiplyScalar(.5),dir=b.clone().sub(a);
+        var mesh=add(new THREE.CylinderGeometry(r,r,dir.length(),7),mat,mid.x,mid.y,mid.z);
+        mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir.normalize());return mesh;
+      }
+      var base=cylinder(.46,.5,.12,0,.06,0,landmarkMats.dark,24);
+      var ring=add(new THREE.TorusGeometry(.41,.028,8,32),landmarkMats.glow,0,.125,0,Math.PI/2,0,0);
+      if(type==='pyramid'||type==='mountain'){
+        cone(.34,.82,0,.53,0,type==='mountain'?landmarkMats.stone:landmarkMats.pale,type==='mountain'?7:4);
+        if(type==='mountain'){cone(.22,.52,-.3,.35,.06,landmarkMats.stone,7);cone(.2,.46,.29,.32,.08,landmarkMats.stone,7);}
+      }else if(type==='sails'){
+        var sailA=cone(.28,.88,-.12,.56,0,landmarkMats.pale,4);sailA.scale.z=.23;sailA.rotation.z=-.22;
+        var sailB=cone(.34,1.06,.16,.64,.02,landmarkMats.pale,4);sailB.scale.z=.2;sailB.rotation.z=.26;
+        box(.75,.07,.3,0,.18,0,landmarkMats.steel);
+      }else if(type==='bridge'){
+        box(.12,.72,.13,-.27,.52,0,landmarkMats.bronze);box(.12,.72,.13,.27,.52,0,landmarkMats.bronze);
+        box(.8,.07,.16,0,.28,0,landmarkMats.steel);rod(-.42,.62,0,-.27,.84,0,.018,landmarkMats.pale);rod(-.27,.84,0,0,.34,0,.018,landmarkMats.pale);rod(0,.34,0,.27,.84,0,.018,landmarkMats.pale);rod(.27,.84,0,.42,.62,0,.018,landmarkMats.pale);
+      }else if(type==='eiffel'){
+        rod(-.3,.18,-.12,0,.98,0,.045,landmarkMats.bronze);rod(.3,.18,-.12,0,.98,0,.045,landmarkMats.bronze);rod(-.3,.18,.12,0,.98,0,.045,landmarkMats.bronze);rod(.3,.18,.12,0,.98,0,.045,landmarkMats.bronze);
+        box(.5,.06,.32,0,.42,0,landmarkMats.bronze);box(.28,.05,.24,0,.67,0,landmarkMats.bronze);
+      }else if(type==='needle'||type==='spire'||type==='burj'||type==='tower'||type==='pearl'||type==='obelisk'){
+        if(type==='tower'){box(.34,.72,.28,0,.54,0,landmarkMats.glass);box(.42,.08,.34,0,.89,0,landmarkMats.steel);rod(0,.91,0,0,1.13,0,.022,landmarkMats.gold);}
+        else if(type==='obelisk'){cone(.18,.95,0,.64,0,landmarkMats.pale,4);}
+        else if(type==='pearl'){cylinder(.045,.07,.96,0,.63,0,landmarkMats.steel,10);sphere(.19,0,.52,0,landmarkMats.glass);sphere(.12,0,.82,0,landmarkMats.glass);}
+        else {cone(type==='burj'?.2:.15,type==='burj'?1.28:1.02,0,type==='burj'?.78:.65,0,type==='burj'?landmarkMats.glass:landmarkMats.steel,type==='burj'?8:12);cylinder(.02,.025,.28,0,1.28,0,landmarkMats.gold,8);if(type==='needle')sphere(.2,0,.72,0,landmarkMats.glass);}
+      }else if(type==='liberty'||type==='christ'){
+        cylinder(.18,.24,.42,0,.34,0,landmarkMats.stone,10);box(.24,.43,.14,0,.69,0,type==='liberty'?landmarkMats.green:landmarkMats.pale);sphere(.12,0,.98,0,type==='liberty'?landmarkMats.green:landmarkMats.pale);
+        if(type==='christ'){rod(-.48,.82,0,.48,.82,0,.065,landmarkMats.pale);}else{rod(.08,.84,0,.28,1.18,0,.045,landmarkMats.green);cone(.07,.18,.31,1.25,0,landmarkMats.gold,8);}
+      }else if(type==='mosque'||type==='domes'||type==='temple'){
+        box(.62,.34,.46,0,.34,0,landmarkMats.pale);
+        if(type==='temple'){cone(.46,.28,0,.68,0,landmarkMats.bronze,6);cone(.36,.24,0,.87,0,landmarkMats.gold,6);}
+        else {sphere(.28,0,.58,0,landmarkMats.gold);box(.58,.18,.42,0,.42,0,landmarkMats.pale);for(var mi=-1;mi<=1;mi+=2){cylinder(.045,.06,.72,mi*.4,.51,0,landmarkMats.pale,10);cone(.09,.2,mi*.4,.96,0,landmarkMats.gold,10);}}
+      }else if(type==='colosseum'||type==='theatre'||type==='station'||type==='beam'||type==='gate'||type==='gateway'||type==='arch'){
+        if(type==='colosseum'){
+          cylinder(.46,.5,.52,0,.39,0,landmarkMats.stone,28);cylinder(.35,.35,.6,0,.44,0,new THREE.MeshBasicMaterial({color:0x071013}),28);
+        }else if(type==='theatre'){cylinder(.46,.46,.46,0,.37,0,landmarkMats.pale,24);sphere(.45,0,.57,0,landmarkMats.gold);box(.96,.48,.52,0,.72,.14,new THREE.MeshBasicMaterial({color:0x071013}));}
+        else if(type==='station'){box(.84,.47,.42,0,.4,0,landmarkMats.bronze);sphere(.22,0,.72,0,landmarkMats.gold);cylinder(.05,.05,.24,0,.92,0,landmarkMats.steel,8);}
+        else {box(.82,.72,.2,0,.52,0,landmarkMats.stone);box(.28,.48,.28,0,.42,.02,new THREE.MeshBasicMaterial({color:0x061014}));if(type==='gate'){for(var gi=-1;gi<=1;gi++)box(.09,.54,.3,gi*.25,.48,0,landmarkMats.stone);box(.95,.14,.34,0,.82,0,landmarkMats.bronze);}if(type==='beam')box(.9,.2,.36,0,.67,0,landmarkMats.glass);}
+      }else if(type==='junk'){
+        cylinder(.04,.04,.78,0,.59,0,landmarkMats.bronze,8);box(.78,.18,.3,0,.24,0,landmarkMats.bronze);var sail=cone(.33,.72,.2,.65,0,landmarkMats.pale,3);sail.rotation.z=-.2;sail.scale.z=.16;
+      }else if(type==='torii'){
+        box(.1,.88,.12,-.3,.57,0,landmarkMats.bronze);box(.1,.88,.12,.3,.57,0,landmarkMats.bronze);box(.84,.1,.16,0,.91,0,landmarkMats.bronze);box(1,.08,.14,0,1.05,0,landmarkMats.bronze);
+      }else if(type==='tree'){
+        cylinder(.08,.12,.52,0,.39,0,landmarkMats.bronze,10);sphere(.38,0,.79,0,landmarkMats.green);sphere(.2,-.25,.68,.05,landmarkMats.green);sphere(.2,.27,.7,-.03,landmarkMats.green);
+      }else if(type==='sun'||type==='star'){
+        sphere(.31,0,.54,0,landmarkMats.gold);for(var sr=0;sr<8;sr++){var sa=sr*Math.PI/4;rod(Math.cos(sa)*.34,.54+Math.sin(sa)*.34,0,Math.cos(sa)*.5,.54+Math.sin(sa)*.5,0,.025,landmarkMats.gold);}
+      }else if(type==='merlion'){
+        cylinder(.18,.28,.5,0,.39,0,landmarkMats.pale,12);sphere(.24,0,.78,0,landmarkMats.pale);cone(.16,.34,.2,.8,0,landmarkMats.pale,8);cylinder(.03,.03,.45,.36,.78,0,landmarkMats.glow,6).rotation.z=Math.PI/2;
+      }else {
+        box(.5,.64,.38,0,.47,0,landmarkMats.glass);cone(.34,.35,0,.95,0,landmarkMats.gold,8);
+      }
+      return model;
+    }
+
+    var cityStage=null,cityPhaseActive=false,cityPhaseFade=0,cityApproachStarted=0;
+    function destroyCityStage(){
+      if(!cityStage)return;
+      earthSpin.remove(cityStage);
+      var geometries=[],materials=[];
+      cityStage.traverse(function(item){
+        if(item.geometry&&geometries.indexOf(item.geometry)<0)geometries.push(item.geometry);
+        if(item.material){
+          var list=Array.isArray(item.material)?item.material:[item.material];
+          list.forEach(function(material){
+            var shared=false;
+            Object.keys(landmarkMats).forEach(function(key){if(landmarkMats[key]===material)shared=true;});
+            if(!shared&&materials.indexOf(material)<0)materials.push(material);
+          });
+        }
+      });
+      geometries.forEach(function(geometry){geometry.dispose();});
+      materials.forEach(function(material){material.dispose();});
+      cityStage=null;
+    }
+    function buildCityStage(marker){
+      destroyCityStage();
+      var seed=2166136261;
+      for(var ci=0;ci<marker.userData.name.length;ci++){seed^=marker.userData.name.charCodeAt(ci);seed=Math.imul(seed,16777619);}
+      function cityRandom(){seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;}
+      var stage=new THREE.Group(),normal=marker.position.clone().normalize();
+      var north=new THREE.Vector3(0,1,0).addScaledVector(normal,-normal.y);
+      if(north.lengthSq()<.0001)north.set(0,0,-1).addScaledVector(normal,normal.z);
+      north.normalize();
+      var east=new THREE.Vector3().crossVectors(normal,north).normalize();
+      var basis=new THREE.Matrix4().makeBasis(east,normal,north);
+      stage.quaternion.setFromRotationMatrix(basis);
+      stage.position.copy(normal).multiplyScalar(2.067);
+      stage.visible=false;
+      stage.userData.fadeMaterials=[];
+      function material(color,emissive,shininess){
+        var mat=new THREE.MeshPhongMaterial({color:color,emissive:emissive||0x000000,specular:0x8ed3d4,shininess:shininess||35,transparent:true,opacity:0});
+        stage.userData.fadeMaterials.push(mat);return mat;
+      }
+      var roadMat=material(0x081216,0x020506,12);
+      var laneMat=material(0x6ad7cc,0x174b47,20);
+      var buildingMats=[material(0x263a42,0x071519,48),material(0x59666a,0x0a1518,32),material(0x233f4b,0x06191f,72),material(0x7a6e61,0x17120d,28)];
+      var windowMat=material(0x9adbd1,0x3a756f,96);
+      function addBox(w,h,d,x,y,z,mat){var mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);mesh.position.set(x,y,z);stage.add(mesh);return mesh;}
+      var roadWidth=.018,spanX=.48,spanZ=.62;
+      for(var road=-5;road<=5;road+=2){
+        var roadX=road*.043;
+        addBox(roadWidth,.0022,spanZ,roadX,0,0,roadMat);
+        addBox(.0014,.0028,spanZ,roadX,0.002,0,laneMat);
+      }
+      for(road=-6;road<=6;road+=2){
+        var roadZ=road*.043;
+        addBox(spanX,.0022,roadWidth,0,0,roadZ,roadMat);
+        addBox(spanX,.0028,.0014,0,0.002,roadZ,laneMat);
+      }
+      for(var gx=-5;gx<=4;gx++){
+        for(var gz=-7;gz<=6;gz++){
+          if(gx%2===0||gz%2===0||cityRandom()<.14)continue;
+          var width=.024+cityRandom()*.016,depth=.024+cityRandom()*.018;
+          var distance=Math.sqrt(gx*gx+gz*gz),height=.018+cityRandom()*.045+Math.max(0,1-distance/9)*.028;
+          var x=gx*.043+(cityRandom()-.5)*.008,z=gz*.043+(cityRandom()-.5)*.008;
+          addBox(width,height,depth,x,height*.5+.003,z,buildingMats[Math.floor(cityRandom()*buildingMats.length)]);
+          if(height>.038){
+            var windows=addBox(width*.72,.006,depth+.001,x,.009+height*.53,z,windowMat);
+            windows.scale.y=Math.min(2.6,height/.035);
+          }
+          if(cityRandom()>.79)addBox(width*.35,.006,depth*.35,x,height+.006,z,roadMat);
+        }
+      }
+      var landmark=landmarkModel(marker.userData.type||cityData[marker.userData.index][3]);
+      landmark.scale.setScalar(.054);landmark.position.set(0,.004,.02);stage.add(landmark);
+      var plaza=new THREE.Mesh(new THREE.CylinderGeometry(.052,.052,.002,32),roadMat);plaza.position.set(0,.002,.02);stage.add(plaza);
+      earthSpin.add(stage);cityStage=stage;
+    }
+    function activateCityPhase(){
+      if(!selected||cityPhaseActive)return;
+      cityPhaseActive=true;cityPhaseFade=0;targetDistance=1.48;
+      boundary.visible=false;
+      citySky.visible=true;
+      if(cityStage)cityStage.visible=true;
+      cityPhaseName.textContent=selected.userData.name;
+      cityPhasePanel.setAttribute('aria-hidden','false');
+      document.getElementById('city-status').classList.add('is-city');
+      status.textContent=selected.userData.landmark+' · real-time sky';
+      updateSunPosition();
+    }
+    cityData.forEach(function(city,index){
+      var pos=latLon(city[1],city[2],2.035);
+      var marker=new THREE.Mesh(new THREE.SphereGeometry(.72,10,8),new THREE.MeshBasicMaterial({transparent:true,opacity:.001,depthWrite:false}));
+      marker.position.copy(pos);
+      marker.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),pos.clone().normalize());
+      marker.add(landmarkModel(city[3]));
+      marker.scale.setScalar(.17);
+      marker.userData={name:city[0],normal:pos.clone().normalize(),landmark:city[4],type:city[3],baseScale:.17,index:index};
+      markerGroup.add(marker);markers.push(marker);
+      var cityButton=document.createElement('button');
+      cityButton.type='button';cityButton.className='city-name';cityButton.textContent=city[0];cityButton.title=city[0]+' — '+city[4];cityButton.setAttribute('aria-label',city[0]+', '+city[4]);
+      cityButton.addEventListener('mouseenter',function(){hoverCity({object:marker});});
+      cityButton.addEventListener('mouseleave',function(){if(!selected)hoverCity(null);});
+      cityButton.addEventListener('focus',function(){hoverCity({object:marker});});
+      cityButton.addEventListener('blur',function(){if(!selected)hoverCity(null);});
+      cityButton.addEventListener('click',function(){centerReel(marker,true);selectCity(marker);});
+      cityList.appendChild(cityButton);marker.userData.button=cityButton;
+    });
+    var centeredMarker=null,reelFrame=0;
+    function updateReelCenter(){
+      reelFrame=0;
+      var listRect=cityList.getBoundingClientRect(),center=listRect.top+listRect.height/2,closest=null,distance=Infinity;
+      markers.forEach(function(marker){
+        var rect=marker.userData.button.getBoundingClientRect(),next=Math.abs(rect.top+rect.height/2-center);
+        if(next<distance){distance=next;closest=marker;}
+      });
+      centeredMarker=closest;
+      markers.forEach(function(marker){marker.userData.button.classList.toggle('is-centered',marker===closest);});
+    }
+    function centerReel(marker,smooth){
+      if(!marker||!marker.userData.button)return;
+      centeredMarker=marker;
+      markers.forEach(function(item){item.userData.button.classList.toggle('is-centered',item===marker);});
+      var button=marker.userData.button;
+      cityList.scrollTo({top:button.offsetTop-cityList.clientHeight/2+button.offsetHeight/2,behavior:smooth&&!reduced?'smooth':'auto'});
+    }
+    cityList.addEventListener('scroll',function(){if(!reelFrame)reelFrame=requestAnimationFrame(updateReelCenter);},{passive:true});
+    cityList.addEventListener('wheel',function(event){event.stopPropagation();},{passive:true});
+    var boundary=new THREE.Mesh(new THREE.RingGeometry(.225,.243,80),new THREE.MeshBasicMaterial({color:0x8ff4e8,transparent:true,opacity:.9,side:THREE.DoubleSide,depthTest:false}));
+    boundary.visible=false;
+    markerGroup.add(boundary);
+
+    var raycaster=new THREE.Raycaster(),pointer=new THREE.Vector2(),hovered=null,selected=null;
+    var orbitDistance=6.6,targetDistance=6.6,minDistance=1.15,maxDistance=12.2;
+    var yaw=0,pitch=0,targetYaw=0,targetPitch=0;
+    var dragging=false,moved=false,lastX=0,lastY=0,hasInteracted=false;
+    var cameraLook=new THREE.Vector3(),desiredCameraPosition=new THREE.Vector3(),desiredCameraLook=new THREE.Vector3();
+    var navigationNormal=new THREE.Vector3(),navigationHeading=new THREE.Vector3(),navigationReady=false,navigationViewScale=1;
+    function placeCamera(){
+      var cosPitch=Math.cos(pitch);
+      camera.position.set(orbitDistance*Math.sin(yaw)*cosPitch,orbitDistance*Math.sin(pitch),orbitDistance*Math.cos(yaw)*cosPitch);
+      cameraLook.set(0,0,0);
+      camera.lookAt(cameraLook);
+    }
+    function prepareNavigationView(marker){
+      navigationNormal.copy(marker.position).normalize().applyAxisAngle(new THREE.Vector3(0,1,0),earthSpin.rotation.y);
+      navigationHeading.set(0,1,0).addScaledVector(navigationNormal,-navigationNormal.y);
+      if(navigationHeading.lengthSq()<.0001){
+        navigationHeading.set(0,0,-1).addScaledVector(navigationNormal,navigationNormal.z);
+      }
+      navigationHeading.normalize();
+      skyUniforms.upDirection.value.copy(navigationNormal);
+      navigationReady=true;
+    }
+    function updateCameraView(){
+      var ease=reduced?1:.075;
+      if(selected&&navigationReady){
+        /* EverPlanet-like navigation framing: a low horizon and a thin, stable band of sky.
+           Every camera offset scales together as the viewer moves from city to near-street level,
+           preserving the landscape-to-sky ratio instead of tilting toward a top-down view. */
+        var zoomProgress=Math.max(0,Math.min(1,(targetDistance-minDistance)/(3.38-minDistance)));
+        navigationViewScale=.16+.84*zoomProgress;
+        desiredCameraPosition.copy(navigationNormal).multiplyScalar(2.06+.37*navigationViewScale).addScaledVector(navigationHeading,-.72*navigationViewScale);
+        desiredCameraLook.copy(navigationNormal).multiplyScalar(2.06).addScaledVector(navigationHeading,.68*navigationViewScale);
+        boundary.scale.setScalar(navigationViewScale);
+      }else{
+        navigationViewScale=1;
+        boundary.scale.setScalar(1);
+        var cosPitch=Math.cos(pitch);
+        desiredCameraPosition.set(orbitDistance*Math.sin(yaw)*cosPitch,orbitDistance*Math.sin(pitch),orbitDistance*Math.cos(yaw)*cosPitch);
+        desiredCameraLook.set(0,0,0);
+      }
+      camera.position.lerp(desiredCameraPosition,ease);
+      cameraLook.lerp(desiredCameraLook,ease);
+      if(selected&&navigationReady)camera.up.lerp(navigationNormal,ease).normalize();
+      else camera.up.lerp(new THREE.Vector3(0,1,0),ease).normalize();
+      camera.lookAt(cameraLook);
+    }
+    function resize(){
+      var w=frame.clientWidth,h=frame.clientHeight,oldDefault=Math.max(6.6,2.12/(Math.tan(camera.fov*Math.PI/360)*camera.aspect));
+      renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();
+      var nextDefault=Math.max(6.6,2.12/(Math.tan(camera.fov*Math.PI/360)*camera.aspect));
+      maxDistance=Math.max(12.2,nextDefault*1.5);
+      if(!hasInteracted||Math.abs(targetDistance-oldDefault)<.08){targetDistance=nextDefault;orbitDistance=nextDefault;placeCamera();}
+    }
+    resize();
+    /* A privacy-preserving regional default: browser timezone needs no location permission or network lookup. */
+    function centerFromTimezone(){
+      var timezone='';
+      try{timezone=Intl.DateTimeFormat().resolvedOptions().timeZone||'';}catch(error){}
+      var rules=[
+        [/Vancouver|Tijuana|Los_Angeles|Whitehorse/,'Vancouver'],[/Denver|Edmonton|Phoenix/,'Los Angeles'],[/Chicago|Winnipeg/,'Chicago'],[/Toronto|Detroit/,'Toronto'],[/New_York|Montreal/,'New York'],[/Mexico/,'Mexico City'],[/Sao_Paulo/,'São Paulo'],[/Buenos_Aires/,'Buenos Aires'],
+        [/London|Dublin|Lisbon/,'London'],[/Paris|Brussels|Amsterdam/,'Paris'],[/Madrid/,'Madrid'],[/Rome|Vienna|Zurich/,'Rome'],[/Berlin|Warsaw|Prague/,'Berlin'],[/Moscow/,'Moscow'],[/Istanbul/,'Istanbul'],[/Lagos|Accra/,'Lagos'],[/Nairobi|Addis/,'Nairobi'],[/Cairo/,'Cairo'],[/Johannesburg|Cape_Town/,'Cape Town'],
+        [/Dubai|Muscat/,'Dubai'],[/Kolkata|Calcutta|Colombo/,'Delhi'],[/Singapore|Kuala_Lumpur/,'Singapore'],[/Bangkok|Ho_Chi_Minh/,'Bangkok'],[/Shanghai|Taipei/,'Shanghai'],[/Hong_Kong/,'Hong Kong'],[/Beijing/,'Beijing'],[/Seoul/,'Seoul'],[/Tokyo/,'Tokyo'],[/Manila/,'Manila'],[/Jakarta/,'Jakarta'],[/Sydney|Brisbane/,'Sydney'],[/Melbourne|Hobart/,'Melbourne'],[/Auckland|Fiji/,'Auckland']
+      ];
+      var cityName='';
+      for(var r=0;r<rules.length;r++){if(rules[r][0].test(timezone)){cityName=rules[r][1];break;}}
+      if(!cityName)return;
+      var marker=markers.filter(function(item){return item.userData.name===cityName;})[0];
+      if(!marker)return;
+      var direction=marker.position.clone().normalize().applyAxisAngle(new THREE.Vector3(0,1,0),earthSpin.rotation.y);
+      yaw=targetYaw=Math.atan2(direction.x,direction.z);
+      pitch=targetPitch=Math.asin(Math.max(-1,Math.min(1,direction.y)));
+      marker.userData.button.classList.add('is-local');
+      marker.userData.button.title+=' · centered from browser timezone';
+      centerReel(marker,false);
+      placeCamera();
+    }
+    centerFromTimezone();
+    requestAnimationFrame(function(){if(!centeredMarker)centerReel(markers[0],false);updateReelCenter();});
+    window.addEventListener('resize',function(){resize();centerReel(centeredMarker||markers[0],false);});
+    function setPointer(event){var rect=canvas.getBoundingClientRect();pointer.x=((event.clientX-rect.left)/rect.width)*2-1;pointer.y=-((event.clientY-rect.top)/rect.height)*2+1;}
+    function pick(event){setPointer(event);raycaster.setFromCamera(pointer,camera);return raycaster.intersectObjects(markers.filter(function(marker){return marker.visible;}),false)[0];}
+    function setActiveButton(marker){
+      markers.forEach(function(item){item.userData.button.classList.toggle('is-active',item===marker);});
+    }
+    function hoverCity(hit){
+      if(hovered&&hovered!==selected)hovered.scale.setScalar(hovered.userData.baseScale);
+      hovered=hit?hit.object:null;
+      if(hovered){
+        hovered.scale.setScalar(hovered.userData.baseScale*1.42);
+        if(textureReady&&reliefReady)status.textContent=hovered.userData.name+' — '+hovered.userData.landmark;
+        else status.textContent=idleStatus();
+        canvas.style.cursor='pointer';
+      }
+      else if(!selected){
+        status.textContent=idleStatus();
+        canvas.style.cursor=dragging?'grabbing':'grab';
+      }
+    }
+    function selectCity(marker){
+      selected=marker;setActiveButton(marker);centerReel(marker,true);
+      cityPhaseActive=false;cityPhaseFade=0;cityApproachStarted=performance.now();
+      citySky.visible=false;
+      cityPhasePanel.setAttribute('aria-hidden','true');
+      document.getElementById('city-status').classList.remove('is-city');
+      buildCityStage(marker);
+      targetDistance=3.38;
+      var cityDirection=marker.position.clone().normalize().applyAxisAngle(new THREE.Vector3(0,1,0),earthSpin.rotation.y);
+      targetYaw=Math.atan2(cityDirection.x,cityDirection.z);
+      targetPitch=Math.asin(Math.max(-1,Math.min(1,cityDirection.y)));
+      prepareNavigationView(marker);
+      boundary.position.copy(marker.position.clone().normalize().multiplyScalar(2.097));
+      boundary.lookAt(marker.position.clone().normalize().multiplyScalar(4));
+      boundary.visible=true;
+      status.textContent='Zooming in now — '+marker.userData.name;
+    }
+    function clearSelection(returnToOrbit){
+      var direction=camera.position.clone().normalize();
+      yaw=targetYaw=Math.atan2(direction.x,direction.z);
+      pitch=targetPitch=Math.asin(Math.max(-1,Math.min(1,direction.y)));
+      orbitDistance=camera.position.length();
+      if(returnToOrbit)targetDistance=Math.max(6.6,2.12/(Math.tan(camera.fov*Math.PI/360)*camera.aspect));
+      selected=null;navigationReady=false;setActiveButton(null);
+      cityPhaseActive=false;cityPhaseFade=0;
+      citySky.visible=false;
+      starMaterial.opacity=1;
+      cityPhasePanel.setAttribute('aria-hidden','true');
+      document.getElementById('city-status').classList.remove('is-city');
+      destroyCityStage();
+      boundary.visible=false;
+      status.textContent=idleStatus();
+    }
+    cityReturn.addEventListener('click',function(){clearSelection(true);});
+    function zoomBy(delta){
+      hasInteracted=true;
+      targetDistance=Math.max(minDistance,Math.min(maxDistance,targetDistance+delta));
+      if(selected&&targetDistance>5.7)clearSelection();
+    }
+    canvas.addEventListener('wheel',function(event){event.preventDefault();zoomBy(event.deltaY*.006);},{passive:false});
+    canvas.addEventListener('keydown',function(event){
+      if(event.key==='+'||event.key==='='){event.preventDefault();zoomBy(-.7);}
+      if(event.key==='-'||event.key==='_'){event.preventDefault();zoomBy(.7);}
+    });
+    canvas.addEventListener('pointerdown',function(event){
+      if(event.cancelable)event.preventDefault();
+      hasInteracted=true;dragging=true;moved=false;lastX=event.clientX;lastY=event.clientY;
+      canvas.setPointerCapture(event.pointerId);canvas.classList.add('is-dragging');
+    });
+    canvas.addEventListener('pointermove',function(event){
+      if(dragging){
+        if(event.cancelable)event.preventDefault();
+        var dx=event.clientX-lastX,dy=event.clientY-lastY;
+        if(Math.abs(dx)+Math.abs(dy)>2){
+          moved=true;
+          if(selected&&cityPhaseActive){
+            navigationHeading.applyAxisAngle(navigationNormal,-dx*.0045).normalize();
+            targetDistance=Math.max(minDistance,Math.min(3.38,targetDistance+dy*.004));
+          }else{
+            if(selected)clearSelection();
+            targetYaw-=dx*.006;
+            targetPitch=Math.max(-1.28,Math.min(1.28,targetPitch+dy*.0045));
+          }
+        }
+        lastX=event.clientX;lastY=event.clientY;
+      }else hoverCity(pick(event));
+    });
+    canvas.addEventListener('pointerup',function(event){
+      dragging=false;canvas.classList.remove('is-dragging');canvas.releasePointerCapture(event.pointerId);
+      if(!moved){var hit=pick(event);if(hit)selectCity(hit.object);}
+      canvas.style.cursor='grab';
+    });
+    canvas.addEventListener('pointercancel',function(){dragging=false;canvas.classList.remove('is-dragging');});
+    canvas.addEventListener('pointerleave',function(){if(!dragging)hoverCity(null);});
+
+    /* Own every touch that begins on the globe. This non-passive document guard is the
+       WebKit fallback when CSS overscroll-behavior alone does not stop pull-to-refresh. */
+    var globeTouchActive=false;
+    canvas.addEventListener('touchstart',function(){globeTouchActive=true;},{passive:true});
+    document.addEventListener('touchmove',function(event){if(globeTouchActive&&event.cancelable)event.preventDefault();},{passive:false});
+    document.addEventListener('touchend',function(){globeTouchActive=false;},{passive:true});
+    document.addEventListener('touchcancel',function(){globeTouchActive=false;},{passive:true});
+
+    var pinchDistance=0;
+    frame.addEventListener('touchstart',function(event){if(event.touches.length===2){var dx=event.touches[0].clientX-event.touches[1].clientX,dy=event.touches[0].clientY-event.touches[1].clientY;pinchDistance=Math.sqrt(dx*dx+dy*dy);}}, {passive:true});
+    frame.addEventListener('touchmove',function(event){if(event.touches.length===2&&pinchDistance){event.preventDefault();hasInteracted=true;var dx=event.touches[0].clientX-event.touches[1].clientX,dy=event.touches[0].clientY-event.touches[1].clientY,next=Math.sqrt(dx*dx+dy*dy);zoomBy(-(next-pinchDistance)*.012);pinchDistance=next;}}, {passive:false});
+    frame.addEventListener('touchend',function(){pinchDistance=0;},{passive:true});
+
+    var worldPoint=new THREE.Vector3(),cameraDirection=new THREE.Vector3();
+    function shortestAngle(from,to){return Math.atan2(Math.sin(to-from),Math.cos(to-from));}
+    function animate(){
+      requestAnimationFrame(animate);
+      yaw+=shortestAngle(yaw,targetYaw)*(reduced?1:.075);
+      pitch+=(targetPitch-pitch)*(reduced?1:.075);
+      orbitDistance+=(targetDistance-orbitDistance)*(reduced?1:.075);
+      updateCameraView();
+      cameraDirection.copy(camera.position).normalize();
+      markers.forEach(function(marker,index){
+        marker.getWorldPosition(worldPoint);
+        var facing=worldPoint.clone().normalize().dot(cameraDirection)>.08;
+        marker.visible=!cityPhaseActive&&facing;
+        var pulse=marker.userData.baseScale*(1+Math.sin(performance.now()*.0024+index)*.055);
+        if(marker!==hovered&&marker!==selected)marker.scale.setScalar(pulse);
+        if(marker===selected)marker.scale.setScalar(marker.userData.baseScale*1.34*Math.max(.22,navigationViewScale));
+      });
+      if(selected&&!cityPhaseActive&&(reduced||performance.now()-cityApproachStarted>2200)){
+        activateCityPhase();
+      }
+      if(cityPhaseActive&&cityStage){
+        cityPhaseFade=Math.min(1,cityPhaseFade+(reduced?1:.028));
+        cityStage.userData.fadeMaterials.forEach(function(material){material.opacity=cityPhaseFade;});
+        var daylight=skyUniforms.daylight.value;
+        starMaterial.opacity=Math.max(.035,1-daylight*.94);
+      }
+      renderer.render(scene,camera);
+    }
+    animate();
+  }());
+  </script>
+</body>
+</html>

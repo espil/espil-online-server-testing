@@ -1,0 +1,8 @@
+{
+  "runtime": "static",
+  "platformVersion": 15,
+  "entry": "index.html",
+  "name": "Teaser Page",
+  "slug": "teaser-page",
+  "managedCronJobs": []
+}

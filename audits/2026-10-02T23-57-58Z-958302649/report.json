@@ -1,0 +1,158 @@
+{
+  "ok": true,
+  "url": "https://artifact-capture.invalid/spaces/v2/hatch-audit-53274120-3852-44f9-b959-043e601142da/",
+  "duration_ms": 34738.240105,
+  "output_dir": "/home/hatch/workspace/ts-spaces/teaser-page/audits/2026-10-02T23-57-58Z-958302649",
+  "nav_status": 200,
+  "viewports": {
+    "desktop": {
+      "width": 1440,
+      "height": 900,
+      "screenshot_path": "/home/hatch/workspace/ts-spaces/teaser-page/audits/2026-10-02T23-57-58Z-958302649/screenshot.png",
+      "fullpage_screenshot_path": "/home/hatch/workspace/ts-spaces/teaser-page/audits/2026-10-02T23-57-58Z-958302649/screenshot-full.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "screenshot_path": "/home/hatch/workspace/ts-spaces/teaser-page/audits/2026-10-02T23-57-58Z-958302649/screenshot-mobile.png"
+    }
+  },
+  "mobile_layout": {
+    "viewport_width": 390,
+    "scroll_width": 390,
+    "overflow_px": 0,
+    "widest_selector": null,
+    "verdict": "pass"
+  },
+  "horizontal_scrollers": [],
+  "unreachable_controls": {
+    "desktop": [],
+    "mobile": []
+  },
+  "clipped": {
+    "desktop": [
+      {
+        "tag": "p",
+        "text": "Drag to orbit the camera around the fixed Earth. Scroll to m",
+        "kind": "text_truncated",
+        "overflow_px": 985,
+        "bbox": [
+          -1,
+          -1,
+          1,
+          1
+        ]
+      }
+    ],
+    "mobile": [
+      {
+        "tag": "p",
+        "text": "Drag to orbit the camera around the fixed Earth. Scroll to m",
+        "kind": "text_truncated",
+        "overflow_px": 985,
+        "bbox": [
+          -1,
+          -1,
+          1,
+          1
+        ]
+      }
+    ]
+  },
+  "images": {
+    "total": 0,
+    "broken": [],
+    "duplicate": [],
+    "unstable": [],
+    "failed_requests": [],
+    "external_blocked": {
+      "count": 0,
+      "sample": []
+    },
+    "sample_urls": [],
+    "verdict": "pass"
+  },
+  "text_issues": [],
+  "console_errors": [],
+  "console_warnings": [
+    "console.warn: []Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader flag to opt in to lower security guarantees for trusted content. (https://artifact-capture.invalid/spaces/v2/hatch-audit-53274120-3852-44f9-b959-043e601142da/)",
+    "console.warn: []Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader flag to opt in to lower security guarantees for trusted content. (https://artifact-capture.invalid/spaces/v2/hatch-audit-53274120-3852-44f9-b959-043e601142da/)"
+  ],
+  "external_fetch_failures": 2,
+  "external_fetch_failure_samples": [
+    "console.error: Failed to load resource: net::ERR_SOCKS_CONNECTION_FAILED (https://fonts.googleapis.com/css2?family=Manrope:wght@500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap)",
+    "console.error: Failed to load resource: net::ERR_SOCKS_CONNECTION_FAILED (https://fonts.googleapis.com/css2?family=Manrope:wght@500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap)"
+  ],
+  "blocked_requests": [],
+  "external_requests": [
+    {
+      "url": "https://fonts.googleapis.com/css2?family=Manrope:wght@500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap",
+      "method": "GET",
+      "resource_type": "stylesheet"
+    }
+  ],
+  "external_requests_dropped": 0,
+  "external_requests_dropped_data_bearing": 0,
+  "transport_ledger_active": true,
+  "egress_lockdown": true,
+  "transport_connections": [
+    {
+      "host": "artifact-capture.invalid",
+      "port": 443,
+      "connects": 2,
+      "bytes_up": 4036,
+      "bytes_down": 2486
+    },
+    {
+      "host": "fonts.googleapis.com",
+      "port": 443,
+      "connects": 2,
+      "bytes_up": 0,
+      "bytes_down": 0,
+      "policy_denied": true
+    }
+  ],
+  "transport_udp_attempts": 0,
+  "transport_overflow": 0,
+  "unexplained_transport_hosts": [],
+  "broken_assets": [],
+  "blocked_affordances": [],
+  "interactive_nodes": 0,
+  "aria_snapshot": "- main:\n  - application \"Interactive fixed Earth with selectable major city signals. Drag to orbit the camera and scroll to zoom in or out.\"\n  - text: Move across a city signal\n  - paragraph: Drag to orbit the camera around the fixed Earth. Scroll to move closer or farther away. Select a glowing city signal to approach its boundary.",
+  "audit_session_id": "3478c137-4cf0-45ba-8289-a2b38f1e537b",
+  "readiness": {
+    "desktop": {
+      "settled": true,
+      "settle_ms": 1683,
+      "in_flight": null,
+      "network_idle": true,
+      "retried": false
+    },
+    "mobile": {
+      "settled": true,
+      "settle_ms": 1244,
+      "in_flight": null,
+      "network_idle": true,
+      "retried": false
+    }
+  },
+  "color_scheme": {
+    "declared": "dark",
+    "media_dependent": null,
+    "dark_frame": false
+  },
+  "mobile_ms": 21153.526631999997,
+  "cold_launch_ms": 1183.846665,
+  "desktop_ms": 32502.089542,
+  "browser_launches": 1,
+  "audit_path": "shared-concurrent",
+  "diagnostics": {
+    "audit_path": "shared-concurrent",
+    "concurrent_ran": true,
+    "concurrent_desktop_retry": false,
+    "concurrent_mobile_retry": false,
+    "shared_launch_failed": false,
+    "nav_retries": 0,
+    "settle_retries": 0
+  }
+}

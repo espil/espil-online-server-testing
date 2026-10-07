@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Base Set Preview</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<style>
+body{margin:0;background:#2a2a3e;overflow:hidden;font-family:monospace}
+canvas{display:block}
+#ui{position:fixed;top:10px;left:10px;color:#fff;background:rgba(0,0,0,.7);padding:12px;border-radius:8px}
+#ui button{margin:4px;padding:8px 12px;cursor:pointer;border:none;border-radius:4px;background:#4a4a6a;color:#fff}
+#ui button.active{background:#6a6adf}
+#ui button:hover{background:#5a5a7a}
+#label{margin-top:8px;font-size:12px;color:#aaa}
+</style>
+</head><body>
+<div id="ui">
+<div><strong>Base Set Preview</strong></div>
+<div style="margin-top:8px">
+<button data-tex="face" class="active">얼굴</button>
+<button data-tex="top">상의</button>
+<button data-tex="bottom">하의</button>
+</div>
+<div style="margin-top:8px">
+<button id="toggle-hair">헤어 ON/OFF</button>
+</div>
+<div id="label">드래그로 회전</div>
+</div>
+<script>
+const BASE = 'https://raw.githubusercontent.com/espil/espil-online/main/';
+const TEX = {
+  face: BASE + 'assets/face/base_face_unisex.png',
+  top: BASE + 'assets/top/base_top_unisex.png',
+  bottom: BASE + 'assets/bottom/base_bottom_unisex.png',
+};
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x2a2a3e);
+const camera = new THREE.PerspectiveCamera(40, innerWidth/innerHeight, 0.1, 100);
+camera.position.set(1.2, 1.0, 2.2);
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+const d = new THREE.DirectionalLight(0xffffff, 0.8);
+d.position.set(3, 5, 4);
+scene.add(d);
+
+let charModel = null, hairModel = null, hairVisible = false;
+let angle = 0;
+const loader = new THREE.GLTFLoader();
+const texLoader = new THREE.TextureLoader();
+
+// Load base character
+loader.load(BASE + 'assets/base/chibi_base.glb', gltf => {
+  charModel = gltf.scene;
+  scene.add(charModel);
+  const box = new THREE.Box3().setFromObject(charModel);
+  const c = box.getCenter(new THREE.Vector3());
+  charModel.position.sub(c);
+  charModel.position.y += 0.5;
+  applyTexture('face');
+  animate();
+});
+
+// Load hair
+loader.load(BASE + 'assets/hair/base_hair_unisex.glb', gltf => {
+  hairModel = gltf.scene;
+  hairModel.visible = false;
+  // Position hair on head (adjust as needed)
+  const box = new THREE.Box3().setFromObject(hairModel);
+  const c = box.getCenter(new THREE.Vector3());
+  hairModel.position.sub(c);
+  hairModel.position.y += 1.2;
+  hairModel.scale.setScalar(0.5);
+  scene.add(hairModel);
+});
+
+function applyTexture(key) {
+  if (!charModel) return;
+  texLoader.load(TEX[key], tex => {
+    charModel.traverse(o => {
+      if (o.isMesh) {
+        o.material = new THREE.MeshStandardMaterial({ map: tex });
+      }
+    });
+    document.getElementById('label').textContent = key + ' 텍스처 적용됨 — 드래그로 회전';
+  });
+}
+
+document.querySelectorAll('[data-tex]').forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll('[data-tex]').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    applyTexture(b.dataset.tex);
+  };
+});
+
+document.getElementById('toggle-hair').onclick = (e) => {
+  hairVisible = !hairVisible;
+  if (hairModel) hairModel.visible = hairVisible;
+  e.target.textContent = hairVisible ? '헤어 OFF' : '헤어 ON';
+  e.target.classList.toggle('active', hairVisible);
+};
+
+function animate() {
+  requestAnimationFrame(animate);
+  angle += 0.008;
+  if (charModel) charModel.rotation.y = angle;
+  if (hairModel && hairVisible) hairModel.rotation.y = angle;
+  renderer.render(scene, camera);
+}
+
+// Drag rotate
+let dragging = false, lx = 0, manualAngle = 0;
+renderer.domElement.addEventListener('pointerdown', e => { dragging = true; lx = e.clientX; });
+window.addEventListener('pointermove', e => {
+  if (dragging && charModel) {
+    angle += (e.clientX - lx) * 0.01;
+    lx = e.clientX;
+  }
+});
+window.addEventListener('pointerup', () => dragging = false);
+</script></body></html>

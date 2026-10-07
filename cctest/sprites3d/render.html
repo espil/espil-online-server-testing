@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>3D Sprite Renderer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<style>
+body { margin:0; background:#00FF00; overflow:hidden; }
+#info { position:fixed; top:10px; left:10px; color:#fff; background:rgba(0,0,0,0.7); padding:10px; font-family:monospace; z-index:100; }
+#sheet { display:block; }
+</style>
+</head>
+<body>
+<div id="info">Loading...</div>
+<canvas id="sheet"></canvas>
+<script>
+const DIRS = 8;  // 8 directions
+const FRAMES = 8; // 8 frames per direction
+const SPRITE_W = 256, SPRITE_H = 256;
+
+const sheet = document.getElementById('sheet');
+sheet.width = SPRITE_W * FRAMES;
+sheet.height = SPRITE_H * DIRS;
+const sctx = sheet.getContext('2d');
+sctx.fillStyle = '#00FF00';
+sctx.fillRect(0, 0, sheet.width, sheet.height);
+
+// Offscreen renderer for 3D
+const renderer = new THREE.WebGLRenderer({antialias:true, alpha:false});
+renderer.setSize(SPRITE_W, SPRITE_H);
+renderer.setClearColor(0x00FF00, 1);
+document.body.appendChild(renderer.domElement);
+renderer.domElement.style.position = 'fixed';
+renderer.domElement.style.bottom = '10px';
+renderer.domElement.style.right = '10px';
+renderer.domElement.style.width = '128px';
+renderer.domElement.style.height = '128px';
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x00FF00);
+
+const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 100);
+// Orthographic-like: use narrow FOV and distance
+
+const light1 = new THREE.DirectionalLight(0xffffff, 1.2);
+light1.position.set(5, 10, 7);
+scene.add(light1);
+const light2 = new THREE.AmbientLight(0xffffff, 0.6);
+scene.add(light2);
+
+let mixer, model, clip;
+let currentDir = 0, currentFrame = 0;
+let rendering = false;
+
+const info = document.getElementById('info');
+
+new THREE.GLTFLoader().load('https://raw.githubusercontent.com/espil/espil-online/main/cctest/sprites3d/running.glb', function(gltf) {
+    model = gltf.scene;
+    scene.add(model);
+    
+    // Center and scale
+    const box = new THREE.Box3().setFromObject(model);
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z);
+    
+    // Position camera
+    model.position.sub(center); // Center at origin
+    
+    if (gltf.animations.length > 0) {
+        clip = gltf.animations[0];
+        mixer = new THREE.AnimationMixer(model);
+        const action = mixer.clipAction(clip);
+        action.play();
+        info.textContent = 'Animation: ' + clip.name + ', duration: ' + clip.duration.toFixed(2) + 's';
+    } else {
+        info.textContent = 'No animations found!';
+        return;
+    }
+    
+    // Start rendering
+    setTimeout(renderAll, 1000);
+}, undefined, function(e) {
+    info.textContent = 'Error: ' + e.message;
+});
+
+function renderAll() {
+    if (currentDir >= DIRS) {
+        info.textContent = 'DONE! Right-click sheet -> Save image';
+        renderer.domElement.style.display = 'none';
+        return;
+    }
+    
+    const angle = (currentDir / DIRS) * Math.PI * 2;
+    const radius = 9;
+    camera.position.set(Math.sin(angle) * radius, 1.5, Math.cos(angle) * radius);
+    camera.lookAt(0, 0.0, 0);
+    
+    // Set animation time for this frame
+    const t = (currentFrame / FRAMES) * clip.duration;
+    mixer.setTime(t);
+    mixer.update(0);
+    
+    renderer.render(scene, camera);
+    
+    // Copy to sheet
+    sctx.drawImage(renderer.domElement, currentFrame * SPRITE_W, currentDir * SPRITE_H, SPRITE_W, SPRITE_H);
+    
+    // Label
+    sctx.fillStyle = '#fff';
+    sctx.font = '12px monospace';
+    const dirNames = ['S','SE','E','NE','N','NW','W','SW'];
+    sctx.fillText(dirNames[currentDir] + '-' + currentFrame, currentFrame*SPRITE_W+5, currentDir*SPRITE_H+15);
+    
+    info.textContent = `Rendering: dir ${currentDir+1}/${DIRS}, frame ${currentFrame+1}/${FRAMES}`;
+    
+    currentFrame++;
+    if (currentFrame >= FRAMES) {
+        currentFrame = 0;
+        currentDir++;
+    }
+    
+    setTimeout(renderAll, 50);
+}
+</script>
+</body>
+</html>

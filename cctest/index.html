@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>캐릭터 커스텀</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:sans-serif; background:#1a1a2e; color:#eee; overflow:hidden; }
+  #app { display:flex; height:100vh; }
+  #stage {
+    flex:1; display:flex; align-items:center; justify-content:center;
+    background:repeating-conic-gradient(#222 0% 25%, #1a1a1a 0% 50%) 50% / 40px 40px;
+    position:relative; overflow:hidden;
+  }
+  #char {
+    position:relative; width:min(70vw, 340px); aspect-ratio:969/1690;
+    transform-style:preserve-3d;
+  }
+  #char img { position:absolute; left:0; top:0; width:100%; height:100%; object-fit:contain; pointer-events:none; }
+  #img-body { z-index:1; }
+  #img-bottom { z-index:2; }
+  #img-top { z-index:3; }
+  #img-eyes { z-index:4; }
+  #img-hair { z-index:5; }
+  #img-hat { z-index:6; }
+  #shadow {
+    position:absolute; bottom:6%; left:50%; transform:translateX(-50%);
+    width:55%; height:24px; z-index:0;
+    background:radial-gradient(ellipse at center, rgba(0,0,0,0.35) 0%, transparent 70%);
+    border-radius:50%;
+  }
+  #nametag {
+    position:absolute; top:14px; left:50%; transform:translateX(-50%);
+    background:rgba(0,0,0,0.55); color:#fff; padding:6px 18px; border-radius:14px;
+    font-size:15px; font-weight:bold; z-index:10;
+  }
+  #panel {
+    width:300px; background:rgba(20,20,35,0.95);
+    border-left:1px solid rgba(255,255,255,0.1);
+    display:flex; flex-direction:column; z-index:10;
+  }
+  #tabs { display:flex; border-bottom:1px solid rgba(255,255,255,0.1); }
+  #tabs button {
+    flex:1; background:none; border:none; color:#888; padding:14px;
+    font-size:15px; cursor:pointer; border-bottom:2px solid transparent;
+  }
+  #tabs button.active { color:#fff; border-bottom-color:#0e6e6e; }
+  #tab-content { flex:1; overflow-y:auto; padding:12px; }
+  .section-label { font-size:12px; color:#888; margin:12px 0 8px; }
+  .section-label:first-child { margin-top:0; }
+  .style-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .style-btn {
+    background:rgba(255,255,255,0.07); border:2px solid transparent; border-radius:10px;
+    padding:8px 4px; cursor:pointer; color:#ddd; font-size:11px; text-align:center;
+  }
+  .style-btn.active { border-color:#0e6e6e; background:rgba(14,110,110,0.25); }
+  .thumb { width:100%; height:44px; object-fit:contain; margin-bottom:2px; }
+  @media (max-width:640px) {
+    #panel { width:200px; }
+    #char { width:min(58vw, 280px); }
+    .style-grid { grid-template-columns:repeat(2,1fr); }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <div id="nametag">Espil</div>
+    <div id="char">
+      <div id="shadow"></div>
+      <img id="img-body" src="assets/body_base.png?v=5" alt="">
+      <img id="img-bottom" src="assets/fitted_bottom_shorts.png?v=5" alt="" style="display:none">
+      <img id="img-top" src="assets/fitted_top_tshirt.png?v=5" alt="" style="display:none">
+      <img id="img-eyes" src="assets/eyes3d/f-eye-cute.webp?v=5" alt="">
+      <img id="img-hair" src="assets/hair3d/m-spiky.webp?v=5" alt="">
+      <img id="img-hat" src="" alt="" style="display:none">
+    </div>
+  </div>
+  <div id="panel">
+    <div id="tabs">
+      <button data-tab="hair" class="active">헤어</button>
+      <button data-tab="eyes">눈</button>
+      <button data-tab="hat">모자</button>
+      <button data-tab="top">상의</button>
+      <button data-tab="bottom">하의</button>
+    </div>
+    <div id="tab-content">
+      <div id="tab-hair">
+        <div class="section-label">남성</div>
+        <div class="style-grid" id="hair-m"></div>
+        <div class="section-label">여성</div>
+        <div class="style-grid" id="hair-f"></div>
+      </div>
+      <div id="tab-eyes" style="display:none;">
+        <div class="section-label">남성</div>
+        <div class="style-grid" id="eye-m"></div>
+        <div class="section-label">여성</div>
+        <div class="style-grid" id="eye-f"></div>
+      </div>
+      <div id="tab-hat" style="display:none;">
+        <div class="style-grid" id="hat-grid"></div>
+      </div>
+      <div id="tab-top" style="display:none;">
+        <div class="style-grid" id="top-grid"></div>
+      </div>
+      <div id="tab-bottom" style="display:none;">
+        <div class="style-grid" id="bottom-grid"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+const HAIRS = {
+  m1:['스파이키','hair3d/m-spiky'], m2:['단정한숏','hair3d/m-neat'],
+  m3:['내추럴','hair3d/m-messy'], m4:['버즈컷','hair3d/m-buzz'],
+  m5:['모호크','hair3d/m-mohawk'],
+  f1:['단발','hair3d/f-bob'], f2:['긴생머리','hair3d/f-long'],
+  f3:['트윈테일','hair3d/f-twintail'], f4:['포니테일','hair3d/f-pony'],
+  f5:['브레이드','hair3d/f-braids'],
+};
+const EYES = {
+  m1:['기본','eyes3d/m-eye-basic'], m2:['샤프','eyes3d/m-eye-sharp'],
+  m3:['나른','eyes3d/m-eye-sleepy'], m4:['강렬','eyes3d/m-eye-fierce'],
+  m5:['온화','eyes3d/m-eye-kind'], m6:['놀람','eyes3d/m-eye-surprised'],
+  m7:['미소','eyes3d/m-eye-smile'],
+  f1:['큐트','eyes3d/f-eye-cute'], f2:['해피','eyes3d/f-eye-happy'],
+  f3:['반짝이','eyes3d/f-eye-sparkle'], f4:['윙크','eyes3d/f-eye-wink'],
+  f5:['수줍음','eyes3d/f-eye-shy'], f6:['초롱','eyes3d/f-eye-doe'],
+  f7:['새시','eyes3d/f-eye-sassy'],
+};
+const HATS = {
+  none:['없음',''], 
+  cap:['볼캡','fitted_hat_baseball_cap'], wizard:['마법사모자','fitted_hat_wizard'],
+  beanie:['비니','fitted_hat_beanie'], crown:['왕관','fitted_hat_crown'],
+};
+const TOPS = {
+  none:['없음',''],
+  tshirt:['티셔츠','fitted_top_tshirt'], hoodie:['후드','fitted_top_hoodie'],
+  jacket:['자켓','fitted_top_jacket'],
+};
+const BOTTOMS = {
+  none:['없음',''],
+  shorts:['반바지','fitted_bottom_shorts'],
+};
+let curH='m1', curE='f1', curHat='none', curTop='none', curBottom='none';
+const $ = id => document.getElementById(id);
+
+function buildGrid(elId, data, cur, onPick) {
+  const c = $(elId); c.innerHTML='';
+  for (const [k,[name,file]] of Object.entries(data)) {
+    const b = document.createElement('div');
+    b.className = 'style-btn'+(k===cur?' active':'');
+    // Thumbnails: use the webp directly for hair3d/eyes3d
+    const thumb = file ? `assets/${file}.webp?v=5` : '';
+    b.innerHTML = `${thumb?`<img class="thumb" src="${thumb}">`:''}<div>${name}</div>`;
+    b.onclick = ()=>{ onPick(k); buildGrid(elId, data, k, onPick); };
+    c.appendChild(b);
+  }
+}
+function setLayer(imgId, file) {
+  const el = $(imgId);
+  if (!file) { el.style.display='none'; el.src=''; }
+  else {
+    // hair3d/eyes3d use webp, legacy fitted_* use png
+    const ext = (file.includes('hair3d') || file.includes('eyes3d')) ? 'webp' : 'png';
+    el.style.display=''; el.src=`assets/${file}.${ext}?v=5`;
+  }
+}
+function refreshAll() {
+  const hm={}, hf={}, em={}, ef={};
+  for (const [k,v] of Object.entries(HAIRS)) (k[0]==='m'?hm:hf)[k]=v;
+  for (const [k,v] of Object.entries(EYES)) (k[0]==='m'?em:ef)[k]=v;
+  buildGrid('hair-m', hm, curH, k=>{ curH=k; $('img-hair').src=`assets/${HAIRS[k][1]}.webp?v=5`; });
+  buildGrid('hair-f', hf, curH, k=>{ curH=k; $('img-hair').src=`assets/${HAIRS[k][1]}.webp?v=5`; });
+  buildGrid('eye-m', em, curE, k=>{ curE=k; $('img-eyes').src=`assets/${EYES[k][1]}.webp?v=5`; });
+  buildGrid('eye-f', ef, curE, k=>{ curE=k; $('img-eyes').src=`assets/${EYES[k][1]}.webp?v=5`; });
+  buildGrid('hat-grid', HATS, curHat, k=>{ curHat=k; setLayer('img-hat', HATS[k][1]); });
+  buildGrid('top-grid', TOPS, curTop, k=>{ curTop=k; setLayer('img-top', TOPS[k][1]); });
+  buildGrid('bottom-grid', BOTTOMS, curBottom, k=>{ curBottom=k; setLayer('img-bottom', BOTTOMS[k][1]); });
+}
+document.querySelectorAll('#tabs button').forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll('#tabs button').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    for (const t of ['hair','eyes','hat','top','bottom']) {
+      $('tab-'+t).style.display = b.dataset.tab===t?'':'none';
+    }
+  };
+});
+refreshAll();
+
+// 2.5D tilt: subtle 3D rotation following pointer
+const stage = $('stage'), charEl = $('char');
+let tiltX = 0, tiltY = 0, targetTX = 0, targetTY = 0;
+stage.addEventListener('pointermove', e => {
+  const r = stage.getBoundingClientRect();
+  const px = (e.clientX - r.left) / r.width - 0.5;
+  const py = (e.clientY - r.top) / r.height - 0.5;
+  targetTY = px * 10; targetTX = -py * 8;
+});
+stage.addEventListener('pointerleave', () => { targetTX = 0; targetTY = 0; });
+(function tiltLoop(){
+  tiltX += (targetTX - tiltX) * 0.08;
+  tiltY += (targetTY - tiltY) * 0.08;
+  const bobY = Math.sin(Date.now()/1000 * 2.6) * -5;
+  charEl.style.transform = `translateY(${bobY}px) rotateX(${tiltX}deg) rotateY(${tiltY}deg)`;
+  requestAnimationFrame(tiltLoop);
+})();
+</script>
+</body>
+</html>
+<!-- trigger -->
