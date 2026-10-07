@@ -597,63 +597,26 @@
     .intro.hide { opacity:0; visibility:hidden; pointer-events:none; }
     .intro-stars { position:absolute; inset:0; width:100%; height:100%; display:block; }
     .intro-logo { position:relative; text-align:center; user-select:none; margin:0 12px; }
-    /* Space-station signpost (2026-10-06, per Han): the neon sign hangs on an
-       industrial pole, its arrow pointing down at Earth. */
-    .signpost { display:flex; flex-direction:column; align-items:center; }
-    .sign-pole {
-      width:12px; height:54px; margin-top:-2px; position:relative;
-      background:linear-gradient(90deg,#14171a,#4b535a 40%,#5c666e 50%,#4b535a 60%,#14171a);
-      box-shadow:inset 0 0 0 1px #08090b,0 4px 10px rgba(0,0,0,.6);
-    }
-    .sign-pole::before {
-      content:""; position:absolute; top:-5px; left:50%; transform:translateX(-50%);
-      width:28px; height:11px; border-radius:3px;
-      background:linear-gradient(180deg,#3a4046,#1c2024);
-      box-shadow:inset 0 1px 2px rgba(255,255,255,.25),0 2px 4px rgba(0,0,0,.6);
-    }
-    .sign-arrow {
-      margin-top:-2px; width:0; height:0;
-      border-left:15px solid transparent; border-right:15px solid transparent;
-      border-top:20px solid #46ff7d;
-      filter:drop-shadow(0 0 10px rgba(70,255,125,.9)) drop-shadow(0 0 26px rgba(70,255,125,.45));
-      animation:arrowPulse 1.7s ease-in-out infinite;
-    }
-    @keyframes arrowPulse{0%,100%{opacity:1;transform:translateY(0);}50%{opacity:.55;transform:translateY(7px);}}
-    /* Industrial pipe frame (2026-10-06, per Han): cyberpunk green neon-sign housing. */
-    .neon-frame {
-      position:relative; display:inline-block;
-      padding:clamp(14px,2.8vw,24px) clamp(22px,4.5vw,44px);
-      background:linear-gradient(180deg,rgba(10,13,16,.72),rgba(4,6,8,.78));
-      border:5px solid #33393f; border-radius:12px;
-      box-shadow:
-        inset 0 2px 3px rgba(255,255,255,.28),
-        inset 0 -4px 8px rgba(0,0,0,.75),
-        inset 0 0 0 2px #0b0d0f,
-        0 0 0 2px #060708,
-        0 10px 34px rgba(0,0,0,.6),
-        0 0 44px rgba(70,255,125,.28),
-        0 0 110px rgba(70,255,125,.14);
-    }
-    /* neon tube running inside the pipe */
-    .neon-frame::before {
-      content:""; position:absolute; inset:10px; border-radius:7px; pointer-events:none;
-      border:2px solid #46ff7d;
-      box-shadow:0 0 8px #46ff7d,0 0 22px rgba(70,255,125,.75),inset 0 0 10px rgba(70,255,125,.7);
-    }
-    .neon-frame .bolt { position:absolute; width:13px; height:13px; border-radius:50%;
-      background:radial-gradient(circle at 35% 30%,#eef2f5,#9aa3ab 55%,#3a4046 100%);
-      box-shadow:inset 0 -2px 3px rgba(0,0,0,.65),0 1px 3px rgba(0,0,0,.7),0 0 6px rgba(70,255,125,.35); }
-    .neon-frame .bolt.tl{top:7px;left:7px;} .neon-frame .bolt.tr{top:7px;right:7px;}
-    .neon-frame .bolt.bl{bottom:7px;left:7px;} .neon-frame .bolt.br{bottom:7px;right:7px;}
+    /* Arrow signpost (2026-10-06, per Han): the sign itself is an arrow pointing
+       down at Earth. SVG pipe frame + neon tube; the typed text sits centered
+       in the upper board. Cyberpunk green. */
+    .arrow-sign { container-type:inline-size; position:relative; width:min(84vw,600px); }
+    .sign-svg { display:block; width:100%; height:auto;
+      filter:drop-shadow(0 10px 30px rgba(0,0,0,.6)) drop-shadow(0 0 44px rgba(70,255,125,.22)); }
+    .sign-text { position:absolute; left:0; right:0; top:9%; text-align:center;
+      display:flex; align-items:center; justify-content:center; }
     .intro-logo .shadow-layer, .intro-logo .typed-layer {
       font-family:"Monoton","Arial Black",sans-serif;
       font-weight:400;
-      font-size:clamp(2.2rem,9.5vw,5.6rem);
-      letter-spacing:.05em; white-space:nowrap; margin:0; line-height:1.25;
+      font-size:10.5cqw;
+      letter-spacing:.05em; white-space:nowrap; margin:0; line-height:1.35;
+      /* optical centering: Monoton sits high, nudge down */
+      transform:translateY(.07em);
     }
     .intro-logo .shadow-layer { color:transparent; text-shadow:none; } /* invisible: keeps the logo box sized so nothing jumps */
     .intro-logo .typed-layer {
       position:absolute; inset:0; color:#fff;
+      display:flex; align-items:center; justify-content:center;
       text-shadow:
         0 0 4px #fff,
         0 0 10px #b8ffd2,
@@ -679,10 +642,10 @@
     .intro-logo .typed-layer .ch.on { visibility:visible; }
     .intro-logo .caret {
       display:inline-block; width:.09em; height:1em; margin-left:.12em; vertical-align:-.06em;
-      background:#ffd7e8; box-shadow:0 0 18px rgba(70,255,125,.95),0 0 40px rgba(70,255,125,.5);
-      animation:caret-blink .8s steps(1) infinite;
+      background:#d9ffe6; box-shadow:0 0 18px rgba(70,255,125,.95),0 0 40px rgba(70,255,125,.5);
+      animation:caret-blink 1.06s steps(1) infinite;
     }
-    @keyframes caret-blink { 0%,55% { opacity:1; } 56%,100% { opacity:0; } }
+    @keyframes caret-blink { 0%,49% { opacity:1; } 50%,100% { opacity:0; } }
     .intro-continue {
       position:relative; font:700 .8rem/1.6 "Manrope",sans-serif; letter-spacing:.34em; text-indent:.34em;
       color:#eafffb; text-shadow:0 0 16px rgba(64,255,205,.8); text-align:center; padding:0 16px;
@@ -831,14 +794,33 @@
   <div class="intro" id="intro" role="button" tabindex="0" aria-label="Enter Espil Online">
     <canvas class="intro-stars" id="intro-stars" aria-hidden="true"></canvas>
     <div class="intro-logo" id="intro-logo" aria-label="Espil Online">
-      <div class="signpost">
-        <div class="neon-frame">
-          <span class="bolt tl"></span><span class="bolt tr"></span><span class="bolt bl"></span><span class="bolt br"></span>
+      <div class="arrow-sign">
+        <svg class="sign-svg" viewBox="0 0 440 300" aria-hidden="true">
+          <defs>
+            <linearGradient id="pipeGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#4b535a"/>
+              <stop offset=".45" stop-color="#2a3036"/>
+              <stop offset="1" stop-color="#14171a"/>
+            </linearGradient>
+            <filter id="neonGlow" x="-60%" y="-60%" width="220%" height="220%">
+              <feGaussianBlur stdDeviation="5" result="b1"/>
+              <feGaussianBlur stdDeviation="13" result="b2"/>
+              <feMerge><feMergeNode in="b2"/><feMergeNode in="b1"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+          <path d="M28,28 H412 V182 L220,272 L28,182 Z"
+                fill="rgba(6,8,10,.84)" stroke="url(#pipeGrad)" stroke-width="13" stroke-linejoin="round"/>
+          <path d="M46,46 H394 V174 L220,250 L46,174 Z"
+                fill="none" stroke="#46ff7d" stroke-width="3.5" stroke-linejoin="round" filter="url(#neonGlow)"/>
+          <circle cx="28" cy="28" r="8" fill="url(#pipeGrad)" stroke="#0a0c0e" stroke-width="2"/>
+          <circle cx="412" cy="28" r="8" fill="url(#pipeGrad)" stroke="#0a0c0e" stroke-width="2"/>
+          <circle cx="28" cy="182" r="8" fill="url(#pipeGrad)" stroke="#0a0c0e" stroke-width="2"/>
+          <circle cx="412" cy="182" r="8" fill="url(#pipeGrad)" stroke="#0a0c0e" stroke-width="2"/>
+        </svg>
+        <div class="sign-text">
           <p class="shadow-layer" aria-hidden="true">Espil Online</p>
           <p class="typed-layer" aria-hidden="true"><span class="typed-inner" id="intro-typed"></span></p>
         </div>
-        <div class="sign-pole" aria-hidden="true"></div>
-        <div class="sign-arrow" aria-hidden="true"></div>
       </div>
     </div>
     <div class="intro-continue" id="intro-continue">TAP OR PRESS ANY KEY TO CONTINUE</div>
@@ -3871,11 +3853,13 @@
     /* Hooks for the intro + city info panel scripts. */
     window.__espilGlobe={
       beginEarthReveal:function(){
-        /* Seamless entry (2026-10-06, per Han): the camera starts further out
-           and glides into the orbit view while the intro fades — one motion. */
+        /* Seamless entry (2026-10-06, per Han): the camera starts high and far,
+           then descends in the arrow's direction while gliding in — Earth
+           rises into view as the intro fades. One continuous motion. */
         var defaultD=Math.max(6.6,2.12/(Math.tan(camera.fov*Math.PI/360)*camera.aspect));
         targetDistance=defaultD;
         orbitDistance=defaultD*1.45;
+        pitch=.78;targetPitch=0;targetYaw=yaw;
         placeCamera();
       },
       skipStationReveal:function(){/* no-op: the station reveal no longer exists */}
