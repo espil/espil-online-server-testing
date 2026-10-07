@@ -147,6 +147,20 @@
     .city-readout.is-city::before,.city-readout.is-city::after { display:none; }
     .city-readout.is-city .city-list { display:none; }
     .city-readout.is-city .city-phase { display:flex; }
+    /* City pins (2026-10-06, per Han): small dot buttons with the city name above.
+       Keep them small — they sit on the globe, not in a panel. */
+    #city-pins{position:fixed;inset:0;pointer-events:none;z-index:21;overflow:hidden;}
+    .city-pin{position:absolute;left:0;top:0;pointer-events:auto;background:none;border:0;padding:6px;
+      cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;}
+    .city-pin .nm{font:600 10px/1 "Manrope",sans-serif;letter-spacing:.14em;text-indent:.14em;color:#eafffd;
+      text-shadow:0 0 6px rgba(120,255,228,.9),0 1px 3px rgba(0,0,0,.85);white-space:nowrap;}
+    .city-pin .dot{width:10px;height:10px;border-radius:50%;
+      background:radial-gradient(circle at 35% 35%,#eafffd,#54c8ae);
+      border:1px solid rgba(220,255,250,.9);box-shadow:0 0 8px rgba(120,255,228,.85);}
+    .city-pin:hover .dot,.city-pin:focus-visible .dot{transform:scale(1.3);outline:none;}
+    .city-pin.is-active .dot{background:radial-gradient(circle at 35% 35%,#fff,#ffd9a0);
+      box-shadow:0 0 12px rgba(255,200,140,.95);}
+    .city-pin.is-active .nm{color:#ffe9c9;}
     .city-phase-name {
       margin:0;
       color:#eafffd;
@@ -745,6 +759,7 @@
   </div>
   <main class="earth-frame" id="earth-frame">
     <canvas id="globe-canvas" role="application" tabindex="0" aria-label="Interactive fixed Earth with selectable city landmarks. Drag to orbit the camera, scroll to zoom, or choose a city for a tilted navigation view."></canvas>
+    <div id="city-pins" aria-hidden="true"></div>
     <header class="topbar">
       <div class="topbar-actions">
         <button class="pill-btn" id="bgm-toggle" type="button" aria-pressed="true" aria-label="Toggle theme music" aria-describedby="bgm-card">&#9834; ON</button>
@@ -1513,7 +1528,7 @@
       var apply=function(fitted){
         if(marker.userData.glbApplied)return;
         marker.userData.glbApplied=true;
-        /* The globe marker keeps its 2D billboard (2026-10-06 QA #3): the real
+        /* The globe marker is an HTML pin now (2026-10-06, per Han): the real
            model is only cached for the street-view stage. */
         if(selected===marker)updateModelCredit(marker);
         /* If the street view is already showing this city, swap its landmark too. */
@@ -3159,294 +3174,27 @@
         p._stepAcc=0;
       }
     }
-    /* 2D landmark cutouts (2026-10-06 QA #3): flat duotone billboard sprites with true
-       transparent backgrounds, drawn once per landmark type on an offscreen canvas.
-       Each art function draws into a 256x256 box, ground line at y=218. */
-    var LANDMARK_SPRITE_CACHE={};
-    function landmarkPunch(x,fn){x.save();x.shadowBlur=0;x.globalCompositeOperation='destination-out';fn();x.restore();}
-    var LANDMARK_ART={
-      sails:function(x){
-        for(var i=0;i<3;i++){
-          var cx=64+i*64,top=70+i*14;
-          x.beginPath();
-          x.moveTo(cx-44,218);
-          x.quadraticCurveTo(cx-40,top+40,cx,top);
-          x.quadraticCurveTo(cx+40,top+40,cx+44,218);
-          x.closePath();x.fill();x.stroke();
-        }
-      },
-      bridge:function(x){
-        x.fillRect(66,80,18,98);x.fillRect(172,80,18,98);
-        x.fillRect(60,104,24,8);x.fillRect(166,104,24,8);
-        x.fillRect(20,170,216,12);
-        x.save();x.strokeStyle='rgba(230,255,250,.9)';x.lineWidth=4;x.shadowBlur=0;
-        x.beginPath();x.moveTo(75,84);x.quadraticCurveTo(128,168,181,84);x.stroke();
-        x.beginPath();x.moveTo(20,170);x.quadraticCurveTo(48,120,75,84);x.stroke();
-        x.beginPath();x.moveTo(181,84);x.quadraticCurveTo(208,120,236,170);x.stroke();
-        x.restore();
-      },
-      star:function(x){
-        x.beginPath();
-        for(var i=0;i<10;i++){
-          var r=i%2?44:100,a=-Math.PI/2+i*Math.PI/5;
-          var px=128+r*Math.cos(a),py=128+r*Math.sin(a);
-          if(i)x.lineTo(px,py);else x.moveTo(px,py);
-        }
-        x.closePath();x.fill();x.stroke();
-      },
-      tower:function(x){
-        x.fillRect(88,120,80,98);
-        x.fillRect(100,74,56,46);
-        x.fillRect(112,34,32,40);
-        x.fillRect(124,18,8,16);
-      },
-      pyramid:function(x){
-        x.beginPath();x.moveTo(128,52);x.lineTo(36,218);x.lineTo(220,218);x.closePath();x.fill();x.stroke();
-        x.save();x.strokeStyle='rgba(3,46,40,.35)';x.lineWidth=3;x.shadowBlur=0;
-        for(var i=1;i<5;i++){var y=52+i*33;
-          x.beginPath();x.moveTo(128-(128-36)*i/5,y);x.lineTo(128+(220-128)*i/5,y);x.stroke();}
-        x.restore();
-      },
-      liberty:function(x){
-        x.fillRect(100,188,56,30);
-        x.beginPath();x.moveTo(128,96);x.lineTo(102,188);x.lineTo(154,188);x.closePath();x.fill();x.stroke();
-        x.beginPath();x.arc(128,80,15,0,6.2832);x.fill();x.stroke();
-        x.save();x.strokeStyle='rgba(3,46,40,.6)';x.lineWidth=4;x.shadowBlur=0;
-        for(var i=-2;i<=2;i++){x.beginPath();x.moveTo(128+i*9,68);x.lineTo(128+i*16,44);x.stroke();}
-        x.beginPath();x.moveTo(146,120);x.lineTo(178,58);x.stroke();
-        x.restore();
-        x.beginPath();x.ellipse(182,48,9,13,0,0,6.2832);x.fill();x.stroke();
-      },
-      needle:function(x){
-        x.beginPath();x.moveTo(112,218);x.lineTo(122,110);x.lineTo(134,110);x.lineTo(144,218);x.closePath();x.fill();x.stroke();
-        x.beginPath();x.ellipse(128,96,30,15,0,0,6.2832);x.fill();x.stroke();
-        x.fillRect(125,26,6,60);
-        x.beginPath();x.moveTo(128,26);x.lineTo(122,40);x.lineTo(134,40);x.closePath();x.fill();
-      },
-      christ:function(x){
-        x.fillRect(108,178,40,40);
-        x.fillRect(120,104,16,74);
-        x.fillRect(66,112,124,16);
-        x.beginPath();x.arc(128,90,11,0,6.2832);x.fill();x.stroke();
-      },
-      beam:function(x){
-        x.fillRect(36,76,184,34);
-        var pxs=[64,106,150,192];
-        for(var i=0;i<pxs.length;i++)x.fillRect(pxs[i],110,12,108);
-      },
-      obelisk:function(x){
-        x.beginPath();x.moveTo(116,64);x.lineTo(140,64);x.lineTo(152,218);x.lineTo(104,218);x.closePath();x.fill();x.stroke();
-        x.beginPath();x.moveTo(128,30);x.lineTo(116,64);x.lineTo(140,64);x.closePath();x.fill();x.stroke();
-      },
-      clock:function(x){
-        x.fillRect(104,88,48,130);
-        x.beginPath();x.moveTo(128,24);x.lineTo(102,88);x.lineTo(154,88);x.closePath();x.fill();x.stroke();
-        x.save();x.shadowBlur=0;x.fillStyle='#f4ffe9';
-        x.beginPath();x.arc(128,128,21,0,6.2832);x.fill();x.restore();
-        x.save();x.strokeStyle='rgba(3,46,40,.7)';x.lineWidth=3;x.shadowBlur=0;
-        x.beginPath();x.moveTo(128,128);x.lineTo(128,114);x.moveTo(128,128);x.lineTo(138,132);x.stroke();x.restore();
-      },
-      eiffel:function(x){
-        x.beginPath();
-        x.moveTo(92,218);
-        x.quadraticCurveTo(104,140,118,64);
-        x.lineTo(138,64);
-        x.quadraticCurveTo(152,140,164,218);
-        x.lineTo(146,218);
-        x.quadraticCurveTo(138,160,128,150);
-        x.quadraticCurveTo(118,160,110,218);
-        x.closePath();x.fill();x.stroke();
-        x.fillRect(104,120,48,10);
-        x.fillRect(124,40,8,26);
-      },
-      tree:function(x){
-        x.fillRect(120,150,16,68);
-        x.beginPath();x.arc(96,116,34,0,6.2832);x.fill();
-        x.beginPath();x.arc(160,116,34,0,6.2832);x.fill();
-        x.beginPath();x.arc(128,88,40,0,6.2832);x.fill();x.stroke();
-      },
-      colosseum:function(x){
-        x.beginPath();
-        x.moveTo(44,218);x.lineTo(44,120);
-        x.quadraticCurveTo(128,96,212,120);
-        x.lineTo(212,218);x.closePath();x.fill();x.stroke();
-        landmarkPunch(x,function(){
-          for(var i=0;i<6;i++){var ax=66+i*24;
-            x.fillRect(ax,168,14,50);
-            x.beginPath();x.arc(ax+7,168,7,Math.PI,0);x.fill();}
-          for(var j=0;j<6;j++){var bx=66+j*24;
-            x.fillRect(bx,128,14,28);
-            x.beginPath();x.arc(bx+7,128,7,Math.PI,0);x.fill();}
-        });
-      },
-      gate:function(x){
-        for(var i=0;i<6;i++)x.fillRect(52+i*28,108,13,110);
-        x.fillRect(40,76,176,32);
-        x.fillRect(118,52,20,24);
-        x.beginPath();x.moveTo(128,30);x.lineTo(118,52);x.lineTo(138,52);x.closePath();x.fill();
-      },
-      domes:function(x){
-        function onion(cx,baseY,w,h){
-          x.fillRect(cx-w*.22,baseY-h*.55,w*.44,h*.55);
-          x.beginPath();x.ellipse(cx,baseY-h*.62,w*.5,h*.34,0,0,6.2832);x.fill();
-          x.beginPath();x.moveTo(cx,baseY-h*1.02);x.lineTo(cx-w*.14,baseY-h*.78);x.lineTo(cx+w*.14,baseY-h*.78);x.closePath();x.fill();
-        }
-        onion(78,218,56,120);onion(178,218,56,120);onion(128,218,72,170);
-        x.fillRect(52,196,152,22);
-      },
-      theatre:function(x){
-        x.fillRect(58,150,140,68);
-        x.beginPath();x.arc(128,150,70,Math.PI,0);x.fill();x.stroke();
-        x.fillRect(122,58,12,24);
-      },
-      spire:function(x){
-        x.fillRect(106,96,44,122);
-        x.beginPath();x.moveTo(128,22);x.lineTo(104,96);x.lineTo(152,96);x.closePath();x.fill();x.stroke();
-        x.fillRect(96,196,64,22);
-      },
-      mountain:function(x){
-        x.beginPath();
-        x.moveTo(36,218);x.lineTo(74,86);x.lineTo(182,86);x.lineTo(220,218);x.closePath();x.fill();x.stroke();
-        x.save();x.strokeStyle='rgba(3,46,40,.3)';x.lineWidth=3;x.shadowBlur=0;
-        x.beginPath();x.moveTo(100,120);x.lineTo(88,218);x.moveTo(156,120);x.lineTo(168,218);x.stroke();
-        x.restore();
-      },
-      mosque:function(x){
-        x.fillRect(64,150,128,68);
-        x.beginPath();x.arc(128,150,62,Math.PI,0);x.fill();x.stroke();
-        x.beginPath();x.arc(84,160,26,Math.PI,0);x.fill();
-        x.beginPath();x.arc(172,160,26,Math.PI,0);x.fill();
-        var mxs=[30,52,204,226];
-        for(var i=0;i<mxs.length;i++){var mx=mxs[i];
-          x.fillRect(mx,84,9,134);
-          x.beginPath();x.moveTo(mx+4.5,56);x.lineTo(mx,84);x.lineTo(mx+9,84);x.closePath();x.fill();}
-        x.fillRect(124,66,8,26);
-      },
-      burj:function(x){
-        var w=96,y=218;
-        for(var i=0;i<7;i++){var h=26;x.fillRect(128-w/2,y-h,w,h);y-=h;w*=.78;}
-        x.fillRect(126,y-44,4,44);
-      },
-      gateway:function(x){
-        x.fillRect(78,96,100,122);
-        landmarkPunch(x,function(){
-          x.fillRect(112,140,32,78);
-          x.beginPath();x.arc(128,140,16,Math.PI,0);x.fill();
-        });
-        x.fillRect(58,140,20,78);x.fillRect(178,140,20,78);
-        var dxs=[68,188];
-        for(var i=0;i<dxs.length;i++){
-          x.beginPath();x.arc(dxs[i],140,14,Math.PI,0);x.fill();x.stroke();
-        }
-        x.beginPath();x.arc(128,96,20,Math.PI,0);x.fill();x.stroke();
-      },
-      arch:function(x){
-        x.fillRect(94,64,68,154);
-        x.fillRect(84,50,88,14);
-        landmarkPunch(x,function(){
-          x.fillRect(114,120,28,98);
-          x.beginPath();x.arc(128,120,14,Math.PI,0);x.fill();
-        });
-      },
-      merlion:function(x){
-        x.beginPath();x.arc(104,108,26,0,6.2832);x.fill();x.stroke();
-        x.save();x.strokeStyle='rgba(3,46,40,.55)';x.lineWidth=4;x.shadowBlur=0;
-        for(var i=0;i<8;i++){var a=i/8*6.2832;
-          x.beginPath();x.moveTo(104+30*Math.cos(a),108+30*Math.sin(a));
-          x.lineTo(104+44*Math.cos(a),108+44*Math.sin(a));x.stroke();}
-        x.restore();
-        x.beginPath();x.moveTo(120,130);x.quadraticCurveTo(150,170,138,218);x.lineTo(104,218);x.quadraticCurveTo(112,170,120,130);x.closePath();x.fill();
-        x.beginPath();x.moveTo(138,200);x.lineTo(186,178);x.lineTo(172,206);x.lineTo(186,218);x.lineTo(138,218);x.closePath();x.fill();
-      },
-      temple:function(x){
-        x.beginPath();x.moveTo(104,218);x.lineTo(148,218);x.lineTo(140,70);x.lineTo(112,70);x.closePath();x.fill();x.stroke();
-        x.save();x.strokeStyle='rgba(3,46,40,.35)';x.lineWidth=3;x.shadowBlur=0;
-        for(var i=0;i<5;i++){var y=96+i*26,w=8+i*4;
-          x.beginPath();x.moveTo(128-w,y);x.lineTo(128+w,y);x.stroke();}
-        x.restore();
-        x.beginPath();x.moveTo(128,28);x.lineTo(112,70);x.lineTo(144,70);x.closePath();x.fill();
-        x.beginPath();x.moveTo(64,218);x.lineTo(88,218);x.lineTo(82,140);x.lineTo(70,140);x.closePath();x.fill();
-        x.beginPath();x.moveTo(168,218);x.lineTo(192,218);x.lineTo(186,140);x.lineTo(174,140);x.closePath();x.fill();
-      },
-      pearl:function(x){
-        x.fillRect(58,200,140,18);
-        x.fillRect(121,96,14,104);
-        x.beginPath();x.arc(128,158,32,0,6.2832);x.fill();x.stroke();
-        x.beginPath();x.arc(128,72,20,0,6.2832);x.fill();x.stroke();
-        x.fillRect(125,28,6,26);
-      },
-      junk:function(x){
-        x.beginPath();x.moveTo(52,168);x.lineTo(204,168);x.lineTo(182,218);x.lineTo(74,218);x.closePath();x.fill();x.stroke();
-        x.fillRect(124,60,8,108);
-        x.beginPath();x.moveTo(132,70);x.lineTo(196,70);x.lineTo(188,120);x.lineTo(132,120);x.closePath();x.fill();
-        x.beginPath();x.moveTo(60,80);x.lineTo(124,80);x.lineTo(124,130);x.lineTo(68,130);x.closePath();x.fill();
-      },
-      hall:function(x){
-        for(var i=0;i<3;i++)x.fillRect(72+i*40,182,12,36);
-        function roof(cx,y,w){
-          x.beginPath();x.moveTo(cx-w/2,y);x.lineTo(cx+w/2,y);x.lineTo(cx+w*.28,y-34);x.lineTo(cx-w*.28,y-34);x.closePath();x.fill();x.stroke();
-        }
-        roof(128,182,168);roof(128,148,128);roof(128,114,88);
-        x.beginPath();x.arc(128,66,8,0,6.2832);x.fill();
-      },
-      torii:function(x){
-        x.fillRect(78,84,16,134);x.fillRect(162,84,16,134);
-        x.beginPath();x.moveTo(52,62);x.quadraticCurveTo(128,48,204,62);x.lineTo(204,78);x.quadraticCurveTo(128,64,52,78);x.closePath();x.fill();x.stroke();
-        x.fillRect(66,100,124,14);
-        x.fillRect(120,78,16,24);
-      },
-      sun:function(x){
-        x.beginPath();x.arc(128,128,38,0,6.2832);x.fill();x.stroke();
-        x.save();x.strokeStyle='rgba(3,46,40,.6)';x.lineWidth=7;x.shadowBlur=0;
-        for(var i=0;i<8;i++){var a=i/8*6.2832+0.3927;
-          x.beginPath();x.moveTo(128+48*Math.cos(a),128+48*Math.sin(a));
-          x.lineTo(128+78*Math.cos(a),128+78*Math.sin(a));x.stroke();}
-        x.restore();
-      },
-      station:function(x){
-        x.fillRect(36,146,184,72);
-        landmarkPunch(x,function(){
-          for(var i=0;i<7;i++)x.fillRect(50+i*24,166,12,34);
-        });
-        x.fillRect(106,70,44,76);
-        x.beginPath();x.arc(128,70,26,Math.PI,0);x.fill();x.stroke();
-        x.save();x.shadowBlur=0;x.fillStyle='#f4ffe9';
-        x.beginPath();x.arc(128,104,12,0,6.2832);x.fill();x.restore();
-      }
-    };
-    function landmarkSpriteTexture(type){
-      if(LANDMARK_SPRITE_CACHE[type])return LANDMARK_SPRITE_CACHE[type];
-      var c=document.createElement('canvas');c.width=c.height=256;
-      var x=c.getContext('2d');
-      var g=x.createLinearGradient(0,40,0,218);
-      g.addColorStop(0,'#f2fffd');g.addColorStop(.55,'#a4f7e6');g.addColorStop(1,'#54c8ae');
-      x.save();x.globalAlpha=.3;x.fillStyle='#01181a';
-      x.beginPath();x.ellipse(128,220,74,9,0,0,6.2832);x.fill();x.restore();
-      x.save();
-      x.fillStyle=g;x.strokeStyle='rgba(3,46,40,.6)';x.lineWidth=3;x.lineJoin='round';
-      x.shadowColor='rgba(120,255,228,.5)';x.shadowBlur=14;
-      (LANDMARK_ART[type]||LANDMARK_ART.tower)(x);
-      x.restore();
-      var tex=new THREE.CanvasTexture(c);
-      if(THREE.sRGBEncoding!==undefined)tex.encoding=THREE.sRGBEncoding;
-      tex.anisotropy=4;
-      LANDMARK_SPRITE_CACHE[type]=tex;
-      return tex;
-    }
-
+    /* City pins (2026-10-06, per Han): small HTML buttons with the city name above —
+       the 3D landmark icons are gone. Positioned each frame by projection. */
+    var pinsLayer=document.getElementById('city-pins');
     cityData.forEach(function(city,index){
       var pos=latLon(city[1],city[2],2.035);
       var marker=new THREE.Mesh(new THREE.SphereGeometry(.72,10,8),new THREE.MeshBasicMaterial({transparent:true,opacity:.001,depthWrite:false}));
       marker.position.copy(pos);
       marker.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),pos.clone().normalize());
-      /* 2D cutout billboard (2026-10-06 QA #3): camera-facing sprite, transparent background. */
-      var sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:landmarkSpriteTexture(city[3]),transparent:true,depthWrite:false}));
-      sprite.scale.set(1.55,1.55,1);
-      sprite.position.set(0,.52,0);
-      marker.add(sprite);
       marker.scale.setScalar(.17);
-      marker.userData={name:city[0],normal:pos.clone().normalize(),landmark:city[4],type:city[3],baseScale:.11,index:index,sprite:sprite,glbApplied:false,glbURL:null};
+      marker.userData={name:city[0],normal:pos.clone().normalize(),landmark:city[4],type:city[3],baseScale:.11,index:index,glbApplied:false,glbURL:null};
       markerGroup.add(marker);markers.push(marker);
+      var pin=document.createElement('button');
+      pin.type='button';pin.className='city-pin';pin.style.display='none';
+      pin.setAttribute('aria-label',city[0]+', '+city[4]);
+      pin.innerHTML='<span class="nm">'+city[0]+'</span><span class="dot"></span>';
+      pin.addEventListener('mouseenter',function(){hoverCity({object:marker});});
+      pin.addEventListener('mouseleave',function(){if(!selected)hoverCity(null);});
+      pin.addEventListener('focus',function(){hoverCity({object:marker});});
+      pin.addEventListener('blur',function(){if(!selected)hoverCity(null);});
+      pin.addEventListener('click',function(){centerReel(marker,true);selectCity(marker);});
+      pinsLayer.appendChild(pin);marker.userData.pin=pin;
       var cityButton=document.createElement('button');
       cityButton.type='button';cityButton.className='city-name';cityButton.textContent=city[0];cityButton.title=city[0]+' — '+city[4];cityButton.setAttribute('aria-label',city[0]+', '+city[4]);
       cityButton.addEventListener('mouseenter',function(){hoverCity({object:marker});});
@@ -3456,6 +3204,22 @@
       cityButton.addEventListener('click',function(){centerReel(marker,true);selectCity(marker);});
       cityList.appendChild(cityButton);marker.userData.button=cityButton;
     });
+    var pinV=new THREE.Vector3();
+    function updateCityPins(){
+      var rect=canvas.getBoundingClientRect();
+      for(var i=0;i<markers.length;i++){
+        var marker=markers[i],pin=marker.userData.pin;
+        if(!pin)continue;
+        if(!marker.visible||window.__espilIntroActive){pin.style.display='none';continue;}
+        marker.getWorldPosition(pinV);pinV.project(camera);
+        if(pinV.z>1){pin.style.display='none';continue;}
+        var x=rect.left+(pinV.x*.5+.5)*rect.width;
+        var y=rect.top+(-pinV.y*.5+.5)*rect.height;
+        pin.style.display='flex';
+        pin.style.transform='translate('+x.toFixed(1)+'px,'+y.toFixed(1)+'px) translate(-50%,-100%)';
+        pin.classList.toggle('is-active',marker===selected);
+      }
+    }
     var centeredMarker=null,reelFrame=0,reelQuietUntil=0;
     function updateReelCenter(){
       reelFrame=0;
@@ -3984,6 +3748,7 @@
         /* Constant landmark size regardless of zoom; half size while its city is zoomed. No hover scaling. */
         marker.scale.setScalar(marker.userData.baseScale*(marker===selected?.5:1));
       });
+      updateCityPins(); /* HTML pins follow the markers (2026-10-06, per Han) */
       if(entryActive)maybeShowEntrySub();
       if(selected&&!cityPhaseActive&&!infoShown&&!gateActive&&!entryActive&&performance.now()-cityApproachStarted>1200&&(Math.abs(orbitDistance-targetDistance)<.09||performance.now()-cityApproachStarted>9000)){
         showCityInfo(selected);
