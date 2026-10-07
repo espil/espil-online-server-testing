@@ -878,10 +878,10 @@
             <span class="char-name">Male</span>
             <span class="char-tag">Ready</span>
           </button>
-          <button class="char-card" id="char-female" type="button" data-gender="female" aria-label="Female character">
+          <button class="char-card is-disabled" id="char-female" type="button" data-gender="female" aria-label="Female character, coming soon" disabled>
             <span class="char-face" aria-hidden="true">&#9792;</span>
             <span class="char-name">Female</span>
-            <span class="char-tag">Ready</span>
+            <span class="char-tag">Soon</span>
           </button>
         </div>
         <p class="bypass-note" id="char-bypass" hidden>TESTING BYPASS &mdash; entering as <b>Male</b>&hellip;</p>
@@ -1719,11 +1719,9 @@
     }
     (function wireCharCustom(){
       var male=document.getElementById('char-male');
-      var female=document.getElementById('char-female');
       var confirm=document.getElementById('char-confirm');
       var back=document.getElementById('char-back');
       if(male)male.addEventListener('click',function(){setChosen('male');if(window.EspilAudio&&window.EspilAudio.tick)window.EspilAudio.tick();});
-      if(female)female.addEventListener('click',function(){setChosen('female');if(window.EspilAudio&&window.EspilAudio.tick)window.EspilAudio.tick();});
       if(confirm)confirm.addEventListener('click',function(){confirmCharacter(chosenGender);});
       if(back)back.addEventListener('click',function(){
         var panel=document.getElementById('char-custom');
@@ -2152,46 +2150,29 @@
         var c=a.cloneNode(); c.volume=a.volume; c.play().catch(function(){});
       }catch(e){}
     }
-    /* Character gender (2026-10-06, per Han): female is now testable. Motions are
-       placeholders until Han picks the real ones. */
-    function currentGender(){
-      var g='male';
-      try{
-        var ch=JSON.parse(window.localStorage.getItem('espil_character')||'null');
-        if(ch&&ch.gender)g=ch.gender;
-      }catch(e){}
-      if(typeof chosenGender==='string'&&chosenGender)g=chosenGender;
-      return g;
-    }
-    function buildWalkerAvatar(gender){
-      gender=gender||currentGender();
-      var isFemale=(gender==='female');
-      /* Male: Han's character (male.glb) — Mixamo 22-bone rig, 1.2 units, faces +z,
-         textures embedded. Clips: idle 'Armature|clip0|baselayer', 'Walking', 'Running'.
-         Female (placeholder): female_walk.glb as the base mesh, Walking clip from it,
-         Running from female_run.glb, Jump from female_jump.glb (Meshy "Regular Jump",
-         same 22-bone mixamorig:* skeleton). Idle is a frozen walk frame until Han
-         picks the real motions. */
+    function buildWalkerAvatar(){
+      /* Han's male character (assets/character/male.glb): Mixamo 22-bone rig, 1.2 units,
+         faces +z, textures embedded. Clips: idle 'Armature|clip0|baselayer', 'Walking', 'Running'.
+         Female clips (female_run.glb / female_walk.glb) are staged in the same folder for later. */
       var g=new THREE.Group();
       var shadow=new THREE.Mesh(new THREE.CircleGeometry(.55,20),
         new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:.26,depthWrite:false}));
       shadow.rotation.x=-Math.PI/2;
-      var av={group:g,shadow:shadow,ready:false,mixer:null,actions:{},curAnim:null,gender:gender};
+      var av={group:g,shadow:shadow,ready:false,mixer:null,actions:{},curAnim:null};
       av.playAnim=function(name){
         if(!av.mixer||!av.actions[name]||av.curAnim===name)return;
         var prev=av.actions[av.curAnim],next=av.actions[name];
         av.curAnim=name;
         next.reset().fadeIn(.18).play();
-        if(name==='idle'&&av.frozenIdle!=null){next.paused=true;next.time=av.frozenIdle;}
         if(prev&&prev!==next){prev.fadeOut(.18);(function(pp){setTimeout(function(){pp.stop();},220);})(prev);}
       };
       try{
         if(typeof THREE.GLTFLoader==='undefined')throw new Error('no GLTFLoader');
-        new THREE.GLTFLoader().load(isFemale?'assets/character/female_walk.glb':'assets/character/male.glb',function(gltf){
+        new THREE.GLTFLoader().load('assets/character/male.glb',function(gltf){
           var model=gltf.scene;
-          /* Male clips carry a baked-in half-turn on the hips vs the bind pose,
-           so the model needs a PI counter-rotation. Female files are clean +Z. */
-          if(!isFemale)model.rotation.y=Math.PI;
+          /* The animation clips carry a baked-in half-turn on the hips vs the bind pose,
+           so the model needs a PI counter-rotation to face the movement direction. */
+        model.rotation.y=Math.PI;
           model.scale.setScalar(1.5); /* 1.2 -> 1.8 units, reads as a person in this downtown */
           var bbox=new THREE.Box3().setFromObject(model);
           model.position.y-=bbox.min.y; /* feet exactly on the ground */
@@ -2201,41 +2182,20 @@
           av.mixer=mixer;
           var clips=gltf.animations||[];
           function findClip(rx){for(var i=0;i<clips.length;i++){if(rx.test(clips[i].name))return clips[i];}return null;}
-          if(isFemale){
-            var walkClip=findClip(/walking/i)||clips[0];
-            if(walkClip){
-              av.actions.walk=mixer.clipAction(walkClip);
-              /* Idle placeholder: freeze a neutral passing frame of the walk.
-                 playAnim() would unpause it via .play(), so frozenIdle re-parks it. */
-              av.actions.idle=mixer.clipAction(walkClip);
-              av.frozenIdle=walkClip.duration*0.25;
-            }
-            /* Run comes from the separate female_run.glb (same skeleton). */
-            try{
-              new THREE.GLTFLoader().load('assets/character/female_run.glb',function(rgltf){
-                var rcs=rgltf.animations||[],rc=null,i;
-                for(i=0;i<rcs.length;i++){if(/running/i.test(rcs[i].name)){rc=rcs[i];break;}}
-                if(!rc&&rcs.length)rc=rcs[0];
-                if(rc)av.actions.run=mixer.clipAction(rc);
-              });
-            }catch(e){/* run optional for placeholder */}
-          }else{
-            var idleClip=findClip(/baselayer|idle/i)||clips[0];
-            var walkClip=findClip(/walking/i),runClip=findClip(/running/i);
-            if(idleClip)av.actions.idle=mixer.clipAction(idleClip);
-            if(walkClip)av.actions.walk=mixer.clipAction(walkClip);
-            if(runClip)av.actions.run=mixer.clipAction(runClip);
-          }
+          var idleClip=findClip(/baselayer|idle/i)||clips[0];
+          var walkClip=findClip(/walking/i),runClip=findClip(/running/i);
+          if(idleClip)av.actions.idle=mixer.clipAction(idleClip);
+          if(walkClip)av.actions.walk=mixer.clipAction(walkClip);
+          if(runClip)av.actions.run=mixer.clipAction(runClip);
           av.ready=true;
           av.playAnim('idle');
-          /* QA #7: Jump clip from male_jump.glb / female_jump.glb (Meshy "Regular Jump",
-             1.87s, non-loop). Same Mixamo 22-bone skeleton, mixamorig:* names — binds to
-             the same mixer. The male π counter-rotation on `model` applies as-is (clip
-             keeps baked-in half-turn); female is clean +Z like its native clips.
+          /* QA #7: Jump clip from male_jump.glb (Meshy "Regular Jump", 1.87s, non-loop).
+             Same Mixamo 22-bone skeleton, mixamorig:* names — binds to the same mixer.
+             The male π counter-rotation on `model` applies as-is (clip keeps baked-in half-turn).
              Root motion (Hips position) is stripped — game physics (velY) drives the jump,
              the clip supplies only the pose. In-place jump, no X/Z drift. */
           try{
-            new THREE.GLTFLoader().load(isFemale?'assets/character/female_jump.glb':'assets/character/male_jump.glb',function(jgltf){
+            new THREE.GLTFLoader().load('assets/character/male_jump.glb',function(jgltf){
               var jclips=jgltf.animations||[],jumpClip=null;
               for(var i=0;i<jclips.length;i++){
                 if(/jump/i.test(jclips[i].name)){jumpClip=jclips[i];break;}
@@ -2659,26 +2619,10 @@
         walkPlayer.pos.z+Math.cos(walkCamYaw)*cp0*walkCamDist);
       mapCamera.lookAt(walkPlayer.pos.x,walkPlayer.pos.y+1.7,walkPlayer.pos.z);
     }
-    /* Rebuild the avatar when the chosen gender changed since the map was built
-       (2026-10-06, per Han): the map builds once, but Han switches characters. */
-    function ensureAvatarGender(){
-      var g=currentGender();
-      if(walkPlayer&&walkPlayer.av&&walkPlayer.av.gender===g)return;
-      if(walkPlayer&&walkPlayer.av){
-        var old=walkPlayer.av;
-        if(old.mixer)try{old.mixer.stopAllAction();}catch(e){}
-        if(old.group&&old.group.parent)old.group.parent.remove(old.group);
-        if(old.shadow&&old.shadow.parent)old.shadow.parent.remove(old.shadow);
-      }
-      var av=buildWalkerAvatar(g);
-      mapScene.add(av.group);mapScene.add(av.shadow);
-      if(walkPlayer)walkPlayer.av=av;
-    }
     function enterWalkMap(){
       if(cityPhaseActive)return;
       gateActive=false;
       buildWalkMapOnce();
-      ensureAvatarGender();
       resetWalkPlayer();
       cityPhaseActive=true;
       targetDistance=1.34; /* continue the entry dive (2026-10-06 QA #3) */
