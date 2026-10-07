@@ -7,7 +7,7 @@
   <meta name="color-scheme" content="dark" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&amp;display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&amp;family=Monoton&amp;display=swap" rel="stylesheet" />
   <title>ESPIL Online — Earth</title>
   <style>
     :root {
@@ -42,7 +42,7 @@
     #globe-canvas:focus-visible { outline:1px solid var(--signal); outline-offset:-6px; }
     .city-readout {
       position:absolute;
-      z-index:2;
+      z-index:25;
       left:50%;
       bottom:max(16px,env(safe-area-inset-bottom));
       width:min(460px,calc(100% - 28px));
@@ -597,14 +597,48 @@
     .intro.hide { opacity:0; visibility:hidden; pointer-events:none; }
     .intro-stars { position:absolute; inset:0; width:100%; height:100%; display:block; }
     .intro-logo { position:relative; text-align:center; user-select:none; margin:0 12px; }
+    /* Industrial pipe frame (2026-10-06, per Han): cyberpunk neon-sign housing. */
+    .neon-frame {
+      position:relative; display:inline-block;
+      padding:clamp(18px,3.6vw,34px) clamp(30px,5.5vw,58px);
+      background:linear-gradient(180deg,rgba(10,13,16,.72),rgba(4,6,8,.78));
+      border:5px solid #33393f; border-radius:12px;
+      box-shadow:
+        inset 0 2px 3px rgba(255,255,255,.28),
+        inset 0 -4px 8px rgba(0,0,0,.75),
+        inset 0 0 0 2px #0b0d0f,
+        0 0 0 2px #060708,
+        0 10px 34px rgba(0,0,0,.6),
+        0 0 44px rgba(255,45,120,.28),
+        0 0 110px rgba(64,255,205,.14);
+    }
+    /* neon tube running inside the pipe */
+    .neon-frame::before {
+      content:""; position:absolute; inset:10px; border-radius:7px; pointer-events:none;
+      border:2px solid #ff2d78;
+      box-shadow:0 0 8px #ff2d78,0 0 22px rgba(255,45,120,.75),inset 0 0 10px rgba(255,45,120,.7);
+    }
+    .neon-frame .bolt { position:absolute; width:13px; height:13px; border-radius:50%;
+      background:radial-gradient(circle at 35% 30%,#eef2f5,#9aa3ab 55%,#3a4046 100%);
+      box-shadow:inset 0 -2px 3px rgba(0,0,0,.65),0 1px 3px rgba(0,0,0,.7),0 0 6px rgba(255,45,120,.35); }
+    .neon-frame .bolt.tl{top:7px;left:7px;} .neon-frame .bolt.tr{top:7px;right:7px;}
+    .neon-frame .bolt.bl{bottom:7px;left:7px;} .neon-frame .bolt.br{bottom:7px;right:7px;}
     .intro-logo .shadow-layer, .intro-logo .typed-layer {
-      font:900 clamp(2.6rem,11vw,6.4rem)/1 "Arial Black","Arial",sans-serif;
-      letter-spacing:.08em; white-space:nowrap; margin:0;
+      font-family:"Monoton","Arial Black",sans-serif;
+      font-weight:400;
+      font-size:clamp(2.2rem,9.5vw,5.6rem);
+      letter-spacing:.05em; white-space:nowrap; margin:0; line-height:1.25;
     }
     .intro-logo .shadow-layer { color:transparent; text-shadow:none; } /* invisible: keeps the logo box sized so nothing jumps */
     .intro-logo .typed-layer {
-      position:absolute; inset:0; color:#8ffce9;
-      text-shadow:0 1px 0 #0d7a68,0 2px 0 #0b6a5b,0 3px 0 #09594d,0 4px 0 #074840,0 5px 0 #053732,0 6px 0 #032722,0 9px 22px rgba(0,0,0,.65),0 0 24px rgba(64,255,205,.8),0 0 74px rgba(64,255,205,.32);
+      position:absolute; inset:0; color:#fff;
+      text-shadow:
+        0 0 4px #fff,
+        0 0 10px #ff9ec7,
+        0 0 24px #ff2d78,
+        0 0 55px #ff2d78,
+        0 0 95px rgba(255,45,120,.6),
+        0 0 150px rgba(255,45,120,.32);
     }
     .intro-logo .typed-inner { position:relative; display:inline-block; }
     .intro-logo .typed-layer .ch { visibility:hidden; display:inline-block; }
@@ -623,7 +657,7 @@
     .intro-logo .typed-layer .ch.on { visibility:visible; }
     .intro-logo .caret {
       display:inline-block; width:.09em; height:1em; margin-left:.12em; vertical-align:-.06em;
-      background:#7dfce6; box-shadow:0 0 18px rgba(64,255,205,.9);
+      background:#ffd7e8; box-shadow:0 0 18px rgba(255,45,120,.95),0 0 40px rgba(255,45,120,.5);
       animation:caret-blink .8s steps(1) infinite;
     }
     @keyframes caret-blink { 0%,55% { opacity:1; } 56%,100% { opacity:0; } }
@@ -741,15 +775,21 @@
       box-shadow:0 2px 12px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.6);
     }
     .city-entry-name {
-      font:900 clamp(2.4rem,9vw,5rem)/1 "Arial Black","Arial",sans-serif;
-      letter-spacing:.1em; color:#8ffce9; text-align:center; white-space:nowrap; margin:0 16px;
-      text-shadow:0 1px 0 #0d7a68,0 2px 0 #0b6a5b,0 3px 0 #09594d,0 4px 0 #074840,0 5px 0 #053732,0 6px 0 #032722,0 9px 22px rgba(0,0,0,.65),0 0 24px rgba(64,255,205,.8),0 0 74px rgba(64,255,205,.32);
+      font-family:"Monoton","Arial Black",sans-serif; font-weight:400;
+      font-size:clamp(2.2rem,8.5vw,4.6rem); line-height:1.25;
+      letter-spacing:.05em; color:#fff; text-align:center; white-space:nowrap; margin:0 16px;
+      text-shadow:
+        0 0 4px #fff,
+        0 0 10px #a4f7e6,
+        0 0 24px #2de8c8,
+        0 0 55px #2de8c8,
+        0 0 95px rgba(45,232,200,.55);
     }
     .city-entry-name .ch { visibility:hidden; display:inline-block; }
     .city-entry-name .ch.on { visibility:visible; animation:type-punch .22s ease-out; }
     .city-entry-caret {
       display:inline-block; width:.09em; height:1em; margin-left:.12em; vertical-align:-.06em;
-      background:#7dfce6; box-shadow:0 0 18px rgba(64,255,205,.9);
+      background:#d8fff6; box-shadow:0 0 18px rgba(45,232,200,.95),0 0 40px rgba(45,232,200,.5);
       animation:caret-blink .8s steps(1) infinite;
     }
     .city-entry-sub {
@@ -770,8 +810,11 @@
   <div class="intro" id="intro" role="button" tabindex="0" aria-label="Enter Espil Online">
     <canvas class="intro-stars" id="intro-stars" aria-hidden="true"></canvas>
     <div class="intro-logo" id="intro-logo" aria-label="Espil Online">
-      <p class="shadow-layer" aria-hidden="true">Espil Online</p>
-      <p class="typed-layer" aria-hidden="true"><span class="typed-inner" id="intro-typed"></span></p>
+      <div class="neon-frame">
+        <span class="bolt tl"></span><span class="bolt tr"></span><span class="bolt bl"></span><span class="bolt br"></span>
+        <p class="shadow-layer" aria-hidden="true">Espil Online</p>
+        <p class="typed-layer" aria-hidden="true"><span class="typed-inner" id="intro-typed"></span></p>
+      </div>
     </div>
     <div class="intro-continue" id="intro-continue">TAP OR PRESS ANY KEY TO CONTINUE</div>
   </div>
