@@ -147,19 +147,23 @@
     .city-readout.is-city::before,.city-readout.is-city::after { display:none; }
     .city-readout.is-city .city-list { display:none; }
     .city-readout.is-city .city-phase { display:flex; }
-    /* City pins (2026-10-06, per Han): small dot buttons with the city name above.
+    /* City pins (2026-10-06, per Han): small 3D-look buttons with the city name above.
        Keep them small — they sit on the globe, not in a panel. */
     #city-pins{position:fixed;inset:0;pointer-events:none;z-index:21;overflow:hidden;}
-    .city-pin{position:absolute;left:0;top:0;pointer-events:auto;background:none;border:0;padding:6px;
-      cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;}
+    .city-pin{position:absolute;left:0;top:0;pointer-events:auto;background:none;border:0;padding:8px;
+      cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px;}
     .city-pin .nm{font:600 10px/1 "Manrope",sans-serif;letter-spacing:.14em;text-indent:.14em;color:#eafffd;
       text-shadow:0 0 6px rgba(120,255,228,.9),0 1px 3px rgba(0,0,0,.85);white-space:nowrap;}
-    .city-pin .dot{width:10px;height:10px;border-radius:50%;
-      background:radial-gradient(circle at 35% 35%,#eafffd,#54c8ae);
-      border:1px solid rgba(220,255,250,.9);box-shadow:0 0 8px rgba(120,255,228,.85);}
-    .city-pin:hover .dot,.city-pin:focus-visible .dot{transform:scale(1.3);outline:none;}
-    .city-pin.is-active .dot{background:radial-gradient(circle at 35% 35%,#fff,#ffd9a0);
-      box-shadow:0 0 12px rgba(255,200,140,.95);}
+    .city-pin .orb{position:relative;width:14px;height:14px;}
+    .city-pin .ball{position:absolute;inset:0;border-radius:50%;
+      background:radial-gradient(circle at 32% 28%,#ffffff 0%,#d8fff6 22%,#7fe8cf 48%,#2f9d83 78%,#16614f 100%);
+      box-shadow:0 2px 5px rgba(0,0,0,.55),0 0 9px rgba(120,255,228,.75),inset -2px -3px 4px rgba(0,40,32,.45);}
+    .city-pin .halo{position:absolute;left:50%;top:50%;width:22px;height:22px;transform:translate(-50%,-50%);
+      border-radius:50%;border:1px solid rgba(160,255,238,.4);box-shadow:0 0 6px rgba(120,255,228,.25) inset;}
+    .city-pin:hover .orb,.city-pin:focus-visible .orb{transform:scale(1.25);}
+    .city-pin:focus-visible{outline:none;}
+    .city-pin.is-active .ball{background:radial-gradient(circle at 32% 28%,#ffffff 0%,#ffedd2 25%,#ffcf90 52%,#d8913f 80%,#8a4d16 100%);
+      box-shadow:0 2px 5px rgba(0,0,0,.55),0 0 12px rgba(255,200,140,.9),inset -2px -3px 4px rgba(80,35,0,.45);}
     .city-pin.is-active .nm{color:#ffe9c9;}
     .city-phase-name {
       margin:0;
@@ -1562,8 +1566,23 @@
     var cityPhaseActive=false,cityApproachStarted=0;
     var approachSlow=false,infoShown=false;
     /* Staged zoom timers (2026-10-06 QA #3): cleared whenever the selection changes. */
-    var zoomStageTimers=[];
-    function clearZoomStages(){zoomStageTimers.forEach(function(t){clearTimeout(t);});zoomStageTimers=[];}
+    var zoomStageGen=0; /* smooth-zoom generation: bumping it cancels any running zoom tween */
+    function clearZoomStages(){zoomStageGen++;}
+    /* Smooth zoom tween (2026-10-06, per Han): ease targetDistance continuously
+       instead of jumping between staged distances ("따닥" stutter). */
+    function smoothZoomTo(toDist,durMs,labels){
+      var gen=++zoomStageGen;
+      var fromDist=orbitDistance,startT=performance.now();
+      var tick=function(){
+        if(gen!==zoomStageGen)return;
+        var t=Math.min(1,(performance.now()-startT)/durMs);
+        var e=t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2; /* easeInOutQuad */
+        targetDistance=fromDist+(toDist-fromDist)*e;
+        if(labels)status.textContent=labels[Math.min(labels.length-1,Math.floor(t*labels.length))];
+        if(t<1)requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }
     /* ENTER CITY now drops into the walkable 3D downtown map (built on demand). */
     function activateCityPhase(){
       if(!selected||cityPhaseActive)return;
@@ -3188,7 +3207,7 @@
       var pin=document.createElement('button');
       pin.type='button';pin.className='city-pin';pin.style.display='none';
       pin.setAttribute('aria-label',city[0]+', '+city[4]);
-      pin.innerHTML='<span class="nm">'+city[0]+'</span><span class="dot"></span>';
+      pin.innerHTML='<span class="nm">'+city[0]+'</span><span class="orb"><span class="halo"></span><span class="ball"></span></span>';
       pin.addEventListener('mouseenter',function(){hoverCity({object:marker});});
       pin.addEventListener('mouseleave',function(){if(!selected)hoverCity(null);});
       pin.addEventListener('focus',function(){hoverCity({object:marker});});
@@ -3231,6 +3250,11 @@
       var prev=centeredMarker;
       centeredMarker=closest;
       markers.forEach(function(marker){marker.userData.button.classList.toggle('is-centered',marker===closest);});
+      /* The city-name text follows the centered city (2026-10-06, per Han):
+         every time the city changes, the readout shows the new city. */
+      if(closest&&closest!==prev&&!selected&&!entryActive&&!cityPhaseActive){
+        status.textContent=closest.userData.name+' — '+closest.userData.landmark;
+      }
       /* Tick when the user swipes/scrolls the reel onto a new city — touch, wheel and drag alike. */
       if(closest&&closest!==prev&&performance.now()>reelQuietUntil){
         if(window.EspilAudio&&window.EspilAudio.tick)window.EspilAudio.tick();
@@ -3432,22 +3456,15 @@
       citySky.visible=false;
       cityPhasePanel.setAttribute('aria-hidden','true');
       document.getElementById('city-status').classList.remove('is-city');
-      /* Staged cinematic zoom (2026-10-06 QA #3): the dive unfolds in three beats
-         instead of one short drop. */
+      /* Smooth cinematic zoom (2026-10-06 QA #3, smoothed per Han): one continuous
+         dive instead of three stepped drops. Labels still mark the thirds. */
       clearZoomStages();
       var cityName=marker.userData.name,cityLandmark=marker.userData.landmark;
-      var zoomStages=[
-        {d:3.6,wait:0,label:'1/3 \u00B7 Locating '+cityName},
-        {d:2.6,wait:1900,label:'2/3 \u00B7 Approaching '+cityName},
-        {d:1.9,wait:3800,label:'3/3 \u00B7 Final approach \u2014 '+cityLandmark}
-      ];
-      zoomStages.forEach(function(st){
-        zoomStageTimers.push(setTimeout(function(){
-          if(selected!==marker||cityPhaseActive||entryActive)return;
-          targetDistance=Math.min(orbitDistance,st.d);
-          status.textContent=st.label;
-        },st.wait));
-      });
+      smoothZoomTo(1.9,4200,[
+        '1/3 \u00B7 Locating '+cityName,
+        '2/3 \u00B7 Approaching '+cityName,
+        '3/3 \u00B7 Final approach \u2014 '+cityLandmark
+      ]);
       var cityDirection=marker.position.clone().normalize().applyAxisAngle(new THREE.Vector3(0,1,0),earthSpin.rotation.y);
       targetYaw=Math.atan2(cityDirection.x,cityDirection.z);
       targetPitch=Math.asin(Math.max(-1,Math.min(1,cityDirection.y)));
@@ -3590,9 +3607,19 @@
       clearZoomStages();
       if(window.EspilAudio&&window.EspilAudio.pop)window.EspilAudio.pop();
       hideCityInfo();
-      /* Slow dive toward the city in two beats while the name types out. */
-      entryTimers.push(setTimeout(function(){if(entryActive)targetDistance=Math.min(orbitDistance,1.62);},0));
-      entryTimers.push(setTimeout(function(){if(entryActive)targetDistance=1.34;},2300));
+      /* Slow smooth dive toward the city while the name types out (smoothed 2026-10-06). */
+      (function(){
+        var gen=++zoomStageGen;
+        var fromDist=orbitDistance,startT=performance.now(),durMs=4600;
+        var tick=function(){
+          if(gen!==zoomStageGen||!entryActive)return;
+          var t=Math.min(1,(performance.now()-startT)/durMs);
+          var e=t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+          targetDistance=fromDist+(1.34-fromDist)*e;
+          if(t<1)requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      })();
       entryTimers.push(setTimeout(function(){maybeShowEntrySub();},12000)); /* safety net */
       if(entryEl)entryEl.setAttribute('aria-hidden','false');
       if(entrySub)entrySub.classList.remove('show');
@@ -3783,7 +3810,7 @@
     var WORD=WORD_A+WORD_B;
     var BREATHE_MS=850; /* the beat between the two words */
     var TYPE_MIN=50,TYPE_JITTER=50; /* 50-100ms per char: brisk, natural keystroke rhythm */
-    var CARET_LINGER=2000; /* caret keeps blinking 2s after typing completes, then disappears */
+    var CARET_LINGER=800; /* caret keeps blinking briefly after typing, then the continue prompt */
     var done=false,continued=false,earthReady=false,typedDone=false,caretGone=false,idx=0;
     var reduced=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     window.__espilIntroActive=true;
