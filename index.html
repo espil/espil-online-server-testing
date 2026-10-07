@@ -103,16 +103,23 @@
       transition:color .18s ease,font-size .18s ease,text-shadow .18s ease,opacity .18s ease;
       white-space:nowrap;
     }
-    .city-name:hover,.city-name:focus-visible { color:rgba(221,255,252,.76); outline:none; }
+    .city-name:hover,.city-name:focus-visible,.city-name.is-centered { color:#fff8e1; outline:none;
+      text-shadow:0 0 8px rgba(255,217,77,.95),0 0 26px rgba(255,180,40,.55); }
     .city-name.is-centered,.city-name.is-active {
-      color:#eafffd;
       font-size:clamp(1rem,3.2vw,1.34rem);
       font-weight:800;
       letter-spacing:.16em;
-      text-shadow:0 0 7px rgba(181,255,248,.98),0 0 22px rgba(80,232,220,.78),0 0 42px rgba(25,174,164,.52);
     }
-    .city-name.is-centered::before { content:"◆"; margin-right:10px; color:var(--signal); font-size:.58em; filter:drop-shadow(0 0 7px var(--signal)); }
-    .city-name.is-centered::after { content:"◆"; margin-left:10px; color:var(--signal); font-size:.58em; filter:drop-shadow(0 0 7px var(--signal)); }
+    /* Blinking yellow lights on hover / centered (2026-10-06, per Han). */
+    @keyframes cityBlink{0%,100%{opacity:1;}50%{opacity:.15;}}
+    .city-name:hover::before,.city-name:focus-visible::before,.city-name.is-centered::before,
+    .city-name:hover::after,.city-name:focus-visible::after,.city-name.is-centered::after {
+      content:"\25CF"; font-size:.55em; color:#ffd94d;
+      text-shadow:0 0 8px rgba(255,217,77,.95);
+      animation:cityBlink 1.1s ease-in-out infinite;
+    }
+    .city-name:hover::before,.city-name:focus-visible::before,.city-name.is-centered::before { margin-right:10px; }
+    .city-name:hover::after,.city-name:focus-visible::after,.city-name.is-centered::after { margin-left:10px; }
     .city-name.is-local { color:rgba(181,255,248,.62); }
     .city-name.is-local:not(.is-centered)::before { content:"•"; margin-right:7px; color:var(--signal); }
     .city-message {
@@ -639,7 +646,7 @@
     @media (pointer:coarse) { .joystick { display:block; } }
     /* City info panel: details before entering. Centered on screen (2026-10-06 QA). */
     .city-info {
-      position:absolute; z-index:28; top:50%; left:50%; transform:translate(-50%,-50%);
+      position:absolute; z-index:28; top:50%; right:28px; left:auto; transform:translateY(-50%);
       width:min(330px,calc(100vw - 52px)); max-height:calc(100% - 120px); overflow:auto;
       border-radius:18px; border:1px solid rgba(134,238,228,.35);
       background:linear-gradient(165deg,rgba(4,20,24,.96),rgba(2,10,13,.94));
@@ -647,7 +654,7 @@
       padding:20px 20px 22px; color:#eafffd;
       transition:opacity .45s ease, transform .45s ease, visibility .45s ease;
     }
-    .city-info[aria-hidden="true"] { opacity:0; visibility:hidden; pointer-events:none; transform:translate(-50%,-50%) translateY(26px); }
+    .city-info[aria-hidden="true"] { opacity:0; visibility:hidden; pointer-events:none; transform:translateY(-50%) translateX(26px); }
     .city-info-back {
       position:absolute; top:10px; left:10px; width:34px; height:34px; border-radius:8px;
       border:1px solid #a8854f; background:linear-gradient(180deg,#f8f3e6,#e6dabd); color:#3b2f28;
