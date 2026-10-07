@@ -122,7 +122,7 @@
       font:600 .66rem/1.2 "Manrope",sans-serif;
       letter-spacing:.1em;
     }
-    .city-message:empty::before { content:"TAP VANCOUVER DOWNTOWN TO ENTER"; opacity:.62; }
+    .city-message:empty::before { content:"SCROLL TO SELECT A CITY"; opacity:.62; }
     .city-clock {
       position:absolute;
       z-index:4;
@@ -167,27 +167,19 @@
       box-shadow:0 0 15px rgba(80,232,220,.12);
     }
     .city-return:hover,.city-return:focus-visible { border-color:var(--signal); background:rgba(22,65,68,.78); outline:none; }
-    /* Single-city mode: the 36-city reel is retired. */
-    .city-list { display:none !important; }
-    .city-readout::before,.city-readout::after { display:none; }
-    .single-city {
-      appearance:none;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      width:100%;
-      min-height:64px;
-      border:0;
-      background:none;
-      color:#eafffd;
-      font:800 clamp(1rem,3.2vw,1.34rem)/1.2 "Manrope",sans-serif;
-      letter-spacing:.16em;
-      text-shadow:0 0 7px rgba(181,255,248,.98),0 0 22px rgba(80,232,220,.78),0 0 42px rgba(25,174,164,.52);
-      cursor:pointer;
-      white-space:nowrap;
+    .city-readout::before,.city-readout::after {
+      content:"";
+      position:absolute;
+      z-index:3;
+      left:10px;
+      right:10px;
+      height:1px;
+      pointer-events:none;
+      background:linear-gradient(90deg,transparent,var(--signal),transparent);
+      box-shadow:0 0 10px rgba(134,238,228,.68);
     }
-    .single-city:hover,.single-city:focus-visible { outline:none; filter:brightness(1.15); }
-    .city-readout.is-city .single-city { display:none; }
+    .city-readout::before { top:72px; }
+    .city-readout::after { top:111px; }
     .map-hint {
       width:100%;
       margin:0;
@@ -735,14 +727,6 @@
       animation:intro-pulse 1.8s ease-in-out infinite;
     }
     .city-entry-sub.show { opacity:1; visibility:visible; }
-    /* The Cauldron — origin caption (2026-10-06): the landing opens AT the station. */
-    #station-caption{position:fixed;left:50%;top:15%;transform:translateX(-50%);text-align:center;
-      opacity:0;transition:opacity 1.1s ease;pointer-events:none;z-index:40;}
-    #station-caption.show{opacity:1;}
-    #station-caption span{display:block;font:700 13px/1 "Manrope",sans-serif;letter-spacing:.55em;text-indent:.55em;color:#ffd9ec;
-      text-shadow:0 0 18px rgba(255,160,210,.85);}
-    #station-caption em{display:block;font:400 10px/1 "Manrope",sans-serif;font-style:normal;letter-spacing:.4em;text-indent:.4em;
-      color:#8fb8ff;margin-top:8px;text-shadow:0 0 14px rgba(140,180,255,.7);}
     /* DNA imprint flash (2026-10-06): the Cauldron sticks its DNA on the city. */
     #dna-flash{position:fixed;inset:0;pointer-events:none;opacity:0;z-index:60;
       background:radial-gradient(ellipse at 50% 62%,rgba(255,224,242,.9),rgba(255,178,218,.28) 46%,rgba(255,178,218,0) 72%);
@@ -824,7 +808,6 @@
     <div class="city-readout" id="city-status">
       <time class="city-clock" id="city-clock" aria-label="Local time"></time>
       <div class="city-list" id="city-list" aria-label="City selector. Scroll the reel and choose the centered city."></div>
-      <button class="single-city" id="single-city" type="button" aria-label="Vancouver Downtown — select to enter">◆ VANCOUVER DOWNTOWN ◆</button>
       <div class="city-phase" id="city-phase" aria-hidden="true">
         <h2 class="city-phase-name" id="city-phase-name"></h2>
         <p class="map-hint" id="map-hint"></p>
@@ -856,7 +839,6 @@
       <p class="city-comingsoon-city" id="city-comingsoon-city"></p>
       <button class="city-comingsoon-back" id="city-comingsoon-back" type="button">&#8592; BACK TO EARTH</button>
     </div>
-    <div id="station-caption" aria-hidden="true"><span>THE CAULDRON</span><em>ORIGIN</em></div>
     <div id="dna-flash" aria-hidden="true"></div>
     <div class="joystick" id="joystick" aria-hidden="true">
       <div class="joy-knob" id="joy-knob"></div>
@@ -1193,9 +1175,12 @@
     updateSunPosition();
     window.setInterval(updateSunPosition,30000);
 
-    /* Single-city build: Vancouver Downtown only (for now). */
+    /* 36-city reel (restored 2026-10-06): the single-city cut was a regression. */
     var cityData=[
-      ['Vancouver',49.2827,-123.1207,'sails','Canada Place sails']
+      ['Vancouver',49.2827,-123.1207,'sails','Canada Place sails'],['San Francisco',37.7749,-122.4194,'bridge','Golden Gate Bridge'],['Los Angeles',34.0522,-118.2437,'star','Hollywood star'],['Chicago',41.8781,-87.6298,'tower','Willis Tower'],['Mexico City',19.4326,-99.1332,'pyramid','Sun Pyramid'],['New York',40.7128,-74.006,'liberty','Statue of Liberty'],['Toronto',43.6532,-79.3832,'needle','CN Tower'],
+      ['Rio de Janeiro',-22.9068,-43.1729,'christ','Christ the Redeemer'],['São Paulo',-23.5505,-46.6333,'beam','MASP'],['Buenos Aires',-34.6037,-58.3816,'obelisk','Obelisk'],['London',51.5072,-.1276,'clock','Big Ben'],['Paris',48.8566,2.3522,'eiffel','Eiffel Tower'],['Madrid',40.4168,-3.7038,'tree','Bear and strawberry tree'],['Rome',41.9028,12.4964,'colosseum','Colosseum'],['Berlin',52.52,13.405,'gate','Brandenburg Gate'],['Moscow',55.7558,37.6173,'domes','Saint Basil domes'],
+      ['Lagos',6.5244,3.3792,'theatre','National Theatre'],['Nairobi',-1.2921,36.8219,'spire','KICC'],['Cairo',30.0444,31.2357,'pyramid','Great Pyramid'],['Cape Town',-33.9249,18.4241,'mountain','Table Mountain'],['Istanbul',41.0082,28.9784,'mosque','Blue Mosque'],['Dubai',25.2048,55.2708,'burj','Burj Khalifa'],['Mumbai',19.076,72.8777,'gateway','Gateway of India'],['Delhi',28.6139,77.209,'arch','India Gate'],
+      ['Singapore',1.3521,103.8198,'merlion','Merlion'],['Bangkok',13.7563,100.5018,'temple','Wat Arun'],['Shanghai',31.2304,121.4737,'pearl','Oriental Pearl Tower'],['Hong Kong',22.3193,114.1694,'junk','Harbour junk'],['Beijing',39.9042,116.4074,'hall','Temple of Heaven'],['Seoul',37.5665,126.978,'needle','N Seoul Tower'],['Tokyo',35.6762,139.6503,'torii','Torii gate'],['Manila',14.5995,120.9842,'sun','Philippine sun'],['Jakarta',-6.2088,106.8456,'obelisk','National Monument'],['Sydney',-33.8688,151.2093,'sails','Sydney Opera House'],['Melbourne',-37.8136,144.9631,'station','Flinders Street Station'],['Auckland',-36.8509,174.7645,'needle','Sky Tower']
     ];
     var markers=[],markerGroup=new THREE.Group();
     earthSpin.add(markerGroup);
@@ -2536,7 +2521,7 @@
       targetDistance=1.34; /* continue the entry dive (2026-10-06 QA #3) */
       boundary.visible=false;
       citySky.visible=false;
-      cityPhaseName.textContent='VANCOUVER DOWNTOWN';
+      cityPhaseName.textContent=selected?selected.userData.name:'Vancouver Downtown';
       var hint=document.getElementById('map-hint');
       var coarse=window.matchMedia&&window.matchMedia('(pointer:coarse)').matches;
       if(hint)hint.textContent=coarse?
@@ -2546,7 +2531,7 @@
       document.getElementById('city-status').classList.add('is-city');
       document.body.classList.add('in-map');
       initSkillHud();
-      status.textContent='Vancouver Downtown \u2014 walk around';
+      status.textContent=(selected?selected.userData.name:'Vancouver Downtown')+' \u2014 walk around';
       startDnaImprint(); /* the Cauldron sticks its DNA on the city: it evolves */
       if(window.EspilAudio&&window.EspilAudio.onCitySelect)window.EspilAudio.onCitySelect();
       if(window.EspilAudio&&window.EspilAudio.onMapEnter)window.EspilAudio.onMapEnter('vancouver');
@@ -3471,7 +3456,7 @@
       cityButton.addEventListener('click',function(){centerReel(marker,true);selectCity(marker);});
       cityList.appendChild(cityButton);marker.userData.button=cityButton;
     });
-    var centeredMarker=markers[0]||null,reelFrame=0,reelQuietUntil=0; /* single city: always Vancouver */
+    var centeredMarker=null,reelFrame=0,reelQuietUntil=0;
     function updateReelCenter(){
       reelFrame=0;
       var listRect=cityList.getBoundingClientRect(),center=listRect.top+listRect.height/2,closest=null,distance=Infinity;
@@ -3497,10 +3482,22 @@
     }
     cityList.addEventListener('scroll',function(){if(!reelFrame)reelFrame=requestAnimationFrame(updateReelCenter);},{passive:true});
     cityList.addEventListener('wheel',function(event){event.stopPropagation();},{passive:true});
-    /* Arrow / joystick city navigation: retired — single-city build has nothing to step through. */
+    /* Arrow / joystick city navigation: recenter on the city at the CURRENT zoom, no zoom change. */
     var navIndex=0;
     function stepCity(dir){
       if(window.__espilIntroActive||cityPhaseActive||entryActive)return;
+      /* Stepping away from a zoomed-in city eases back out to orbit first. */
+      if(selected||infoShown)clearSelection(true);
+      var cur=markers.indexOf(centeredMarker);
+      if(cur<0)cur=navIndex;
+      navIndex=(cur+dir+markers.length)%markers.length;
+      var marker=markers[navIndex];
+      centerReel(marker,true);
+      var cityDirection=marker.position.clone().normalize().applyAxisAngle(new THREE.Vector3(0,1,0),earthSpin.rotation.y);
+      targetYaw=Math.atan2(cityDirection.x,cityDirection.z);
+      targetPitch=Math.asin(Math.max(-1,Math.min(1,cityDirection.y)));
+      status.textContent=marker.userData.name+' — '+marker.userData.landmark;
+      if(window.EspilAudio&&window.EspilAudio.tick)window.EspilAudio.tick();
     }
     function modalOpen(){
       var m=document.getElementById('signin-modal');
@@ -3563,51 +3560,7 @@
     /* The aurora shimmer rings and halo glow sprites were removed (2026-10-06 QA #3):
        landmarks are plain 2D cutout billboards now — no rings, no blinking. */
 
-    /* The Cauldron station — Espil Online origin (2026-10-06, per Han).
-       The landing opens with the camera AT the station, Earth beyond it; the station
-       stays parked in orbit afterwards. Built from primitives (no version risk). */
-    var cauldronStation=new THREE.Group();
-    var STATION_POS=new THREE.Vector3(2.55,1.05,3.55);
-    (function buildStation(){
-      var shellMat=new THREE.MeshPhongMaterial({color:0x9fd4ff,transparent:true,opacity:.20,shininess:140,specular:0xffffff,side:THREE.DoubleSide,depthWrite:false});
-      var tube=new THREE.Mesh(new THREE.CylinderGeometry(.34,.34,.95,20,1,true),shellMat);
-      tube.rotation.z=Math.PI/2;cauldronStation.add(tube);
-      var capGeo=new THREE.SphereGeometry(.34,20,14);
-      var capL=new THREE.Mesh(capGeo,shellMat);capL.position.x=-.475;cauldronStation.add(capL);
-      var capR=new THREE.Mesh(capGeo,shellMat);capR.position.x=.475;cauldronStation.add(capR);
-      /* warm lantern core */
-      var core=new THREE.Mesh(new THREE.SphereGeometry(.20,20,16),new THREE.MeshBasicMaterial({color:0xffd9a0}));
-      core.scale.set(1.9,.9,.9);cauldronStation.add(core);
-      /* blossom heart — pink glow cluster (Espil's design DNA) */
-      var heartMat=new THREE.MeshBasicMaterial({color:0xff9fd4,transparent:true,opacity:.95});
-      for(var i=0;i<5;i++){
-        var b=new THREE.Mesh(new THREE.SphereGeometry(.05+((i*37)%10)/10*.04,10,8),heartMat);
-        b.position.set((((i*53)%10)/10-.5)*.5,(((i*29)%10)/10-.5)*.22,(((i*71)%10)/10-.5)*.22);
-        cauldronStation.add(b);
-      }
-      /* docking ring */
-      var ring=new THREE.Mesh(new THREE.TorusGeometry(.52,.028,10,40),new THREE.MeshBasicMaterial({color:0x8fb8ff,transparent:true,opacity:.55}));
-      ring.rotation.y=Math.PI/2;cauldronStation.add(ring);
-      /* running lights */
-      var dotMat=new THREE.MeshBasicMaterial({color:0xff6b81});
-      for(var k=0;k<8;k++){
-        var d=new THREE.Mesh(new THREE.SphereGeometry(.022,8,6),dotMat);
-        var a=k/8*Math.PI*2;
-        d.position.set(Math.cos(a)*.52,Math.sin(a)*.52,0);
-        cauldronStation.add(d);
-      }
-      var glow=new THREE.PointLight(0xffc98a,1.1,4.2);
-      cauldronStation.add(glow);
-    })();
-    cauldronStation.position.copy(STATION_POS);
-    cauldronStation.rotation.y=.5;
-    scene.add(cauldronStation);
-    /* Origin-view cinematic state (per Han 2026-10-06). */
-    var stationReveal={t:0,active:false};
-    var stationCamPos=new THREE.Vector3(),orbitCamPos=new THREE.Vector3();
-    var stationCaptionEl=document.getElementById('station-caption');
-    function showStationCaption(){if(stationCaptionEl){stationCaptionEl.setAttribute('aria-hidden','false');stationCaptionEl.classList.add('show');}}
-    function hideStationCaption(){if(stationCaptionEl){stationCaptionEl.setAttribute('aria-hidden','true');stationCaptionEl.classList.remove('show');}}
+    /* (The Cauldron station was removed 2026-10-06, per Han — see note above.) */
 
     var raycaster=new THREE.Raycaster(),pointer=new THREE.Vector2(),hovered=null,selected=null;
     var orbitDistance=6.6,targetDistance=6.6,minDistance=2.1,maxDistance=12.2; /* minDistance keeps the camera outside the globe: max zoom-in is the city zoom level */
@@ -3775,14 +3728,44 @@
       if(returnToOrbit&&window.EspilAudio)window.EspilAudio.onReturnToOrbit();
     }
     cityReturn.addEventListener('click',function(){clearSelection(true);});
-    var singleCityBtn=document.getElementById('single-city');
-    if(singleCityBtn)singleCityBtn.addEventListener('click',function(){
-      if(window.__espilIntroActive||cityPhaseActive||!markers[0])return;
-      selectCity(markers[0]);
-    });
     /* City info panel: image, metro population, popular brands. ENTER dives into the street view. */
     var cityFacts={
-      'Vancouver':{pop:'2.6M',brands:['Lululemon','Aritzia',"Arc'teryx"],img:'assets/cities/vancouver.webp'}
+      'Vancouver':{pop:'2.6M',brands:['Lululemon','Aritzia',"Arc'teryx"],img:'assets/cities/vancouver.webp'},
+      'San Francisco':{pop:'4.7M',brands:["Levi's",'Gap','Salesforce'],img:'assets/cities/san-francisco.webp'},
+      'Los Angeles':{pop:'12.5M',brands:['Disney','Warner Bros.','In-N-Out'],img:'assets/cities/los-angeles.webp'},
+      'Chicago':{pop:'9.5M',brands:["McDonald's",'Boeing','Kraft Heinz'],img:'assets/cities/chicago.webp'},
+      'Mexico City':{pop:'22M',brands:['Corona','Bimbo','Telcel'],img:'assets/cities/mexico-city.webp'},
+      'New York':{pop:'20M',brands:["Macy's",'Estée Lauder','HBO'],img:'assets/cities/new-york.webp'},
+      'Toronto':{pop:'6.4M',brands:['Tim Hortons','Canadian Tire','Loblaw'],img:'assets/cities/toronto.webp'},
+      'Rio de Janeiro':{pop:'13.5M',brands:['Havaianas','Petrobras','Brahma'],img:'assets/cities/rio-de-janeiro.webp'},
+      'São Paulo':{pop:'22M',brands:['Itaú','Natura','Embraer'],img:'assets/cities/sao-paulo.webp'},
+      'Buenos Aires':{pop:'15M',brands:['Mercado Libre','Globant','Quilmes'],img:'assets/cities/buenos-aires.webp'},
+      'London':{pop:'14.3M',brands:['Burberry','Harrods','BBC'],img:'assets/cities/london.webp'},
+      'Paris':{pop:'11.1M',brands:['Chanel','Louis Vuitton',"L'Oréal"],img:'assets/cities/paris.webp'},
+      'Madrid':{pop:'6.6M',brands:['El Corte Inglés','Real Madrid','Mahou'],img:'assets/cities/madrid.webp'},
+      'Rome':{pop:'4.3M',brands:['Fendi','Bulgari','Enel'],img:'assets/cities/rome.webp'},
+      'Berlin':{pop:'6M',brands:['Zalando','HelloFresh','N26'],img:'assets/cities/berlin.webp'},
+      'Moscow':{pop:'13M',brands:['Aeroflot','GUM','Kaspersky'],img:'assets/cities/moscow.webp'},
+      'Lagos':{pop:'16M',brands:['Dangote','Jumia','GTBank'],img:'assets/cities/lagos.webp'},
+      'Nairobi':{pop:'5.1M',brands:['M-Pesa','Safaricom','Kenya Airways'],img:'assets/cities/nairobi.webp'},
+      'Cairo':{pop:'21M',brands:['EgyptAir','Orascom','Juhayna'],img:'assets/cities/cairo.webp'},
+      'Cape Town':{pop:'4.9M',brands:['Woolworths','Pick n Pay','Castle Lager'],img:'assets/cities/cape-town.webp'},
+      'Istanbul':{pop:'16M',brands:['Turkish Airlines','Arçelik','Mavi'],img:'assets/cities/istanbul.webp'},
+      'Dubai':{pop:'3.6M',brands:['Emirates','Emaar','Jumeirah'],img:'assets/cities/dubai.webp'},
+      'Mumbai':{pop:'21M',brands:['Tata','Reliance','Bollywood'],img:'assets/cities/mumbai.webp'},
+      'Delhi':{pop:'33M',brands:['Air India',"Haldiram's",'DLF'],img:'assets/cities/delhi.webp'},
+      'Singapore':{pop:'6M',brands:['Singapore Airlines','DBS','Tiger Beer'],img:'assets/cities/singapore.webp'},
+      'Bangkok':{pop:'10.7M',brands:['Thai Airways','CP Group','Red Bull'],img:'assets/cities/bangkok.webp'},
+      'Shanghai':{pop:'29M',brands:['NIO','SAIC','Yum China'],img:'assets/cities/shanghai.webp'},
+      'Hong Kong':{pop:'7.5M',brands:['HSBC','Cathay Pacific','Giordano'],img:'assets/cities/hong-kong.webp'},
+      'Beijing':{pop:'22M',brands:['Lenovo','Baidu','Air China'],img:'assets/cities/beijing.webp'},
+      'Seoul':{pop:'25M',brands:['Samsung','Hyundai','Kakao'],img:'assets/cities/seoul.webp'},
+      'Tokyo':{pop:'37M',brands:['Sony','Uniqlo','Muji'],img:'assets/cities/tokyo.webp'},
+      'Manila':{pop:'14.5M',brands:['Jollibee','SM','San Miguel'],img:'assets/cities/manila.webp'},
+      'Jakarta':{pop:'33M',brands:['Garuda Indonesia','Tokopedia','Indomie'],img:'assets/cities/jakarta.webp'},
+      'Sydney':{pop:'5.3M',brands:['Qantas','Atlassian','Bonds'],img:'assets/cities/sydney.webp'},
+      'Melbourne':{pop:'5.2M',brands:['BHP','ANZ','Vegemite'],img:'assets/cities/melbourne.webp'},
+      'Auckland':{pop:'1.7M',brands:['Air New Zealand','Fonterra',"Whittaker's"],img:'assets/cities/auckland.webp'}
     };
     var infoPanel=document.getElementById('city-info'),infoImg=document.getElementById('city-info-img'),
         infoName=document.getElementById('city-info-name'),infoPop=document.getElementById('city-info-pop'),
@@ -3911,13 +3894,12 @@
       targetDistance=Math.max(minDistance,Math.min(maxDistance,targetDistance+delta));
       if(selected&&targetDistance>5.7)clearSelection();
     }
-    canvas.addEventListener('wheel',function(event){event.preventDefault();if(stationReveal.active){window.__espilGlobe.skipStationReveal();return;}if(cityPhaseActive){mapZoom(event.deltaY*.01);return;}zoomBy(event.deltaY*.006);},{passive:false});
+    canvas.addEventListener('wheel',function(event){event.preventDefault();if(cityPhaseActive){mapZoom(event.deltaY*.01);return;}zoomBy(event.deltaY*.006);},{passive:false});
     canvas.addEventListener('keydown',function(event){
       if(event.key==='+'||event.key==='='){event.preventDefault();zoomBy(-.7);}
       if(event.key==='-'||event.key==='_'){event.preventDefault();zoomBy(.7);}
     });
     canvas.addEventListener('pointerdown',function(event){
-      if(stationReveal.active){window.__espilGlobe.skipStationReveal();return;}
       if(cityPhaseActive){mapPointerDown(event);return;}
       if(event.cancelable)event.preventDefault();
       hasInteracted=true;dragging=true;moved=false;lastX=event.clientX;lastY=event.clientY;
@@ -3987,23 +3969,8 @@
         renderer.render(mapScene,mapCamera);
         return;
       }
-      /* The Cauldron station drifts gently in orbit. */
-      cauldronStation.rotation.x+=dt*.12;
-      cauldronStation.position.y=STATION_POS.y+Math.sin(nowMs/1000*.6)*.08;
-      if(stationReveal.active){
-        /* Origin view: camera just outside the station — the station fills the
-           foreground, Earth hangs beyond it — easing out to the orbit framing. */
-        stationReveal.t+=dt/6;
-        var rk=stationReveal.t>=1?1:stationReveal.t*stationReveal.t*(3-2*stationReveal.t);
-        stationCamPos.copy(cauldronStation.position).multiplyScalar(1.42);stationCamPos.y+=.34;
-        var _cp=Math.cos(pitch);
-        orbitCamPos.set(orbitDistance*Math.sin(yaw)*_cp,orbitDistance*Math.sin(pitch),orbitDistance*Math.cos(yaw)*_cp);
-        camera.position.lerpVectors(stationCamPos,orbitCamPos,rk);
-        cameraLook.set(0,0,0);camera.lookAt(cameraLook);
-        cameraDirection.copy(camera.position).normalize();
-        orbitDistance+=(targetDistance-orbitDistance)*(reduced?1:.075);
-        if(stationReveal.t>=1){stationReveal.active=false;hideStationCaption();}
-      }else{
+      /* Camera: plain orbit framing (the station reveal was removed 2026-10-06, per Han). */
+      {
         yaw+=shortestAngle(yaw,targetYaw)*(reduced?1:.075);
         pitch+=(targetPitch-pitch)*(reduced?1:.075);
         orbitDistance+=(targetDistance-orbitDistance)*(reduced?1:(selected&&approachSlow&&!cityPhaseActive?.03:.075));
@@ -4026,15 +3993,12 @@
     /* Hooks for the intro + city info panel scripts. */
     window.__espilGlobe={
       beginEarthReveal:function(){
-        /* Cinematic (2026-10-06, per Han): the page opens AT the Cauldron station with
-           Earth beyond it (origin view), then pulls back to the orbit view. */
-        if(reduced){orbitDistance=6.6;targetDistance=6.6;placeCamera();return;}
-        targetYaw+=.38;
-        targetDistance=Math.max(6.6,2.12/(Math.tan(camera.fov*Math.PI/360)*camera.aspect));
-        stationReveal.t=0;stationReveal.active=true;
-        showStationCaption();
+        /* The station origin view was removed (2026-10-06, per Han): the page
+           opens directly on the Earth orbit view. */
+        orbitDistance=6.6;targetDistance=Math.max(6.6,2.12/(Math.tan(camera.fov*Math.PI/360)*camera.aspect));
+        placeCamera();
       },
-      skipStationReveal:function(){if(stationReveal.active){stationReveal.t=1;}}
+      skipStationReveal:function(){/* no-op: the station reveal no longer exists */}
     };
     animate();
   }());
