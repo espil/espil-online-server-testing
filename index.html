@@ -3254,6 +3254,11 @@
          every time the city changes, the readout shows the new city. */
       if(closest&&closest!==prev&&!selected&&!entryActive&&!cityPhaseActive){
         status.textContent=closest.userData.name+' — '+closest.userData.landmark;
+        /* The Earth model turns to center the city (2026-10-06, per Han):
+           rotating the reel brings that city to the front. */
+        var cityDir=closest.position.clone().normalize().applyAxisAngle(new THREE.Vector3(0,1,0),earthSpin.rotation.y);
+        targetYaw=Math.atan2(cityDir.x,cityDir.z);
+        targetPitch=Math.asin(Math.max(-1,Math.min(1,cityDir.y)));
       }
       /* Tick when the user swipes/scrolls the reel onto a new city — touch, wheel and drag alike. */
       if(closest&&closest!==prev&&performance.now()>reelQuietUntil){
