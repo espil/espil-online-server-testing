@@ -169,6 +169,13 @@
       border-radius:50%;border:1px solid rgba(160,255,238,.4);box-shadow:0 0 6px rgba(120,255,228,.25) inset;}
     .city-pin:hover .orb,.city-pin:focus-visible .orb{transform:scale(1.25);}
     .city-pin:focus-visible{outline:none;}
+    /* Blinking yellow on the button itself in hover state (2026-10-06, per Han). */
+    @keyframes pinYellowBlink{
+      0%,100%{box-shadow:0 2px 5px rgba(0,0,0,.55),0 0 16px rgba(255,217,77,.95),inset -2px -3px 4px rgba(0,40,32,.45);}
+      50%{box-shadow:0 2px 5px rgba(0,0,0,.55),0 0 3px rgba(255,217,77,.2),inset -2px -3px 4px rgba(0,40,32,.45);}
+    }
+    .city-pin:hover .ball,.city-pin:focus-visible .ball{animation:pinYellowBlink 1s ease-in-out infinite;}
+    .city-pin:hover .nm,.city-pin:focus-visible .nm{color:#ffe9a8;}
     .city-pin.is-active .ball{background:radial-gradient(circle at 32% 28%,#ffffff 0%,#ffedd2 25%,#ffcf90 52%,#d8913f 80%,#8a4d16 100%);
       box-shadow:0 2px 5px rgba(0,0,0,.55),0 0 12px rgba(255,200,140,.9),inset -2px -3px 4px rgba(80,35,0,.45);}
     .city-pin.is-active .nm{color:#ffe9c9;}
@@ -943,7 +950,15 @@
     var canvas=document.getElementById('globe-canvas');
     /* IANA timezone per city for the reel clock. */
     var cityTimezones={
-      'Vancouver':'America/Vancouver'
+      'Vancouver':'America/Vancouver','San Francisco':'America/Los_Angeles','Los Angeles':'America/Los_Angeles',
+      'Chicago':'America/Chicago','Mexico City':'America/Mexico_City','New York':'America/New_York','Toronto':'America/Toronto',
+      'Rio de Janeiro':'America/Sao_Paulo','São Paulo':'America/Sao_Paulo','Buenos Aires':'America/Argentina/Buenos_Aires',
+      'London':'Europe/London','Paris':'Europe/Paris','Madrid':'Europe/Madrid','Rome':'Europe/Rome','Berlin':'Europe/Berlin',
+      'Moscow':'Europe/Moscow','Lagos':'Africa/Lagos','Nairobi':'Africa/Nairobi','Cairo':'Africa/Cairo',
+      'Cape Town':'Africa/Johannesburg','Istanbul':'Europe/Istanbul','Dubai':'Asia/Dubai','Mumbai':'Asia/Kolkata',
+      'Delhi':'Asia/Kolkata','Singapore':'Asia/Singapore','Bangkok':'Asia/Bangkok','Shanghai':'Asia/Shanghai',
+      'Hong Kong':'Asia/Hong_Kong','Beijing':'Asia/Shanghai','Seoul':'Asia/Seoul','Tokyo':'Asia/Tokyo','Manila':'Asia/Manila',
+      'Jakarta':'Asia/Jakarta','Sydney':'Australia/Sydney','Melbourne':'Australia/Melbourne','Auckland':'Pacific/Auckland'
     };
     function updateClock(){
       var now=new Date();
@@ -2560,7 +2575,6 @@
       resetWalkPlayer();
       cityPhaseActive=true;
       targetDistance=1.34; /* continue the entry dive (2026-10-06 QA #3) */
-      boundary.visible=false;
       citySky.visible=false;
       cityPhaseName.textContent=selected?selected.userData.name:'Vancouver Downtown';
       var hint=document.getElementById('map-hint');
@@ -3354,9 +3368,7 @@
       joy.addEventListener('pointerup',joyEnd);
       joy.addEventListener('pointercancel',joyEnd);
     }());
-    var boundary=new THREE.Mesh(new THREE.RingGeometry(.225,.243,80),new THREE.MeshBasicMaterial({color:0x8ff4e8,transparent:true,opacity:.9,side:THREE.DoubleSide,depthTest:false}));
-    boundary.visible=false;
-    markerGroup.add(boundary);
+    /* The selection ring around the city was removed (2026-10-06, per Han). */
     /* The aurora shimmer rings and halo glow sprites were removed (2026-10-06 QA #3):
        landmarks are plain 2D cutout billboards now — no rings, no blinking. */
 
@@ -3393,10 +3405,8 @@
         navigationViewScale=.16+.84*zoomProgress;
         desiredCameraPosition.copy(navigationNormal).multiplyScalar(2.04+1.4*navigationViewScale).addScaledVector(navigationHeading,-1.8*navigationViewScale);
         desiredCameraLook.copy(navigationNormal).multiplyScalar(2.04).addScaledVector(navigationHeading,.80*navigationViewScale);
-        boundary.scale.setScalar(navigationViewScale);
       }else{
         navigationViewScale=1;
-        boundary.scale.setScalar(1);
         var cosPitch=Math.cos(pitch);
         desiredCameraPosition.set(orbitDistance*Math.sin(yaw)*cosPitch,orbitDistance*Math.sin(pitch),orbitDistance*Math.cos(yaw)*cosPitch);
         desiredCameraLook.set(0,0,0);
@@ -3481,9 +3491,6 @@
       targetYaw=Math.atan2(cityDirection.x,cityDirection.z);
       targetPitch=Math.asin(Math.max(-1,Math.min(1,cityDirection.y)));
       prepareNavigationView(marker);
-      boundary.position.copy(marker.position.clone().normalize().multiplyScalar(2.097));
-      boundary.lookAt(marker.position.clone().normalize().multiplyScalar(4));
-      boundary.visible=true;
     }
     function nearestFacingMarker(){
       var dir=camera.position.clone().normalize(),best=null,bestDot=-2;
@@ -3513,7 +3520,6 @@
       var charPanel=document.getElementById('char-custom');
       if(charPanel)charPanel.setAttribute('aria-hidden','true');
       gateActive=false;
-      boundary.visible=false;
       /* Keep the text div honest: highlight the city the camera is facing. */
       var facing=nearestFacingMarker();
       if(facing){centerReel(facing,false);navIndex=markers.indexOf(facing);}
