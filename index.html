@@ -595,6 +595,12 @@
       transition:opacity 1.4s ease, visibility 1.4s ease;
     }
     .intro.hide { opacity:0; visibility:hidden; pointer-events:none; }
+    /* Slide-up exit (2026-10-06, per Han): the sign stays visible and slides up
+       while the camera descends — Earth rises from the bottom. No fade-out. */
+    .intro.leaving { background:transparent; pointer-events:none; transition:background .8s ease; }
+    .intro.leaving .intro-stars { opacity:0; transition:opacity .8s ease; }
+    .intro.leaving .intro-logo { transform:translateY(-115vh); transition:transform 2.4s cubic-bezier(.55,.06,.35,1); }
+    .intro.leaving .intro-continue { opacity:0 !important; transition:opacity .4s ease; }
     .intro-stars { position:absolute; inset:0; width:100%; height:100%; display:block; }
     .intro-logo { position:relative; text-align:center; user-select:none; margin:0 12px; }
     /* Arrow signpost (2026-10-06, per Han): the sign itself is an arrow pointing
@@ -632,7 +638,7 @@
       60% { transform:scale(.94) translateY(.01em); opacity:1; }
       100% { transform:scale(1) translateY(0); opacity:1; }
     }
-    .intro-logo.done .typed-layer { animation:neon-flicker 4.2s linear infinite; }
+    .intro-logo.done .typed-layer .ch.on { animation:neon-flicker 4.2s linear infinite; }
     @keyframes neon-flicker {
       0%,100% { opacity:1; } 3% { opacity:.55; } 5% { opacity:1; }
       41% { opacity:1; } 43% { opacity:.3; } 45% { opacity:1; } 47% { opacity:.65; } 49% { opacity:1; }
@@ -640,8 +646,8 @@
     }
     .intro-logo .typed-layer .ch.on { visibility:visible; }
     .intro-logo .caret {
-      display:inline-block; width:.11em; height:1em; margin-left:.14em; vertical-align:-.05em;
-      background:#eafff0; box-shadow:0 0 14px rgba(70,255,125,1),0 0 34px rgba(70,255,125,.6);
+      display:inline-block; width:max(2px,.045em); height:1em; margin-left:.14em; vertical-align:-.05em;
+      background:#eafff0; box-shadow:0 0 10px rgba(70,255,125,.9);
       animation:caret-blink 1s steps(1) infinite;
     }
     @keyframes caret-blink { 0%,49% { opacity:1; } 50%,100% { opacity:0; } }
@@ -798,11 +804,6 @@
       <div class="arrow-sign">
         <svg class="sign-svg" viewBox="0 0 400 360" aria-hidden="true">
           <defs>
-            <linearGradient id="pipeGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stop-color="#4b535a"/>
-              <stop offset=".45" stop-color="#2a3036"/>
-              <stop offset="1" stop-color="#14171a"/>
-            </linearGradient>
             <filter id="neonGlow" x="-60%" y="-60%" width="220%" height="220%">
               <feGaussianBlur stdDeviation="5" result="b1"/>
               <feGaussianBlur stdDeviation="13" result="b2"/>
@@ -810,13 +811,12 @@
             </filter>
           </defs>
           <path d="M30,30 H370 V200 L200,320 L30,200 Z"
-                fill="rgba(6,8,10,.84)" stroke="url(#pipeGrad)" stroke-width="13" stroke-linejoin="round"/>
-          <path d="M48,48 H352 V192 L200,298 L48,192 Z"
-                fill="none" stroke="#46ff7d" stroke-width="3.5" stroke-linejoin="round" filter="url(#neonGlow)"/>
-          <circle cx="30" cy="30" r="8" fill="url(#pipeGrad)" stroke="#0a0c0e" stroke-width="2"/>
-          <circle cx="370" cy="30" r="8" fill="url(#pipeGrad)" stroke="#0a0c0e" stroke-width="2"/>
-          <circle cx="30" cy="200" r="8" fill="url(#pipeGrad)" stroke="#0a0c0e" stroke-width="2"/>
-          <circle cx="370" cy="200" r="8" fill="url(#pipeGrad)" stroke="#0a0c0e" stroke-width="2"/>
+                fill="rgba(6,8,10,.72)" stroke="#0a0f0c" stroke-width="2" stroke-linejoin="round"/>
+          <path d="M46,46 H354 V194 L200,300 L46,194 Z"
+                fill="none" stroke="#46ff7d" stroke-width="7" stroke-linejoin="round"
+                opacity=".85" filter="url(#neonGlow)"/>
+          <path d="M46,46 H354 V194 L200,300 L46,194 Z"
+                fill="none" stroke="#eafff0" stroke-width="2.4" stroke-linejoin="round"/>
         </svg>
         <div class="sign-text">
           <p class="shadow-layer" aria-hidden="true">Espil<br>Online</p>
@@ -3331,6 +3331,9 @@
         var cityDir=closest.position.clone().normalize().applyAxisAngle(new THREE.Vector3(0,1,0),earthSpin.rotation.y);
         targetYaw=Math.atan2(cityDir.x,cityDir.z);
         targetPitch=Math.asin(Math.max(-1,Math.min(1,cityDir.y)));
+        /* Zoom toward the reel-selected city (2026-10-06, per Han). Skipped
+           while the intro is up so the entry glide is not disturbed. */
+        if(!window.__espilIntroActive)targetDistance=4.2;
       }
       /* Tick when the user swipes/scrolls the reel onto a new city — touch, wheel and drag alike. */
       if(closest&&closest!==prev&&performance.now()>reelQuietUntil){
@@ -3991,11 +3994,11 @@
       if(continued||!done||!intro)return;continued=true;
       window.__espilIntroActive=false;
       if(window.EspilAudio&&window.EspilAudio.pop)window.EspilAudio.pop();
-      /* Seamless (2026-10-06, per Han): the camera starts gliding toward Earth
-         while the intro fades — one continuous motion, no cut. */
+      /* Slide-up (2026-10-06, per Han): the sign slides up and stays visible
+         while the camera descends — Earth rises from the bottom. No fade-out. */
       beginEarth();
-      intro.classList.add('hide');
-      setTimeout(function(){if(intro.parentNode)intro.parentNode.removeChild(intro);},1600);
+      intro.classList.add('leaving');
+      setTimeout(function(){if(intro.parentNode)intro.parentNode.removeChild(intro);},2600);
     }
     function boot(){
       if(!intro)return;
