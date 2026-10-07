@@ -726,8 +726,6 @@
     .city-info-enter:active { transform:none; }
     .city-info-enter.is-disabled { opacity:.35; cursor:not-allowed; filter:grayscale(.6); }
     .city-info-enter.is-disabled:hover { transform:none; box-shadow:none; }
-    .city-info-enter.is-disabled { opacity:.35; cursor:not-allowed; filter:grayscale(.6); }
-    .city-info-enter.is-disabled:hover { transform:none; box-shadow:none; }
     .city-info-credit { margin:12px 0 0; font:500 .6rem/1.6 "Manrope",sans-serif; letter-spacing:.03em; color:rgba(159,245,228,.5); }
     @media (max-width:640px) {
       .city-info {
@@ -2215,53 +2213,82 @@
           if(runClip)av.actions.run=mixer.clipAction(runClip);
           av.ready=true;
           av.playAnim('idle');
-          /* QA #7: Jump clip from male_jump.glb (Meshy "Regular Jump", 1.87s, non-loop).
-             Same Mixamo 22-bone skeleton, mixamorig:* names — binds to the same mixer.
-             The male π counter-rotation on `model` applies as-is (clip keeps baked-in half-turn).
-             Root motion (Hips position) is stripped — game physics (velY) drives the jump,
-             the clip supplies only the pose. In-place jump, no X/Z drift. */
-          try{
-            new THREE.GLTFLoader().load('assets/character/male_jump.glb',function(jgltf){
-              var jclips=jgltf.animations||[],jumpClip=null;
-              for(var i=0;i<jclips.length;i++){
-                if(/jump/i.test(jclips[i].name)){jumpClip=jclips[i];break;}
-              }
-              if(!jumpClip&&jclips.length)jumpClip=jclips[0];
-              if(jumpClip){
-                /* Strip Hips/root position tracks — keep rotations only.
-                   Prevents double-jump (clip Y + game velY stacking) and X/Z drift. */
-                jumpClip.tracks=jumpClip.tracks.filter(function(t){
-                  var n=(t.name||'').toLowerCase();
-                  var isPos=n.indexOf('.position')>=0;
-                  var isRoot=/^(mixamorig[_:]?hips|hips|armature|root)/.test(n);
-                  return !(isPos&&isRoot);
-                });
-                var jumpAction=mixer.clipAction(jumpClip);
-                jumpAction.setLoop(THREE.LoopOnce);
-                jumpAction.clampWhenFinished=true;
-                av.actions.jump=jumpAction;
-                av.playJump=function(){
-                  if(!av.mixer||!av.actions.jump)return false;
-                  var cur=av.actions[av.curAnim];
-                  av.curAnim='jump';
-                  jumpAction.reset().fadeIn(.12).play();
-                  if(cur&&cur!==jumpAction){
-                    cur.fadeOut(.12);
-                    (function(pp){setTimeout(function(){pp.stop();},180);})(cur);
-                  }
-                  /* Return to locomotion when the clip finishes (1.87s). */
-                  var dur=(jumpClip.duration||1.87)*1000;
-                  setTimeout(function(){
-                    if(av.curAnim!=='jump')return;
-                    jumpAction.fadeOut(.15);
-                    setTimeout(function(){jumpAction.stop();},180);
-                    av.curAnim=null; /* playAnim picks up current move state next frame */
-                  },dur);
-                  return true;
-                };
-              }
+          /* === 15-animation system (QA relay 2026-10-07): separate GLBs per clip.
+             All Mixamo 22-bone, mixamorig:*. Male keeps π rotation (baked half-turn).
+             Root motion stripped from all — game physics drives movement. */
+          function stripRootMotion(clip){
+            clip.tracks=clip.tracks.filter(function(t){
+              var n=(t.name||'').toLowerCase();
+              var isPos=n.indexOf('.position')>=0;
+              var isRoot=/^(mixamorig[_:]?hips|hips|armature|root)/.test(n);
+              return !(isPos&&isRoot);
             });
-          }catch(e){/* jump clip optional — procedural jump still works */}
+            return clip;
+          }
+          function loadAnimClip(file,actionName,loop){
+            try{
+              new THREE.GLTFLoader().load('assets/character/'+file,function(gltf){
+                var cs=gltf.animations||[];
+                if(!cs.length)return;
+                var clip=stripRootMotion(cs[0]);
+                var act=mixer.clipAction(clip);
+                if(!loop){act.setLoop(THREE.LoopOnce);act.clampWhenFinished=true;}
+                av.actions[actionName]=act;
+              });
+            }catch(e){/* optional — fallback to built-in */}
+          }
+          /* Male: replace built-ins with new versions, add new states */
+          loadAnimClip('male_idle.glb','idle',true);
+          loadAnimClip('male_walk_casual.glb','walk',true);
+          loadAnimClip('male_run_charge.glb','run',true);
+          loadAnimClip('male_stop.glb','stop',false);
+          loadAnimClip('male_swim.glb','swim',true);
+          loadAnimClip('male_swim_idle.glb','swimIdle',true);
+          loadAnimClip('male_jump_armsopen.glb','jump',false);
+          loadAnimClip('male_jump_double.glb','doubleJump',false);
+          loadAnimClip('male_attack.glb','attack',false);
+          loadAnimClip('male_checkout.glb','checkout',false);
+          loadAnimClip('male_chat.glb','chat',false);
+          /* Keep legacy male_jump.glb as fallback if armsopen fails */
+          loadAnimClip('male_jump.glb','jumpLegacy',false);
+          /* Female clips staged (not activated — male character active) */
+          av.femaleClips={};
+          ['female_idle.glb','female_walk_strut.glb','female_run_charge.glb','female_stop.glb'].forEach(function(f){
+            try{
+              new THREE.GLTFLoader().load('assets/character/'+f,function(gltf){
+                if(gltf.animations&&gltf.animations.length)
+                  av.femaleClips[f]=stripRootMotion(gltf.animations[0]);
+              });
+            }catch(e){}
+          });
+          /* One-shot animation player (for jump, attack, stop, checkout, chat).
+             Plays the clip once, then returns to locomotion. */
+          av.playOneShot=function(name,durMs){
+            if(!av.mixer||!av.actions[name])return false;
+            // Fallback to legacy jump if new jump not loaded yet
+            if(name==='jump'&&!av.actions.jump&&av.actions.jumpLegacy)name='jumpLegacy';
+            var act=av.actions[name];
+            if(!act)return false;
+            var cur=av.actions[av.curAnim];
+            av.curAnim=name;
+            act.reset().fadeIn(.12).play();
+            if(cur&&cur!==act){
+              cur.fadeOut(.12);
+              (function(pp){setTimeout(function(){pp.stop();},180);})(cur);
+            }
+            var dur=durMs||((act.getClip().duration||2)*1000);
+            setTimeout(function(){
+              if(av.curAnim!==name)return;
+              act.fadeOut(.15);
+              setTimeout(function(){act.stop();},180);
+              av.curAnim=null;
+            },dur);
+            return true;
+          };
+          /* Jump: single=jump, double=doubleJump */
+          av.playJump=function(isDouble){
+            return av.playOneShot(isDouble?'doubleJump':'jump');
+          };
         },undefined,function(err){
           if(window.__espilToast)window.__espilToast('Character failed to load');
         });
@@ -2882,6 +2909,12 @@
     /* QA #8 (2026-10-06): Space = interact when near a building. */
     function tryInteract(){
       if(!cityPhaseActive||!walkPlayer)return;
+      /* Play checkout/chat animation (placeholder — Han will pick which) */
+      if(walkPlayer.av&&walkPlayer.av.playOneShot){
+        // Alternate between checkout and chat for now; Han picks the final
+        var useCheckout=Math.random()>.5;
+        walkPlayer.av.playOneShot(useCheckout?'checkout':'chat');
+      }
       if(nearBldg&&nearBldg.name){
         /* Placeholder dialogue — real building interaction UI comes later. */
         var t=document.getElementById('toast');
@@ -3116,7 +3149,9 @@
       if(skillState.cd[id]>0)return;
       var st=moveStats(id),p=walkPlayer;
       skillState.cd[id]=st.cd;
-      p.lungeT=(id==='throw'?.16:(id==='defense'?.12:.22)); /* procedural strike motion; the GLB has no attack clip */
+      /* Play attack animation (male_attack.glb) — replaces procedural lunge */
+      if(p.av&&p.av.playOneShot)p.av.playOneShot('attack');
+      p.lungeT=(id==='throw'?.16:(id==='defense'?.12:.22)); /* fallback procedural motion */
       if(m.guard){
         spawnGuard(m,st.guardDur);
         skillSfx('guard');
@@ -3483,11 +3518,19 @@
         p.bobT+=dt*11;
       }
       g.rotation.y=p.faceY;
-      /* Animation state machine: idle / walk / run follow the movement state.
-         While the jump clip is playing, don't override it — it returns to
-         locomotion on its own when finished (see av.playJump). */
-      if(p.av.ready&&p.av.curAnim!=='jump'){
-        var wantAnim=!p.moving?'idle':(p.running?'run':'walk');
+      /* Animation state machine: idle / walk / run / swim follow movement state.
+         While a one-shot (jump, doubleJump, attack, etc.) is playing, don't override it. */
+      if(p.av.ready&&['jump','doubleJump','attack','stop','checkout','chat'].indexOf(p.av.curAnim)<0){
+        var wantAnim;
+        if(p.swimming){
+          wantAnim=!p.moving?'swimIdle':'swim';
+        }else{
+          wantAnim=!p.moving?'idle':(p.running?'run':'walk');
+        }
+        /* Fallback to idle/walk if swim clips not loaded yet */
+        if((wantAnim==='swim'||wantAnim==='swimIdle')&&!p.av.actions[wantAnim]){
+          wantAnim=!p.moving?'idle':'walk';
+        }
         p.av.playAnim(wantAnim);
       }
       if(p.av.mixer)p.av.mixer.update(dt);
@@ -3894,17 +3937,9 @@
         infoBrands=document.getElementById('city-info-brands');
     /* TESTING BUILD (2026-10-06, per Han): only Vancouver entry works. */
     var VANCOUVER_ONLY=true;
-    /* TESTING BUILD (2026-10-06, per Han): only Vancouver entry works. */
-    var VANCOUVER_ONLY=true;
     function showCityInfo(marker){
       infoShown=true;approachSlow=false;
       var facts=cityFacts[marker.userData.name]||{pop:'—',brands:[],img:''};
-      var canEnter=!VANCOUVER_ONLY||marker.userData.name==='Vancouver';
-      if(infoEnter){
-        infoEnter.disabled=!canEnter;
-        infoEnter.classList.toggle('is-disabled',!canEnter);
-        infoEnter.innerHTML=canEnter?'ENTER CITY &#8594;':'NOT AVAILABLE';
-      }
       var canEnter=!VANCOUVER_ONLY||marker.userData.name==='Vancouver';
       if(infoEnter){
         infoEnter.disabled=!canEnter;
@@ -3960,7 +3995,6 @@
     }
     function startCityEntry(){
       if(!selected||entryActive||cityPhaseActive)return;
-      if(VANCOUVER_ONLY&&selected.userData.name!=='Vancouver')return;
       if(VANCOUVER_ONLY&&selected.userData.name!=='Vancouver')return;
       entryActive=true;entryTypedDone=false;entrySubShown=false;entryStartedAt=performance.now();
       clearZoomStages();
