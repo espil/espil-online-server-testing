@@ -708,6 +708,8 @@
     }
     .city-info-enter:hover { border-color:#d3ab63; background:linear-gradient(180deg,#fffaf0,#efe3c6); box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 3px 14px rgba(0,0,0,.45),0 0 22px rgba(211,171,99,.55); transform:translateY(-1px); }
     .city-info-enter:active { transform:none; }
+    .city-info-enter.is-disabled { opacity:.35; cursor:not-allowed; filter:grayscale(.6); }
+    .city-info-enter.is-disabled:hover { transform:none; box-shadow:none; }
     .city-info-credit { margin:12px 0 0; font:500 .6rem/1.6 "Manrope",sans-serif; letter-spacing:.03em; color:rgba(159,245,228,.5); }
     @media (max-width:640px) {
       .city-info {
@@ -3618,9 +3620,17 @@
     var infoPanel=document.getElementById('city-info'),infoImg=document.getElementById('city-info-img'),
         infoName=document.getElementById('city-info-name'),infoPop=document.getElementById('city-info-pop'),
         infoBrands=document.getElementById('city-info-brands');
+    /* TESTING BUILD (2026-10-06, per Han): only Vancouver entry works. */
+    var VANCOUVER_ONLY=true;
     function showCityInfo(marker){
       infoShown=true;approachSlow=false;
       var facts=cityFacts[marker.userData.name]||{pop:'—',brands:[],img:''};
+      var canEnter=!VANCOUVER_ONLY||marker.userData.name==='Vancouver';
+      if(infoEnter){
+        infoEnter.disabled=!canEnter;
+        infoEnter.classList.toggle('is-disabled',!canEnter);
+        infoEnter.innerHTML=canEnter?'ENTER CITY &#8594;':'NOT AVAILABLE';
+      }
       if(infoImg){infoImg.src=facts.img;infoImg.alt=marker.userData.landmark;}
       if(infoName)infoName.textContent=marker.userData.name;
       if(infoPop)infoPop.textContent='Metro population · approx '+facts.pop;
@@ -3670,6 +3680,7 @@
     }
     function startCityEntry(){
       if(!selected||entryActive||cityPhaseActive)return;
+      if(VANCOUVER_ONLY&&selected.userData.name!=='Vancouver')return;
       entryActive=true;entryTypedDone=false;entrySubShown=false;entryStartedAt=performance.now();
       clearZoomStages();
       if(window.EspilAudio&&window.EspilAudio.pop)window.EspilAudio.pop();
