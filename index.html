@@ -353,6 +353,13 @@
     body:not(.in-map) .skill-bar,
     body:not(.in-map) .map-attack,
     body:not(.in-map) #tree-toggle { display:none !important; }
+    /* ---- Landing/game separation (2026-10-07): hide ALL landing UI when in-game ---- */
+    body.in-map #earth-frame,
+    body.in-map #city-info,
+    body.in-map #city-return,
+    body.in-map #city-phase,
+    body.in-map .city-markers,
+    body.in-map #globe-canvas { display:none !important; }
     .map-status {
       position:fixed; z-index:30; top:calc(14px + env(safe-area-inset-top)); left:14px;
       width:212px; padding:10px 12px 12px;
@@ -367,7 +374,6 @@
     .ms-bar > i { display:block; height:100%; border-radius:99px; transition:width .25s ease; }
     .ms-hp > i { background:linear-gradient(90deg,#ff5f6d,#ff9a5a); width:100%; }
     .ms-mp > i { background:linear-gradient(90deg,#3fa7ff,#7dfce6); width:100%; }
-    .ms-exp > i { background:linear-gradient(90deg,#b47dff,#e08cff); width:0%; }
     .skill-bar {
       position:fixed; z-index:30; left:50%; bottom:calc(128px + env(safe-area-inset-bottom));
       transform:translateX(-50%); font-family:"Manrope",sans-serif;
@@ -424,7 +430,11 @@
     .st-sub { margin:6px 0 0; font:600 .7rem/1.5 "Manrope",sans-serif; color:rgba(181,255,248,.62); letter-spacing:.04em; }
     .st-close { appearance:none; flex:none; width:34px; height:34px; border-radius:50%; border:1px solid rgba(134,238,228,.3); background:none; color:#ddfffc; font-size:.95rem; cursor:pointer; }
     .st-close:hover { border-color:var(--signal); }
-    .st-sp { margin:14px 0 12px; font:800 .78rem/1 "Manrope",sans-serif; letter-spacing:.1em; color:#ffd97a; }
+    .st-knrow { display:flex; justify-content:space-between; align-items:center; gap:10px; margin:14px 0 6px; }
+    #st-kn { font:800 .8rem/1 "Manrope",sans-serif; letter-spacing:.08em; color:#ffd97a; }
+    .st-study { appearance:none; flex:none; border:1px solid rgba(134,238,228,.4); border-radius:999px; background:rgba(14,42,47,.8); color:#ddfffc; font:700 .62rem/1 "Manrope",sans-serif; letter-spacing:.06em; padding:9px 14px; cursor:pointer; }
+    .st-study:hover { border-color:var(--signal); }
+    .st-knsub { margin:0 0 12px; font:600 .62rem/1.5 "Manrope",sans-serif; color:rgba(181,255,248,.55); letter-spacing:.02em; }
     .st-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
     .st-node {
       border:1px solid rgba(134,238,228,.25); border-radius:10px; padding:10px 9px;
@@ -932,13 +942,11 @@
     <button class="map-jump" id="map-jump" type="button" aria-label="Jump">JUMP</button>
     <button class="map-attack" id="map-attack" type="button" aria-label="Attack">&#9876;&#65039;</button>
     <div class="map-status" id="map-status" aria-hidden="true">
-      <div class="ms-level"><span id="ms-lv">LV 1 &middot; KEEPER</span><span class="ms-sp" id="ms-sp">SP 3</span></div>
+      <div class="ms-level"><span id="ms-lv">KEEPER</span><span class="ms-sp" id="ms-kn">📚 10</span></div>
       <div class="ms-label"><span>HP</span><span id="ms-hp-t">100/100</span></div>
       <div class="ms-bar ms-hp"><i id="ms-hp"></i></div>
       <div class="ms-label"><span>MP</span><span id="ms-mp-t">50/50</span></div>
       <div class="ms-bar ms-mp"><i id="ms-mp"></i></div>
-      <div class="ms-label"><span>EXP</span><span id="ms-exp-t">0%</span></div>
-      <div class="ms-bar ms-exp"><i id="ms-exp"></i></div>
     </div>
     <div class="skill-bar" id="skill-bar" aria-hidden="true">
       <div class="move-row" id="move-row" aria-label="Attack moves"></div>
@@ -954,9 +962,10 @@
           </div>
           <button class="st-close" id="st-close" type="button" aria-label="Close skill tree">&#10005;</button>
         </div>
-        <div class="st-sp" id="st-sp">Skill points: 3</div>
+        <div class="st-knrow"><span id="st-kn">📚 Knowledge: 10</span><button class="st-study" id="st-study" type="button">▶ Watch a video (demo) +5</button></div>
+        <p class="st-knsub">Knowledge comes from watching videos — not from leveling up. Spend it to raise each skill toward Lv 20.</p>
         <div class="st-grid" id="st-grid"></div>
-        <p class="st-foot">No weapons yet &mdash; the keeper fights unarmed: punch slash, kick, ember throw. New moves plug into the same table later. EXP &amp; levels arrive with enemies.</p>
+        <p class="st-foot">Keeper fights unarmed: punch, kick, throw, defense. New moves plug into the same table later.</p>
       </div>
     </div>
     <!-- QA #14 (UI room, 2026-10-06): Inventory panel (I key). -->
@@ -1745,7 +1754,16 @@
        into `buildWalkerAvatar()` when the pipeline delivers it.
        ================================================================ */
     var mapScene=null,mapCamera=null,mapBuilt=false;
-    var WATER_Z=-100, WATER_Y=.25; /* swim boundary (QA #17): visible to buildWalkMapOnce + updateWalkMap */
+    var WATER_Z=-100, WATER_Y=.25; /* swim boundary (QA #17) */
+    /* 5km city (Han 2026-10-07): water bodies at scale.
+       - Downtown harbor + Burrard Inlet: z < -100 (entire north)
+       - English Bay: x < -2500 (west side)
+       Global helper — used by updateWalkMap AND the chunk generator. */
+    function isWaterAt(x,z){
+      if(z<WATER_Z)return true; /* harbor + inlet */
+      if(x<-2500)return true; /* English Bay */
+      return false;
+    }
     var walkPlayer=null,walkColliders=[];
     var walkKeys={};
     var walkCamYaw=0,walkCamPitch=.42,walkCamDist=14;
@@ -1847,7 +1865,12 @@
       }
     }
     var mapDragId=null,mapLastX=0,mapLastY=0;
-    var MAP_BOUND=96,PLAYER_R=.55,PLAYER_H=1.9;
+    var MAP_BOUND=5000,PLAYER_R=.55,PLAYER_H=1.9;
+    /* 5km city radius (Han 2026-10-07): chunked procedural city extends from
+       the detailed downtown core to 5km. Chunk size 250m, deterministic seeds. */
+    var CHUNK_SIZE=250,CITY_RADIUS=5000;
+    var chunkMap={}; /* "cx,cz" -> {group, colliders, buildings} */
+    var chunkColliders={}; /* "cx,cz" -> collider array (spatial hash) */
     var walkAudioCtx=null;
     /* Tiny-planet curvature (x=50, y=55 — the EverPlanet look): a visual-only vertex-shader
        drop applied to static map geometry, evaluated relative to the player every frame.
@@ -2253,7 +2276,19 @@
     function buildWalkMapOnce(){
       if(mapBuilt)return;mapBuilt=true;
       mapScene=new THREE.Scene();
-      mapScene.fog=new THREE.Fog(0x9ec8e8,140,480);
+      mapScene.fog=new THREE.Fog(0x9ec8e8,200,1500);
+      /* 5km city base ground: 10km x 10km plane at y=0, below downtown pads (.04)
+         and chunk grounds (.03). Segmented for the curvature shader. */
+      var baseGroundMat=new THREE.MeshLambertMaterial({color:0x6a7a5a});
+      curvePatch(baseGroundMat);
+      var baseGround=new THREE.Mesh(
+        new THREE.PlaneGeometry(10200,10200,64,64),
+        baseGroundMat
+      );
+      baseGround.rotation.x=-Math.PI/2;
+      baseGround.position.set(0,0,0);
+      baseGround.receiveShadow=true;
+      mapScene.add(baseGround);
       /* The landing's real sky: sun-driven shader dome (daylight through twilight to night).
          Plus real-time moon (opposite the sun = full moon, rises at sunset) and
          procedural stars that fade in at night (Han 2026-10-05). */
@@ -2275,7 +2310,7 @@
       mapSkyDome.renderOrder=-10;
       mapScene.add(mapSkyDome);
       var fw=frame.clientWidth||window.innerWidth,fh=frame.clientHeight||window.innerHeight;
-      mapCamera=new THREE.PerspectiveCamera(55,fw/Math.max(1,fh),.1,1200);
+      mapCamera=new THREE.PerspectiveCamera(55,fw/Math.max(1,fh),.1,8000);
       var hemi=new THREE.HemisphereLight(0xcfe4ff,0x8a9078,.95);mapScene.add(hemi);
       var sun=new THREE.DirectionalLight(0xfff1d8,.95);
       mapHemiL=hemi;mapSunL=sun;
@@ -2594,11 +2629,172 @@
         var s=localStorage.getItem(LAST_POS_KEY);
         if(!s)return null;
         var d=JSON.parse(s);
-        /* Sanity: must be within playable bounds. */
-        if(Math.abs(d.x)>120||Math.abs(d.z)>120)return null;
+        /* Sanity: must be within playable bounds (5km radius). */
+        if(Math.abs(d.x)>5100||Math.abs(d.z)>5100)return null;
         return d;
       }catch(e){return null;}
     }
+    /* ================= 5km CHUNKED CITY (Han 2026-10-07) =================
+       The hand-built downtown core (|x|,|z| < 130) stays exactly as-is.
+       Beyond that, deterministic procedural chunks fill to 5km radius.
+       Chunk = 250m. Each chunk has a seed from its coords — same chunk
+       always generates identically. 5x5 chunks load around the player. */
+    function chunkSeed(cx,cz){
+      var h=(cx*73856093)^(cz*19349663);
+      h=Math.imul(h^(h>>>13),1274126177);
+      return (h^(h>>>16))>>>0;
+    }
+    function chunkRNG(seed){
+      var s=seed>>>0;
+      return function(){
+        s=(Math.imul(s,1664525)+1013904223)>>>0;
+        return s/4294967296;
+      };
+    }
+    function cityZone(dist){
+      if(dist<600)return 0; /* downtown ring: towers 25-70m */
+      if(dist<2000)return 1; /* urban: mid-rise 12-30m */
+      return 2; /* suburban: houses 6-12m, more green */
+    }
+    var chunkPalette=[0x8fa3b8,0x9aa5a8,0xb0a897,0x7d8b99,0xa89a8c,0x6f7f8e,0x93a7bb,0x8794a0];
+    function generateChunk(cx,cz){
+      var key=cx+','+cz;
+      if(chunkMap[key])return chunkMap[key];
+      var x0=cx*CHUNK_SIZE,z0=cz*CHUNK_SIZE;
+      /* Skip outside city radius */
+      var ccx=x0+CHUNK_SIZE/2,ccz=z0+CHUNK_SIZE/2;
+      if(Math.sqrt(ccx*ccx+ccz*ccz)>CITY_RADIUS+CHUNK_SIZE*0.7)return null;
+      /* Skip downtown core (hand-built, don't overwrite) */
+      if(x0<135&&x0+CHUNK_SIZE>-135&&z0<135&&z0+CHUNK_SIZE>-135)return null;
+      var group=new THREE.Group();
+      var colliders=[];
+      var buildings=[];
+      var seed=chunkSeed(cx,cz);
+      var rnd=chunkRNG(seed);
+      var zone=cityZone(Math.sqrt(ccx*ccx+ccz*ccz));
+      /* --- Ground: one plane per chunk. Water chunks get water, else land. --- */
+      var allWater=isWaterAt(x0,z0)&&isWaterAt(x0+CHUNK_SIZE,z0)&&
+                   isWaterAt(x0,z0+CHUNK_SIZE)&&isWaterAt(x0+CHUNK_SIZE,z0+CHUNK_SIZE);
+      if(allWater){
+        var wgeo=new THREE.PlaneGeometry(CHUNK_SIZE,CHUNK_SIZE,1,1);
+        var wmat=new THREE.MeshLambertMaterial({color:0x2a6a9e,transparent:true,opacity:.92});
+        curvePatch(wmat);
+        var wmesh=new THREE.Mesh(wgeo,wmat);
+        wmesh.rotation.x=-Math.PI/2;
+        wmesh.position.set(x0+CHUNK_SIZE/2,.2,z0+CHUNK_SIZE/2);
+        group.add(wmesh);
+      }else{
+        var ggeo=new THREE.PlaneGeometry(CHUNK_SIZE,CHUNK_SIZE,4,4);
+        var gcol=zone===2?0x6a9a5a:(zone===1?0x8a8a7a:0x7a7a72);
+        var gmat=new THREE.MeshLambertMaterial({color:gcol});
+        curvePatch(gmat);
+        var gmesh=new THREE.Mesh(ggeo,gmat);
+        gmesh.rotation.x=-Math.PI/2;
+        gmesh.position.set(x0+CHUNK_SIZE/2,.03,z0+CHUNK_SIZE/2);
+        gmesh.receiveShadow=true;
+        group.add(gmesh);
+        /* --- Buildings: InstancedMesh, one draw call per chunk. --- */
+        var blockSize=zone===0?38:(zone===1?60:100);
+        var items=[]; /* {x,z,w,d,h,color} */
+        for(var bx=x0+8;bx<x0+CHUNK_SIZE-8;bx+=blockSize){
+          for(var bz=z0+8;bz<z0+CHUNK_SIZE-8;bz+=blockSize){
+            var bcx=bx+blockSize/2,bcz=bz+blockSize/2;
+            if(isWaterAt(bcx,bcz))continue;
+            if(Math.sqrt(bcx*bcx+bcz*bcz)>CITY_RADIUS)continue;
+            var lots=zone===2?1:4; /* suburban: 1 house per block, else 2x2 */
+            for(var li=0;li<lots;li++){
+              if(rnd()>.72)continue; /* some lots empty */
+              var lx=bcx,bz2=bcz;
+              if(lots>1){
+                lx=bcx+((li%2)?blockSize*0.22:-blockSize*0.22);
+                bz2=bcz+((li<2)?blockSize*0.22:-blockSize*0.22);
+              }
+              lx+=(rnd()-.5)*blockSize*.12;
+              bz2+=(rnd()-.5)*blockSize*.12;
+              var w,d,h;
+              if(zone===0){w=10+rnd()*14;d=10+rnd()*14;h=25+rnd()*45;}
+              else if(zone===1){w=8+rnd()*10;d=8+rnd()*10;h=12+rnd()*18;}
+              else{w=7+rnd()*5;d=6+rnd()*5;h=6+rnd()*6;}
+              var col=chunkPalette[Math.floor(rnd()*chunkPalette.length)];
+              items.push({x:lx,z:bz2,w:w,d:d,h:h,color:col});
+              colliders.push({x0:lx-w/2,x1:lx+w/2,z0:bz2-d/2,z1:bz2+d/2,bottom:0,top:h});
+              buildings.push({x:lx,z:bz2,w:w,d:d,h:h});
+            }
+          }
+        }
+        if(items.length>0){
+          var bgeo=new THREE.BoxGeometry(1,1,1);
+          bgeo.translate(0,.5,0); /* pivot at base */
+          var bmat=new THREE.MeshLambertMaterial({color:0xffffff});
+          curvePatch(bmat);
+          var inst=new THREE.InstancedMesh(bgeo,bmat,items.length);
+          var m4=new THREE.Matrix4(),q=new THREE.Quaternion(),sv=new THREE.Vector3(),pv=new THREE.Vector3();
+          var cc=new THREE.Color();
+          for(var ii=0;ii<items.length;ii++){
+            var it=items[ii];
+            pv.set(it.x,0,it.z);sv.set(it.w,it.h,it.d);q.identity();
+            m4.compose(pv,q,sv);
+            inst.setMatrixAt(ii,m4);
+            inst.setColorAt(ii,cc.setHex(it.color));
+          }
+          inst.instanceMatrix.needsUpdate=true;
+          if(inst.instanceColor)inst.instanceColor.needsUpdate=true;
+          inst.castShadow=true;inst.receiveShadow=true;
+          group.add(inst);
+        }
+      }
+      mapScene.add(group);
+      var chunk={group:group,colliders:colliders,buildings:buildings,cx:cx,cz:cz};
+      chunkMap[key]=chunk;
+      chunkColliders[key]=colliders;
+      /* Register buildings for the proximity pill (mapBuildings). */
+      for(var bi2=0;bi2<buildings.length;bi2++){
+        var b2=buildings[bi2];
+        mapBuildings.push({x:b2.x,z:b2.z,w:b2.w,d:b2.d,name:null,chunk:true});
+      }
+      return chunk;
+    }
+    function unloadChunk(cx,cz){
+      var key=cx+','+cz;
+      var chunk=chunkMap[key];
+      if(!chunk)return;
+      mapScene.remove(chunk.group);
+      chunk.group.traverse(function(o){
+        if(o.isMesh){
+          if(o.geometry)o.geometry.dispose();
+          /* Don't dispose shared materials */
+        }
+      });
+      /* Remove only this chunk's buildings from mapBuildings (by reference). */
+      var bset={};
+      for(var i=0;i<chunk.buildings.length;i++){
+        var b=chunk.buildings[i];
+        bset[b.x+','+b.z]=1;
+      }
+      mapBuildings=mapBuildings.filter(function(mb){
+        return !(mb.chunk&&bset[mb.x+','+mb.z]);
+      });
+      delete chunkMap[key];
+      delete chunkColliders[key];
+    }
+    function updateChunks(px,pz){
+      var pcx=Math.floor(px/CHUNK_SIZE),pcz=Math.floor(pz/CHUNK_SIZE);
+      var R=2; /* 5x5 chunks = 1.25km view */
+      var needed={};
+      for(var dx=-R;dx<=R;dx++)for(var dz=-R;dz<=R;dz++){
+        var cx=pcx+dx,cz=pcz+dz;
+        var key=cx+','+cz;
+        needed[key]=1;
+        if(!chunkMap[key])generateChunk(cx,cz);
+      }
+      for(var k in chunkMap){
+        if(!needed[k]){
+          var parts=k.split(',');
+          unloadChunk(parseInt(parts[0],10),parseInt(parts[1],10));
+        }
+      }
+    }
+    /* ================= END 5km CHUNKED CITY ================= */
     function resetWalkPlayer(){
       if(!walkPlayer)return;
       /* QA #6: restore last position if available, else default spawn. */
@@ -2627,6 +2823,8 @@
       gateActive=false;
       buildWalkMapOnce();
       resetWalkPlayer();
+      /* 5km city: load initial chunks around spawn. */
+      if(walkPlayer)updateChunks(walkPlayer.pos.x,walkPlayer.pos.z);
       cityPhaseActive=true;
       targetDistance=1.34; /* continue the entry dive (2026-10-06 QA #3) */
       citySky.visible=false;
@@ -2635,10 +2833,12 @@
       var coarse=window.matchMedia&&window.matchMedia('(pointer:coarse)').matches;
       if(hint)hint.textContent=coarse?
         'Left stick walks (full tilt = run) \u00B7 drag to look around \u00B7 JUMP to hop (twice = double jump)':
-        'Arrow keys walk \u00B7 SHIFT jump (twice = double jump) \u00B7 SPACE interact \u00B7 CTRL sprint toggle \u00B7 Q punch \u00B7 W kick \u00B7 E throw \u00B7 K skills \u00B7 drag to look \u00B7 ESC to leave';
+        'Arrow keys walk \u00B7 SHIFT jump (twice = double jump) \u00B7 SPACE interact \u00B7 CTRL sprint toggle \u00B7 Q punch \u00B7 W kick \u00B7 E throw \u00B7 R defense \u00B7 K skills \u00B7 drag to look \u00B7 ESC to leave';
       cityPhasePanel.setAttribute('aria-hidden','false');
       document.getElementById('city-status').classList.add('is-city');
       document.body.classList.add('in-map');
+      /* Landing/game separation (2026-10-07): hide city markers in 3D scene when in-game. */
+      if(typeof markerGroup!=='undefined')markerGroup.visible=false;
       initSkillHud();
       status.textContent=(selected?selected.userData.name:'Vancouver Downtown')+' \u2014 walk around';
       startDnaImprint(); /* the Cauldron sticks its DNA on the city: it evolves */
@@ -2657,6 +2857,8 @@
       cityPhaseActive=false;
       gateActive=false;
       document.body.classList.remove('in-map');
+      /* Landing/game separation (2026-10-07): restore city markers when leaving game. */
+      if(typeof markerGroup!=='undefined')markerGroup.visible=true;
       hideSkillHud();
       document.getElementById('city-status').classList.remove('is-city');
       cityPhasePanel.setAttribute('aria-hidden','true');
@@ -2697,7 +2899,7 @@
        Skill points come from levels (EXP arrives with enemies); 3 starter
        points are granted so the tree works today.
        ================================================================ */
-    var MOVE_ORDER=['punch','kick','throw'];
+    var MOVE_ORDER=['punch','kick','throw','defense'];
     var MOVES={
       punch:{name:'Punch',key:'Q',icon:'👊',color:0xbfe9ff,css:'#bfe9ff',
         dmg:8,range:2.2,cd:.45,arc:1.9,y:1.05,
@@ -2707,7 +2909,10 @@
         desc:'A heavy kick. Slower, longer reach.'},
       throw:{name:'Throw',key:'E',icon:'🔥',color:0xffb35c,css:'#ffb35c',
         dmg:10,range:8,cd:.9,arc:1.6,y:1.3,proj:true,
-        desc:'Throw an ember. Flies straight, bursts on arrival.'}
+        desc:'Throw an ember. Flies straight, bursts on arrival.'},
+      defense:{name:'Defense',key:'R',icon:'🛡️',color:0x9fe8b3,css:'#9fe8b3',
+        dmg:0,range:0,cd:2.5,arc:0,y:1.0,guard:true,
+        desc:'Raise your guard. Blocks while active.'}
     };
     /* Skill bar slots, QWER row then ASDF row. Locked slots show a lock;
        empty ones are inert placeholders for future skills. */
@@ -2715,9 +2920,9 @@
       {key:'q',move:'punch'},
       {key:'w',move:'kick'},
       {key:'e',move:'throw'},
-      {key:'r',locked:'Cauldron Toss'},
-      {key:'a',locked:'Ember Guard'},
-      {key:'s',locked:null},
+      {key:'r',move:'defense'},
+      {key:'a',locked:'Cauldron Toss'},
+      {key:'s',locked:'Ember Guard'},
       {key:'d',locked:null},
       {key:'f',locked:null}
     ];
@@ -2726,41 +2931,64 @@
       return null;
     }
     var SKILL_NODES=[
-      {id:'slash',name:'Basic Moves',root:true,max:1,desc:''},
-      {id:'m_punch',name:'Punch Mastery',max:3,desc:'+12% Punch damage per rank.'},
-      {id:'m_kick',name:'Kick Mastery',max:3,desc:'+12% Kick damage per rank.'},
-      {id:'m_throw',name:'Throw Mastery',max:3,desc:'+12% Throw damage per rank.'},
+      {id:'basics',name:'Keeper Basics',root:true,max:1,desc:''},
+      {id:'m_punch',name:'Punch',max:20,desc:'+5% Punch damage per rank.'},
+      {id:'m_kick',name:'Kick',max:20,desc:'+5% Kick damage per rank.'},
+      {id:'m_throw',name:'Throw',max:20,desc:'+5% Throw damage per rank.'},
+      {id:'m_defense',name:'Defense',max:20,desc:'+0.06s guard duration per rank.'},
       {id:'swift',name:'Swift Forge',max:5,need:2,desc:'+5% attack speed per rank.'},
       {id:'reach',name:'Long Reach',max:3,need:2,desc:'+7% range per rank.'},
       {id:'toss',name:'Cauldron Toss',locked:true,desc:'Hurl a whole burning cauldron. Arrives with the combat update.'},
       {id:'guard',name:'Ember Guard',locked:true,desc:'A ring of forge-fire around you. Arrives with the combat update.'}
     ];
-    var skillState={points:3,alloc:{},level:1,exp:0,hp:100,maxhp:100,mp:50,maxmp:50,cd:{punch:0,kick:0,throw:0}};
+    /* Knowledge cost to go from rank -> rank+1. */
+    function rankCost(rank){ return 1+Math.floor(rank/4); }
+    /* Progression is Knowledge, not levels: watching videos earns Knowledge,
+       which is spent to raise each skill toward Lv 20. */
+    var skillState={knowledge:10,alloc:{},hp:100,maxhp:100,mp:50,maxmp:50,cd:{punch:0,kick:0,throw:0,defense:0}};
     try{
       var _ss=JSON.parse(window.localStorage.getItem('espil_skills_v1')||'null');
-      if(_ss&&_ss.alloc){
-        /* Drop allocations for nodes that no longer exist (e.g. the old weapon masteries). */
+      if(_ss){
+        /* Drop allocations for nodes that no longer exist; clamp ranks to 20. */
         var _na={};
-        for(var _k in _ss.alloc){
+        if(_ss.alloc)for(var _k in _ss.alloc){
           for(var _ni=0;_ni<SKILL_NODES.length;_ni++){
-            if(SKILL_NODES[_ni].id===_k){_na[_k]=_ss.alloc[_k];break;}
+            if(SKILL_NODES[_ni].id===_k){_na[_k]=Math.min(20,_ss.alloc[_k]);break;}
           }
         }
-        _ss.alloc=_na;
-        if(!_ss.cd||typeof _ss.cd!=='object')_ss.cd={punch:0,kick:0,throw:0};
-        skillState=_ss;
+        skillState.alloc=_na;
+        /* Old skill points convert to Knowledge. */
+        skillState.knowledge=10+((_ss.points||0)*5)+(_ss.knowledge||0);
+        if(typeof _ss.hp==='number')skillState.hp=_ss.hp;
+        if(typeof _ss.maxhp==='number')skillState.maxhp=_ss.maxhp;
+        if(typeof _ss.mp==='number')skillState.mp=_ss.mp;
+        if(typeof _ss.maxmp==='number')skillState.maxmp=_ss.maxmp;
       }
     }catch(e){}
+    /* Make sure every move has a cooldown slot (saves from older builds may not). */
+    for(var _mi=0;_mi<MOVE_ORDER.length;_mi++){
+      if(typeof skillState.cd[MOVE_ORDER[_mi]]!=='number')skillState.cd[MOVE_ORDER[_mi]]=0;
+    }
     function saveSkills(){try{window.localStorage.setItem('espil_skills_v1',JSON.stringify(skillState));}catch(e){}}
     function totalSpent(){var s=0;for(var k in skillState.alloc)s+=skillState.alloc[k];return s;}
+    /* Knowledge earned by watching videos (the video player calls gainKnowledge
+       when a video completes; the tree's demo button simulates it for now). */
+    function gainKnowledge(n,source){
+      n=Math.max(0,Math.floor(n||0));
+      if(!n)return;
+      skillState.knowledge+=n;
+      saveSkills();paintStatus();paintKnowledge();
+      if(window.__espilToast)window.__espilToast('📚 +'+n+' Knowledge'+(source?' — '+source:''));
+    }
     function moveStats(id){
       var m=MOVES[id];
       var mr=skillState.alloc['m_'+id]||0;
       return {
         m:m,
-        dmg:Math.round(m.dmg*(1+.12*mr)),
+        dmg:Math.round(m.dmg*(1+.05*mr)),
         range:m.range*(1+.07*(skillState.alloc.reach||0)),
-        cd:m.cd/(1+.05*(skillState.alloc.swift||0))
+        cd:m.cd/(1+.05*(skillState.alloc.swift||0)),
+        guardDur:m.guard?(1.2+0.06*mr):0
       };
     }
     /* Synthesized swing / impact sounds — no audio assets needed. */
@@ -2775,11 +3003,17 @@
           g.gain.setValueAtTime(.28,t);g.gain.exponentialRampToValueAtTime(.001,t+.16);
           o.connect(g);g.connect(ctx.destination);o.start(t);o.stop(t+.18);
         }
+        if(kind==='guard'){
+          var og=ctx.createOscillator(),gg=ctx.createGain();
+          og.type='square';og.frequency.setValueAtTime(220,t);og.frequency.exponentialRampToValueAtTime(110,t+.1);
+          gg.gain.setValueAtTime(.16,t);gg.gain.exponentialRampToValueAtTime(.001,t+.15);
+          og.connect(gg);gg.connect(ctx.destination);og.start(t);og.stop(t+.17);
+        }
         var len=Math.floor(ctx.sampleRate*.25),buf=ctx.createBuffer(1,len,ctx.sampleRate),d=buf.getChannelData(0);
         for(var i=0;i<len;i++)d[i]=(Math.random()*2-1)*(1-i/len);
         var src=ctx.createBufferSource();src.buffer=buf;
         var f=ctx.createBiquadFilter();f.type='bandpass';f.Q.value=1.1;
-        var base=kind==='whoosh-hi'?2600:(kind==='whoosh-lo'?520:(kind==='thud'?700:1400));
+        var base=kind==='whoosh-hi'?2600:(kind==='whoosh-lo'?520:(kind==='thud'?700:(kind==='guard'?900:1400)));
         f.frequency.setValueAtTime(base,t);f.frequency.exponentialRampToValueAtTime(Math.max(80,base*.32),t+.2);
         var g2=ctx.createGain();g2.gain.setValueAtTime(.22,t);g2.gain.exponentialRampToValueAtTime(.001,t+.24);
         src.connect(f);f.connect(g2);g2.connect(ctx.destination);src.start(t);
@@ -2834,6 +3068,20 @@
       fxPool.push({grp:sp,mat:sm,geo:null,t:0,life:life,s0:.7,s1:.7,o0:.95,sprite:sp,
         proj:{vx:fx*speed,vz:fz*speed}});
     }
+    /* Guard bubble: follows the player while Defense is active. */
+    function spawnGuard(m,dur){
+      if(!mapScene||!walkPlayer)return;
+      var p=walkPlayer;
+      var geo=new THREE.SphereGeometry(1.7,24,16);
+      var mat=new THREE.MeshBasicMaterial({color:m.color,transparent:true,opacity:.3,
+        side:THREE.DoubleSide,blending:THREE.AdditiveBlending,depthWrite:false,fog:false});
+      var mesh=new THREE.Mesh(geo,mat);
+      mesh.renderOrder=5;mesh.frustumCulled=false;
+      mesh.position.set(p.pos.x,1.1,p.pos.z);
+      mapScene.add(mesh);
+      fxPool.push({grp:mesh,mat:mat,geo:geo,t:0,life:dur,s0:.7,s1:1.02,o0:.3,sprite:null,follow:true,uniform:true});
+      p.guarding=dur;
+    }
     function updateSkillFx(dt){
       var i;
       var anyCd=false;
@@ -2843,6 +3091,7 @@
       }
       if(anyCd)paintCooldowns();
       if(skillState.mp<skillState.maxmp){skillState.mp=Math.min(skillState.maxmp,skillState.mp+5*dt);paintStatus();}
+      if(walkPlayer&&walkPlayer.guarding>0)walkPlayer.guarding-=dt;
       for(i=fxPool.length-1;i>=0;i--){
         var f=fxPool[i];f.t+=dt;var k=f.t/f.life;
         if(k>=1){
@@ -2854,8 +3103,9 @@
           fxPool.splice(i,1);continue;
         }
         if(f.proj){f.grp.position.x+=f.proj.vx*dt;f.grp.position.z+=f.proj.vz*dt;}
+        if(f.follow&&walkPlayer){f.grp.position.set(walkPlayer.pos.x,1.1,walkPlayer.pos.z);}
         var s=f.s0+(f.s1-f.s0)*k;
-        if(f.sprite){f.sprite.scale.set(s,s,1);}else{f.grp.scale.set(s,1,s);}
+        if(f.sprite){f.sprite.scale.set(s,s,1);}else if(f.uniform){f.grp.scale.set(s,s,s);}else{f.grp.scale.set(s,1,s);}
         f.mat.opacity=f.o0*(1-k);
       }
     }
@@ -2866,8 +3116,11 @@
       if(skillState.cd[id]>0)return;
       var st=moveStats(id),p=walkPlayer;
       skillState.cd[id]=st.cd;
-      p.lungeT=(id==='throw'?.16:.22); /* procedural strike motion; the GLB has no attack clip */
-      if(m.proj){
+      p.lungeT=(id==='throw'?.16:(id==='defense'?.12:.22)); /* procedural strike motion; the GLB has no attack clip */
+      if(m.guard){
+        spawnGuard(m,st.guardDur);
+        skillSfx('guard');
+      }else if(m.proj){
         spawnArc(m.color,2.2,m.arc,m.y,.2,.5,1.1);
         spawnFlash(m.color,1.5);
         spawnProjectile(m);
@@ -2882,19 +3135,21 @@
     }
     /* ---- HUD ---- */
     function paintStatus(){
-      var lv=document.getElementById('ms-lv'),sp=document.getElementById('ms-sp');
-      if(lv)lv.innerHTML='LV '+skillState.level+' &middot; KEEPER';
-      if(sp)sp.textContent='SP '+skillState.points;
+      var lv=document.getElementById('ms-lv');
+      if(lv)lv.textContent='KEEPER';
+      paintKnowledge();
       var hp=document.getElementById('ms-hp'),hpt=document.getElementById('ms-hp-t');
       if(hp)hp.style.width=(100*skillState.hp/skillState.maxhp)+'%';
       if(hpt)hpt.textContent=Math.round(skillState.hp)+'/'+skillState.maxhp;
       var mp=document.getElementById('ms-mp'),mpt=document.getElementById('ms-mp-t');
       if(mp)mp.style.width=(100*skillState.mp/skillState.maxmp)+'%';
       if(mpt)mpt.textContent=Math.round(skillState.mp)+'/'+skillState.maxmp;
-      var ex=document.getElementById('ms-exp'),ext=document.getElementById('ms-exp-t');
-      var need=skillState.level*100,pct=Math.min(100,100*skillState.exp/need);
-      if(ex)ex.style.width=pct+'%';
-      if(ext)ext.textContent=Math.round(pct)+'%';
+    }
+    function paintKnowledge(){
+      var kn=document.getElementById('ms-kn');
+      if(kn)kn.textContent='📚 '+skillState.knowledge;
+      var stk=document.getElementById('st-kn');
+      if(stk)stk.textContent='📚 Knowledge: '+skillState.knowledge;
     }
     function paintMoveSlots(){
       SKILL_SLOTS.forEach(function(s){
@@ -2913,44 +3168,50 @@
         el.style.setProperty('--cdp',pct+'%');
       });
     }
+    function rootDesc(){
+      return 'Ordinary human moves. Watch videos to earn Knowledge, then raise each skill toward Lv 20.<br>'+
+        MOVE_ORDER.map(function(id){
+          var s2=moveStats(id);
+          var stat=id==='defense'
+            ? s2.guardDur.toFixed(1)+'s guard &middot; '+s2.cd.toFixed(2)+'s cd'
+            : s2.dmg+' dmg &middot; '+s2.range.toFixed(1)+'m &middot; '+s2.cd.toFixed(2)+'s';
+          return '<b style="color:'+s2.m.css+'">'+s2.m.name+' ('+s2.m.key+')</b> '+stat;
+        }).join('<br>');
+    }
     function renderSkillTree(){
       var grid=document.getElementById('st-grid');
-      if(!grid)return;
-      grid.innerHTML='';
-      var spent=totalSpent();
-      SKILL_NODES.forEach(function(n){
-        var rank=skillState.alloc[n.id]||0;
-        var div=document.createElement('div');
-        var needMet=!n.need||spent>=n.need;
-        var maxed=!n.locked&&rank>=n.max;
-        div.className='st-node'+(n.root?' st-root':'')+((n.id==='swift'||n.id==='reach'||n.locked)?' st-wide':'')+
-          (n.locked||!needMet?' is-locked':'')+(maxed?' is-maxed':'');
-        var desc=n.root?
-          ('Basic moves:<br>'+
-           MOVE_ORDER.map(function(id){
-             var s2=moveStats(id);
-             return '<b style="color:'+s2.m.css+'">'+s2.m.name+' ('+s2.m.key+')</b> '+s2.dmg+' dmg &middot; '+s2.range.toFixed(1)+'m &middot; '+s2.cd.toFixed(2)+'s';
-           }).join('<br>')):
-          n.desc;
-        div.innerHTML='<div class="st-nm">'+n.name+'</div>'+
-          '<div class="st-rk">'+(n.locked?'SOON':(n.root?'':rank+'/'+n.max))+'</div>'+
-          '<div class="st-ds">'+desc+(n.need&&!n.locked?'<br><span class="st-req">Requires '+n.need+' points spent</span>':'')+'</div>';
-        if(!n.locked&&!n.root&&needMet&&!maxed){
-          div.addEventListener('click',function(){
-            if(skillState.points<=0){
-              if(window.__espilToast)window.__espilToast('No skill points left.');
-              return;
-            }
-            skillState.alloc[n.id]=rank+1;skillState.points--;
-            saveSkills();
-            if(window.EspilAudio&&window.EspilAudio.tick)window.EspilAudio.tick();
-            renderSkillTree();paintStatus();paintMoveSlots();
-          });
-        }
-        grid.appendChild(div);
-      });
-      var ssp=document.getElementById('st-sp');
-      if(ssp)ssp.textContent='Skill points: '+skillState.points;
+      if(grid){
+        grid.innerHTML='';
+        var spent=totalSpent();
+        SKILL_NODES.forEach(function(n){
+          var rank=skillState.alloc[n.id]||0;
+          var div=document.createElement('div');
+          var needMet=!n.need||spent>=n.need;
+          var maxed=!n.locked&&rank>=n.max;
+          div.className='st-node'+(n.root?' st-root':'')+((n.id==='swift'||n.id==='reach'||n.locked)?' st-wide':'')+
+            (n.locked||!needMet?' is-locked':'')+(maxed?' is-maxed':'');
+          var cost=(n.root||n.locked||maxed)?null:rankCost(rank);
+          var desc=n.root?rootDesc():n.desc+(cost!==null?'<br><span class="st-req">Next rank: 📚 '+cost+'</span>':'');
+          div.innerHTML='<div class="st-nm">'+n.name+'</div>'+
+            '<div class="st-rk">'+(n.locked?'SOON':(n.root?'':'Lv '+rank+'/'+n.max))+'</div>'+
+            '<div class="st-ds">'+desc+(n.need&&!n.locked?'<br><span class="st-req">Requires '+n.need+' ranks learned</span>':'')+'</div>';
+          if(!n.locked&&!n.root&&needMet&&!maxed){
+            div.addEventListener('click',function(){
+              var c=rankCost(rank);
+              if(skillState.knowledge<c){
+                if(window.__espilToast)window.__espilToast('Not enough Knowledge — watch videos to earn more.');
+                return;
+              }
+              skillState.knowledge-=c;skillState.alloc[n.id]=rank+1;
+              saveSkills();
+              if(window.EspilAudio&&window.EspilAudio.tick)window.EspilAudio.tick();
+              renderSkillTree();paintStatus();paintMoveSlots();
+            });
+          }
+          grid.appendChild(div);
+        });
+      }
+      paintKnowledge();
     }
     var skillTreeOpen=false;
     function toggleSkillTree(force){
@@ -3037,22 +3298,7 @@
         if(el)el.setAttribute('aria-hidden','true');
       });
     }
-    /* EXP hook for later (enemies grant EXP; levels grant skill points). */
-    function gainExp(n){
-      if(skillState.level>=99)return;
-      skillState.exp+=n;
-      var need=skillState.level*100;
-      while(skillState.exp>=need&&skillState.level<99){
-        skillState.exp-=need;skillState.level++;
-        skillState.points++;skillState.maxhp+=10;skillState.hp=skillState.maxhp;
-        skillState.maxmp+=5;skillState.mp=skillState.maxmp;
-        need=skillState.level*100;
-        if(window.__espilToast)window.__espilToast('Level up! LV '+skillState.level+' — +1 skill point');
-      }
-      saveSkills();paintStatus();
-    }
-    window.__espilSkills={state:skillState,gainExp:gainExp,
-      addSkillPoint:function(n){skillState.points+=(n||1);saveSkills();paintStatus();},
+    window.__espilSkills={state:skillState,gainKnowledge:gainKnowledge,
       move:doMove,tree:toggleSkillTree};
     (function wireSkillHud(){
       var atk=document.getElementById('map-attack');
@@ -3063,6 +3309,10 @@
       if(sc)sc.addEventListener('click',function(){toggleSkillTree(false);});
       var st=document.getElementById('skill-tree');
       if(st)st.addEventListener('click',function(e){if(e.target===st)toggleSkillTree(false);});
+      /* Demo: simulate finishing a video (+5 Knowledge). The real video
+         player will call window.__espilSkills.gainKnowledge(n) instead. */
+      var stb=document.getElementById('st-study');
+      if(stb)stb.addEventListener('click',function(){gainKnowledge(5,'demo video');renderSkillTree();});
       /* QA #14 (UI room): inventory + character panel close handlers. */
       var ic=document.getElementById('inv-close');
       if(ic)ic.addEventListener('click',function(){toggleInventory(false);});
@@ -3136,8 +3386,17 @@
     if(sprintBtn)sprintBtn.addEventListener('pointerdown',function(e){e.preventDefault();sprintOn=!sprintOn;updateSprintUI();});
     function collideCircleAxis(p,axis){
       var r=PLAYER_R;
-      for(var i=0;i<walkColliders.length;i++){
-        var c=walkColliders[i];
+      /* Check downtown colliders + nearby chunk colliders (spatial hash). */
+      var lists=[walkColliders];
+      var pcx=Math.floor(p.pos.x/CHUNK_SIZE),pcz=Math.floor(p.pos.z/CHUNK_SIZE);
+      for(var ox=-1;ox<=1;ox++)for(var oz=-1;oz<=1;oz++){
+        var key=(pcx+ox)+','+(pcz+oz);
+        if(chunkColliders[key])lists.push(chunkColliders[key]);
+      }
+      for(var li=0;li<lists.length;li++){
+        var arr=lists[li];
+        for(var i=0;i<arr.length;i++){
+        var c=arr[i];
         if(p.pos.y+PLAYER_H<=c.bottom||p.pos.y>=c.top)continue; /* no vertical overlap */
         if(c.top-p.pos.y<=.55)continue; /* low enough to step onto — the support logic lifts the player */
         var cz=p.pos.z<c.z0?c.z0:(p.pos.z>c.z1?c.z1:p.pos.z);
@@ -3151,6 +3410,7 @@
         }else{
           if(p._dz>0)p.pos.z=c.z0-r;else if(p._dz<0)p.pos.z=c.z1+r;
           /* else: no Z movement — don't snap, prevents bounce */
+        }
         }
       }
     }
@@ -3173,17 +3433,23 @@
       var joyMag=window.__joyVec?Math.sqrt(window.__joyVec.x*window.__joyVec.x+window.__joyVec.y*window.__joyVec.y):0;
       /* QA #15: sprintOn (Ctrl toggle) or full-tilt stick = run. Shift is jump now. */
       p.running=p.moving&&(sprintOn||joyMag>.88);
-      /* QA #17: swimming mode when in water (north of WATER_Z). */
-      p.swimming=p.pos.z<WATER_Z&&p.pos.y<1.5;
+      /* QA #17: swimming mode when in water. */
+      p.swimming=isWaterAt(p.pos.x,p.pos.z)&&p.pos.y<1.5;
       var SPEED=p.swimming?4:(p.running?12:7.5);
       p._dx=mx*SPEED*dt;p._dz=mz*SPEED*dt;
       p.moving=il>.12;
       p.pos.x+=p._dx;collideCircleAxis(p,'x');
       p.pos.z+=p._dz;collideCircleAxis(p,'z');
-      /* QA #10: invisible boundary walls — clamp to playable area.
-         North extends to -115 for waterfront access (Task #17); else ±96. */
-      p.pos.x=Math.max(-MAP_BOUND,Math.min(MAP_BOUND,p.pos.x));
-      p.pos.z=Math.max(-115,Math.min(MAP_BOUND,p.pos.z));
+      /* 5km city boundary: circular, 5000m radius from landmark (Han 2026-10-07).
+         Genshin-style invisible wall — slide along the edge. */
+      var distC=Math.sqrt(p.pos.x*p.pos.x+p.pos.z*p.pos.z);
+      if(distC>MAP_BOUND){
+        var s=MAP_BOUND/distC;
+        p.pos.x*=s;p.pos.z*=s;
+      }
+      /* 5km city: stream chunks around the player. Throttle to every ~0.25s. */
+      p._chunkT=(p._chunkT||0)+dt;
+      if(p._chunkT>.25){p._chunkT=0;updateChunks(p.pos.x,p.pos.z);}
       /* QA #17: in water, float at surface; no gravity, no jump. */
       if(p.swimming){
         p.pos.y+=(WATER_Y-p.pos.y)*Math.min(1,dt*5);
