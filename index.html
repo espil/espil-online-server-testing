@@ -716,6 +716,8 @@
     .city-info-enter:active { transform:none; }
     .city-info-enter.is-disabled { opacity:.35; cursor:not-allowed; filter:grayscale(.6); }
     .city-info-enter.is-disabled:hover { transform:none; box-shadow:none; }
+    .city-info-enter.is-disabled { opacity:.35; cursor:not-allowed; filter:grayscale(.6); }
+    .city-info-enter.is-disabled:hover { transform:none; box-shadow:none; }
     .city-info-credit { margin:12px 0 0; font:500 .6rem/1.6 "Manrope",sans-serif; letter-spacing:.03em; color:rgba(159,245,228,.5); }
     @media (max-width:640px) {
       .city-info {
@@ -1743,6 +1745,7 @@
        into `buildWalkerAvatar()` when the pipeline delivers it.
        ================================================================ */
     var mapScene=null,mapCamera=null,mapBuilt=false;
+    var WATER_Z=-100, WATER_Y=.25; /* swim boundary (QA #17): visible to buildWalkMapOnce + updateWalkMap */
     var walkPlayer=null,walkColliders=[];
     var walkKeys={};
     var walkCamYaw=0,walkCamPitch=.42,walkCamDist=14;
@@ -2552,8 +2555,8 @@
       curvePatch(waterMat);
       var water=new THREE.Mesh(new THREE.PlaneGeometry(640,170,64,16),waterMat);
       water.rotation.x=-Math.PI/2;water.position.set(0,.03,-186);mapScene.add(water);
-      /* Swimming state — set in updateWalkMap when player enters water. */
-      var WATER_Z=-100, WATER_Y=.25;
+      /* Swimming state — set in updateWalkMap when player enters water.
+         (WATER_Z/WATER_Y now live at IIFE scope.) */
       boxAt(208,1.6,2.4,0,-.2,-100,0x8b938a);
       addCollider(-104,104,-102,-98.8,-1,1.2); /* seawall: solid, cannot be climbed */
       var plaza=new THREE.Mesh(new THREE.CylinderGeometry(10,10,.12,36),cobbleMat);
@@ -3625,9 +3628,17 @@
         infoBrands=document.getElementById('city-info-brands');
     /* TESTING BUILD (2026-10-06, per Han): only Vancouver entry works. */
     var VANCOUVER_ONLY=true;
+    /* TESTING BUILD (2026-10-06, per Han): only Vancouver entry works. */
+    var VANCOUVER_ONLY=true;
     function showCityInfo(marker){
       infoShown=true;approachSlow=false;
       var facts=cityFacts[marker.userData.name]||{pop:'—',brands:[],img:''};
+      var canEnter=!VANCOUVER_ONLY||marker.userData.name==='Vancouver';
+      if(infoEnter){
+        infoEnter.disabled=!canEnter;
+        infoEnter.classList.toggle('is-disabled',!canEnter);
+        infoEnter.innerHTML=canEnter?'ENTER CITY &#8594;':'NOT AVAILABLE';
+      }
       var canEnter=!VANCOUVER_ONLY||marker.userData.name==='Vancouver';
       if(infoEnter){
         infoEnter.disabled=!canEnter;
@@ -3683,6 +3694,7 @@
     }
     function startCityEntry(){
       if(!selected||entryActive||cityPhaseActive)return;
+      if(VANCOUVER_ONLY&&selected.userData.name!=='Vancouver')return;
       if(VANCOUVER_ONLY&&selected.userData.name!=='Vancouver')return;
       entryActive=true;entryTypedDone=false;entrySubShown=false;entryStartedAt=performance.now();
       clearZoomStages();
