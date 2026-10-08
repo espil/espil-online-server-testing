@@ -353,13 +353,14 @@
     body:not(.in-map) .skill-bar,
     body:not(.in-map) .map-attack,
     body:not(.in-map) #tree-toggle { display:none !important; }
-    /* ---- Landing/game separation (2026-10-07): hide ALL landing UI when in-game ---- */
-    body.in-map #earth-frame,
+    /* ---- Landing/game separation (2026-10-07): hide ALL landing UI when in-game ----
+       NOTE (2026-10-08): #earth-frame and #globe-canvas are NOT hidden — the map
+       reuses the same WebGL canvas as the landing globe. Hiding it breaks map rendering.
+       Only the landing UI overlays are hidden. */
     body.in-map #city-info,
     body.in-map #city-return,
     body.in-map #city-phase,
-    body.in-map .city-markers,
-    body.in-map #globe-canvas { display:none !important; }
+    body.in-map .city-markers { display:none !important; }
     .map-status {
       position:fixed; z-index:30; top:calc(14px + env(safe-area-inset-top)); left:14px;
       width:212px; padding:10px 12px 12px;
@@ -436,23 +437,32 @@
     .st-study:hover { border-color:var(--signal); }
     .st-knsub { margin:0 0 12px; font:600 .62rem/1.5 "Manrope",sans-serif; color:rgba(181,255,248,.55); letter-spacing:.02em; }
     .st-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
-    .st-node {
-      border:1px solid rgba(134,238,228,.25); border-radius:10px; padding:10px 9px;
-      background:rgba(14,32,38,.6); cursor:pointer;
-      transition:border-color .15s, box-shadow .15s;
-    }
-    .st-node:hover:not(.is-locked) { border-color:var(--signal); }
-    .st-node.is-maxed { border-color:var(--signal); box-shadow:0 0 14px rgba(80,232,220,.3); }
-    .st-node.is-locked { opacity:.45; cursor:not-allowed; }
-    .st-node.st-root { grid-column:1 / -1; border-color:rgba(255,217,122,.5); }
-    .st-node.st-wide { grid-column:span 2; }
-    .st-nm { font:800 .68rem/1.3 "Manrope",sans-serif; letter-spacing:.08em; color:#eafffd; }
-    .st-rk { margin-top:4px; font:800 .62rem/1 "Manrope",sans-serif; color:#9df2e8; letter-spacing:.1em; }
-    .st-node.is-locked .st-rk { color:#8a9494; }
-    .st-ds { margin-top:6px; font:600 .62rem/1.5 "Manrope",sans-serif; color:rgba(181,255,248,.66); }
-    .st-req { color:#ffd97a; }
     .st-foot { margin:14px 0 0; font:600 .62rem/1.6 "Manrope",sans-serif; color:rgba(181,255,248,.55); letter-spacing:.03em; }
-    @media (max-width:640px) { .st-grid { grid-template-columns:repeat(2,1fr); } .st-node.st-wide { grid-column:span 2; } }
+    @media (max-width:640px) { .st-grid { grid-template-columns:repeat(2,1fr); } }
+    /* ---- MapleStory-style skill book ---- */
+    .st-tabs { display:flex; gap:6px; margin:12px 0 10px; }
+    .st-tab { flex:1; appearance:none; border:1px solid rgba(201,168,106,.45); border-bottom:none; border-radius:8px 8px 0 0; background:#141824; color:#8a93a8; font:800 .66rem/1 "Manrope",sans-serif; letter-spacing:.1em; padding:10px 0; cursor:pointer; }
+    .st-tab.is-active { background:#232a40; color:#ffd97a; }
+    .st-list { display:flex; flex-direction:column; gap:6px; max-height:290px; overflow-y:auto; padding:10px; border:1px solid rgba(201,168,106,.45); border-radius:0 0 8px 8px; background:#171c2b; }
+    .ms-row { display:flex; align-items:center; gap:12px; border:1px solid rgba(201,168,106,.25); border-radius:8px; background:#1e2436; padding:7px 10px; cursor:pointer; }
+    .ms-row:hover { border-color:rgba(255,217,122,.65); }
+    .ms-row.is-selected { border-color:#ffd97a; box-shadow:inset 0 0 0 1px #ffd97a; }
+    .ms-row.is-locked { opacity:.5; cursor:default; }
+    .ms-icon { flex:none; width:42px; height:42px; border:2px solid #6b5a34; border-radius:6px; background:#0d1017; overflow:hidden; }
+    .ms-icon img { width:100%; height:100%; image-rendering:pixelated; display:block; }
+    .ms-row.is-locked .ms-icon img { filter:grayscale(1) brightness(.55); }
+    .ms-name { flex:1; font:800 .78rem/1.2 "Manrope",sans-serif; color:#f2ead6; letter-spacing:.04em; }
+    .ms-lv { font:800 .72rem/1 "Manrope",sans-serif; color:#ffd97a; letter-spacing:.05em; white-space:nowrap; }
+    .ms-lv.is-max { color:#ff9d3c; }
+    .ms-plus { flex:none; width:30px; height:30px; border:1px solid #8a6a2f; border-radius:6px; background:linear-gradient(180deg,#f0b45a,#d18a2e); color:#3a2708; font:900 1.05rem/1 "Manrope",sans-serif; cursor:pointer; padding:0; }
+    .ms-plus:active { transform:translateY(1px); }
+    .st-desc { margin-top:10px; border:1px solid rgba(201,168,106,.35); border-radius:8px; background:#10141f; padding:12px 14px; min-height:118px; }
+    .st-desc h3 { margin:0 0 6px; font:800 .82rem/1.2 "Manrope",sans-serif; color:#ffd97a; letter-spacing:.06em; }
+    .st-desc p { margin:4px 0; font:600 .66rem/1.55 "Manrope",sans-serif; color:#cfd6e4; }
+    .st-desc .cur { color:#9fb2d8; }
+    .st-desc .nxt { color:#8fe6a0; }
+    .st-desc .cost { color:#ffd97a; font-weight:800; }
+    .move-slot .sicon img { width:26px; height:26px; image-rendering:pixelated; }
     /* Testing-bypass note (auth + character gates). */
     .bypass-note { margin:10px 0 0; color:#ffd97a; font:700 .68rem/1.5 "Manrope",sans-serif; letter-spacing:.08em; text-align:center; }
     .bypass-note b { color:#ffe9ad; }
@@ -962,7 +972,12 @@
         </div>
         <div class="st-knrow"><span id="st-kn">📚 Knowledge: 10</span><button class="st-study" id="st-study" type="button">▶ Watch a video (demo) +5</button></div>
         <p class="st-knsub">Knowledge comes from watching videos — not from leveling up. Spend it to raise each skill toward Lv 20.</p>
-        <div class="st-grid" id="st-grid"></div>
+        <div class="st-tabs">
+          <button class="st-tab is-active" data-tab="basic" type="button">BASIC SKILLS</button>
+          <button class="st-tab" data-tab="training" type="button">TRAINING</button>
+        </div>
+        <div class="st-list" id="st-list"></div>
+        <div class="st-desc" id="st-desc"></div>
         <p class="st-foot">Keeper fights unarmed: punch, kick, throw, defense. New moves plug into the same table later.</p>
       </div>
     </div>
@@ -1753,6 +1768,9 @@
        ================================================================ */
     var mapScene=null,mapCamera=null,mapBuilt=false;
     var WATER_Z=-100, WATER_Y=.25; /* swim boundary (QA #17) */
+    var trafficCars=[],carTextures=[],carColliders=[]; /* hoisted from buildWalkMapOnce (2026-10-08): used by collideCircleAxis/updateWalkMap */
+    var updateTrafficCars=function(dt){}; /* replaced by buildWalkMapOnce */
+    var updateTransitBuses=function(){}; /* replaced by buildWalkMapOnce */
     /* 5km city (Han 2026-10-07): water bodies at scale.
        - Downtown harbor + Burrard Inlet: z < -100 (entire north)
        - English Bay: x < -2500 (west side)
@@ -2027,6 +2045,7 @@
         if(s.flow>1)s.flow=1;
         /* Data-only: flow value simulates; no visual update (Han 2026-10-05). */
       }
+      syncTrafficCars(); /* 2D car placeholders mirror the new flow levels */
     }
     function updateProps(){
       for(var i=0;i<billboardProps.length;i++){
@@ -2459,6 +2478,174 @@
                    (Math.abs(A.x2-B.x2)<.01&&Math.abs(A.z2-B.z2)<.01)||
                    (Math.abs(A.x1-B.x1)<.01&&Math.abs(A.z1-B.z1)<.01);
         if(touch){A.nb.push(tb);B.nb.push(ta);}
+      }
+      /* 2D traffic cars — Han 2026-10-07: placeholder 2D car sprites visualizing
+         live traffic level per segment. Jammed = many slow cars; clear = few fast
+         cars. Camera-facing billboards like other props (no 3D models). Random
+         models/colors; Han can swap art later via setCarSprite(). */
+      trafficCars.length=0;carTextures.length=0;carColliders.length=0; /* reset (hoisted vars) */
+      var CAR_COLORS=['#d94f4f','#4f7ed9','#e8e8e8','#2b2f36','#f2b134','#7ed957','#9b59b6'];
+      var CAR_W=4.6,CAR_H=1.6,CAR_TOP=1.6; /* single jump apex ~1.56 + .55 step grace -> landable */
+      function carTexture(variant,color){
+        var c=document.createElement('canvas');c.width=72;c.height=25;
+        var g=c.getContext('2d');g.clearRect(0,0,72,25);
+        g.fillStyle='rgba(0,0,0,.25)';g.beginPath();g.ellipse(36,22,30,3,0,0,7);g.fill();
+        g.fillStyle=color;
+        if(variant===2){ /* van */
+          g.beginPath();g.roundRect(8,6,56,13,3);g.fill();
+          g.fillStyle='#bcd6f5';g.fillRect(50,8,10,6);
+        }else{
+          g.beginPath();g.roundRect(8,11,56,9,4);g.fill();
+          g.fillStyle=color;g.beginPath();g.roundRect(22,5,28,9,4);g.fill();
+          g.fillStyle='#bcd6f5';g.beginPath();g.roundRect(25,7,22,6,2);g.fill();
+          if(variant===3){g.fillStyle='#2b2f36';g.fillRect(32,2,8,4);} /* taxi sign */
+        }
+        g.fillStyle='#1c1e22';
+        g.beginPath();g.arc(20,20,4.5,0,7);g.fill();
+        g.beginPath();g.arc(52,20,4.5,0,7);g.fill();
+        g.fillStyle='#8a8f98';
+        g.beginPath();g.arc(20,20,2,0,7);g.fill();
+        g.beginPath();g.arc(52,20,2,0,7);g.fill();
+        var t=new THREE.CanvasTexture(c);t.anisotropy=4;return t;
+      }
+      function initCarTextures(){
+        for(var v=0;v<4;v++)for(var k=0;k<3;k++)
+          carTextures.push(carTexture(v,CAR_COLORS[(v*3+k)%CAR_COLORS.length]));
+      }
+      function carCountFor(flow,len){
+        var want=Math.round(10-9*flow); /* flow 1 -> 1 car, flow 0 -> 10 cars */
+        return Math.max(1,Math.min(want,Math.max(1,Math.floor(len/5.5))));
+      }
+      function spawnCar(si){
+        var seg=trafficSegs[si],len=Math.hypot(seg.x2-seg.x1,seg.z2-seg.z1);
+        var lane=Math.random()<.5?1:-1;
+        var mat=new THREE.MeshBasicMaterial({map:carTextures[(Math.random()*carTextures.length)|0],transparent:true,side:THREE.DoubleSide,fog:true,depthWrite:false});
+        var mesh=new THREE.Mesh(new THREE.PlaneGeometry(CAR_W,CAR_H),mat);
+        mesh.renderOrder=2;mesh.frustumCulled=false;
+        var t0=Math.random(),dx=seg.x2-seg.x1,dz=seg.z2-seg.z1;
+        var off=1.4*lane,x0=seg.x1+dx*t0+(-dz/len)*off,z0=seg.z1+dz*t0+(dx/len)*off;
+        mesh.userData.car={si:si,t:t0,lane:lane,dir:lane>0?1:-1,len:len,x:x0,px:x0,z:z0,pz:z0};
+        var col={x0:0,x1:0,z0:0,z1:0,bottom:0,top:CAR_TOP,car:mesh};
+        mesh.userData.car.col=col;carColliders.push(col);
+        mesh.scale.x=lane>0?1:-1;
+        mapScene.add(mesh);trafficCars.push(mesh);
+      }
+      function syncTrafficCars(){
+        var counts={};
+        for(var i=0;i<trafficCars.length;i++){var s=trafficCars[i].userData.car.si;counts[s]=(counts[s]||0)+1;}
+        for(var si=0;si<trafficSegs.length;si++){
+          var seg=trafficSegs[si],len=Math.hypot(seg.x2-seg.x1,seg.z2-seg.z1);
+          var want=carCountFor(seg.flow,len),have=counts[si]||0,diff=want-have;
+          var step=Math.max(-2,Math.min(2,diff));
+          if(step>0)for(var k=0;k<step;k++)spawnCar(si);
+          else if(step<0){
+            var removed=0;
+            for(var j=trafficCars.length-1;j>=0&&removed<-step;j--){
+              if(trafficCars[j].userData.car.si===si){
+                mapScene.remove(trafficCars[j]);
+                var ci=carColliders.indexOf(trafficCars[j].userData.car.col);
+                if(ci>=0)carColliders.splice(ci,1);
+                trafficCars[j].material.map=null;trafficCars[j].material.dispose();
+                trafficCars.splice(j,1);removed++;
+              }
+            }
+          }
+        }
+      }
+      updateTrafficCars=function(dt){
+        for(var i=0;i<trafficCars.length;i++){
+          var m=trafficCars[i],u=m.userData.car,seg=trafficSegs[u.si];
+          var speed=1.5+seg.flow*16; /* jammed crawls, clear flies */
+          u.t+=u.dir*speed*dt/u.len;
+          if(u.t>1)u.t-=1;else if(u.t<0)u.t+=1;
+          var dx=seg.x2-seg.x1,dz=seg.z2-seg.z1;
+          var px=-dz/u.len,pz=dx/u.len,off=1.4*u.lane;
+          var x=seg.x1+dx*u.t+px*off,z=seg.z1+dz*u.t+pz*off;
+          u.px=u.x;u.pz=u.z;u.x=x;u.z=z;
+          m.position.set(x,CAR_H/2-curveDropAt(x,z),z);
+          m.quaternion.copy(mapCamera.quaternion);
+          /* axis-aligned AABB collider follows the car */
+          var horiz=Math.abs(dz)<.01,ax=horiz?CAR_W/2:0.9,az=horiz?0.9:CAR_W/2;
+          var col=u.col;col.x0=x-ax;col.x1=x+ax;col.z0=z-az;col.z1=z+az;
+        }
+      }
+      function setCarSprite(url){ /* swap placeholder car art for Han's real sprites */
+        var tex=new THREE.TextureLoader().load(url);
+        carTextures=[tex];
+        for(var i=0;i<trafficCars.length;i++){trafficCars[i].material.map=tex;trafficCars[i].material.needsUpdate=true;}
+      }
+      initCarTextures();syncTrafficCars();
+      /* Real TransLink buses — Han 2026-10-08: GTFS-RT vehicle positions via the
+         local poller (tools/translink_poller.py -> assets/transit/buses.json).
+         Buses within BUS_RADIUS of the player appear as camera-facing billboards
+         with their route number. Positions dead-reckon between 30s polls using
+         bearing+speed. No poller running = no buses, everything else unaffected. */
+      var transitBuses={},busTexCache={},busFeed={buses:[],fetched_at:0},busTimer=null;
+      var BUS_RADIUS=150,BUS_W=12,BUS_H=3;
+      function latLngToMap(lat,lng){
+        return {x:(lng-MAP_LNG0)*111320*Math.cos(MAP_LAT0*Math.PI/180),
+                z:-(lat-MAP_LAT0)*111320};
+      }
+      function busTexture(route){
+        if(busTexCache[route])return busTexCache[route];
+        var c=document.createElement('canvas');c.width=144;c.height=40;
+        var g=c.getContext('2d');g.clearRect(0,0,144,40);
+        g.fillStyle='rgba(0,0,0,.25)';g.beginPath();g.ellipse(72,36,60,4,0,0,7);g.fill();
+        g.fillStyle='#e8e8e8';g.beginPath();g.roundRect(6,8,132,24,5);g.fill();
+        g.fillStyle='#0d5aa7';g.fillRect(6,8,132,7);
+        g.fillStyle='#bcd6f5';g.beginPath();g.roundRect(14,17,100,10,3);g.fill();
+        g.fillStyle='#1c1e22';
+        g.beginPath();g.arc(32,32,7,0,7);g.fill();
+        g.beginPath();g.arc(112,32,7,0,7);g.fill();
+        g.fillStyle='#8a8f98';
+        g.beginPath();g.arc(32,32,3,0,7);g.fill();
+        g.beginPath();g.arc(112,32,3,0,7);g.fill();
+        g.fillStyle='#111';g.font='bold 13px sans-serif';g.textAlign='center';
+        g.fillText(String(route||''),72,30);
+        var t=new THREE.CanvasTexture(c);t.anisotropy=4;
+        busTexCache[route]=t;return t;
+      }
+      function fetchBusFeed(){
+        fetch('assets/transit/buses.json?'+Date.now()).then(function(r){return r.json();}).then(function(d){
+          if(d&&d.buses)busFeed=d;
+        }).catch(function(){});
+      }
+      updateTransitBuses=function(){
+        if(!walkPlayer||!walkPlayer.pos)return;
+        if(!busTimer){busTimer=setInterval(fetchBusFeed,30000);fetchBusFeed();}
+        var nowS=Date.now()/1000,px=walkPlayer.pos.x,pz=walkPlayer.pos.z;
+        var seen={};
+        for(var i=0;i<busFeed.buses.length;i++){
+          var b=busFeed.buses[i];
+          var age=Math.min(120,Math.max(0,nowS-(busFeed.fetched_at||nowS)));
+          var d=(b.speed||0)*age,br=(b.bearing||0)*Math.PI/180;
+          var lat=b.lat+d*Math.cos(br)/111320;
+          var lng=b.lng+d*Math.sin(br)/(111320*Math.cos(MAP_LAT0*Math.PI/180));
+          var m=latLngToMap(lat,lng);
+          var dist=Math.hypot(m.x-px,m.z-pz);
+          if(dist>BUS_RADIUS)continue;
+          seen[b.id]=1;
+          var rec=transitBuses[b.id]||{};
+          var mesh=rec.mesh;
+          if(!mesh){
+            mesh=new THREE.Mesh(new THREE.PlaneGeometry(BUS_W,BUS_H),
+              new THREE.MeshBasicMaterial({map:busTexture(b.route),transparent:true,
+                side:THREE.DoubleSide,fog:true,depthWrite:false}));
+            mesh.renderOrder=2;mesh.frustumCulled=false;
+            mapScene.add(mesh);rec.mesh=mesh;transitBuses[b.id]=rec;
+          }else if(mesh.material.map!==busTexCache[b.route]){
+            mesh.material.map=busTexture(b.route);mesh.material.needsUpdate=true;
+          }
+          mesh.position.set(m.x,BUS_H/2-curveDropAt(m.x,m.z),m.z);
+          mesh.quaternion.copy(mapCamera.quaternion);
+          rec.seen=2;
+        }
+        for(var id in transitBuses){
+          var r2=transitBuses[id];
+          if(!seen[id]){r2.seen=(r2.seen||2)-1;
+            if(r2.seen<=0&&r2.mesh){mapScene.remove(r2.mesh);
+              r2.mesh.material.dispose();delete transitBuses[id];}}
+        }
       }
       /* Grass + cobblestone ground tiles (Han 2026-10-05). */
       function groundTexture(file,rx,ry){
@@ -2965,15 +3152,58 @@
     }
     var SKILL_NODES=[
       {id:'basics',name:'Keeper Basics',root:true,max:1,desc:''},
-      {id:'m_punch',name:'Punch',max:20,desc:'+5% Punch damage per rank.'},
-      {id:'m_kick',name:'Kick',max:20,desc:'+5% Kick damage per rank.'},
-      {id:'m_throw',name:'Throw',max:20,desc:'+5% Throw damage per rank.'},
-      {id:'m_defense',name:'Defense',max:20,desc:'+0.06s guard duration per rank.'},
-      {id:'swift',name:'Swift Forge',max:5,need:2,desc:'+5% attack speed per rank.'},
-      {id:'reach',name:'Long Reach',max:3,need:2,desc:'+7% range per rank.'},
-      {id:'toss',name:'Cauldron Toss',locked:true,desc:'Hurl a whole burning cauldron. Arrives with the combat update.'},
-      {id:'guard',name:'Ember Guard',locked:true,desc:'A ring of forge-fire around you. Arrives with the combat update.'}
+      {id:'m_punch',name:'Punch',max:20,art:'punch',desc:'+5% Punch damage per rank.'},
+      {id:'m_kick',name:'Kick',max:20,art:'kick',desc:'+5% Kick damage per rank.'},
+      {id:'m_throw',name:'Throw',max:20,art:'throw',desc:'+5% Throw damage per rank.'},
+      {id:'m_defense',name:'Defense',max:20,art:'defense',desc:'+0.06s guard duration per rank.'},
+      {id:'swift',name:'Swift Forge',max:5,need:2,art:'swift',desc:'+5% attack speed per rank.'},
+      {id:'reach',name:'Long Reach',max:3,need:2,art:'reach',desc:'+7% range per rank.'},
+      {id:'toss',name:'Cauldron Toss',locked:true,art:'throw',desc:'Hurl a whole burning cauldron. Arrives with the combat update.'},
+      {id:'guard',name:'Ember Guard',locked:true,art:'defense',desc:'A ring of forge-fire around you. Arrives with the combat update.'}
     ];
+    var BASIC_IDS=['m_punch','m_kick','m_throw','m_defense'];
+    var TRAIN_IDS=['swift','reach','toss','guard'];
+    var skillTab='basic',selectedSkillId='m_punch';
+    function skillNodeById(id){
+      for(var i=0;i<SKILL_NODES.length;i++)if(SKILL_NODES[i].id===id)return SKILL_NODES[i];
+      return null;
+    }
+    /* MapleStory-style pixel skill icons, drawn on a 16x16 canvas at runtime. */
+    var SKILL_ICONS={};
+    function pxIcon(art){
+      if(SKILL_ICONS[art]!==undefined)return SKILL_ICONS[art];
+      var url='';
+      try{
+        var c=document.createElement('canvas');c.width=c.height=16;
+        var g=c.getContext('2d');if(!g)throw 0;
+        var R=function(x,y,w,h,col){g.fillStyle=col;g.fillRect(x,y,w,h);};
+        R(0,0,16,16,'#141a28');
+        R(0,0,16,1,'#2c3a55');R(0,15,16,1,'#2c3a55');R(0,0,1,16,'#2c3a55');R(15,0,1,16,'#2c3a55');
+        if(art==='punch'){
+          R(4,5,2,2,'#f2c48d');R(7,4,2,3,'#f2c48d');R(10,4,2,3,'#f2c48d');
+          R(4,7,8,4,'#eab276');R(3,8,1,3,'#eab276');R(12,8,1,3,'#eab276');
+          R(4,11,8,1,'#c98f5f');R(5,5,1,1,'#fff3d6');
+        }else if(art==='kick'){
+          R(6,3,4,6,'#8a5a33');R(6,3,4,1,'#6e4525');
+          R(5,9,7,3,'#a06a3c');R(5,12,7,1,'#4e3018');R(6,4,1,4,'#c98f5f');
+        }else if(art==='throw'){
+          R(6,11,4,3,'#d63a2a');R(7,8,3,4,'#ff7b2f');R(7,5,2,4,'#ffd23f');
+          R(8,3,1,3,'#fff3b0');R(5,12,6,1,'#7a1f16');
+        }else if(art==='defense'){
+          R(4,3,8,2,'#9fe8b3');R(4,5,8,5,'#3fae6a');R(7,5,2,5,'#2e8b52');
+          R(5,10,6,2,'#3fae6a');R(6,12,4,1,'#2e8b52');R(7,13,2,1,'#256b40');
+          R(4,5,1,5,'#c9f5d8');
+        }else if(art==='swift'){
+          R(9,2,3,4,'#ffd23f');R(6,5,6,3,'#ffd23f');R(4,7,3,5,'#ffd23f');
+          R(9,3,1,3,'#fff3b0');R(6,6,3,1,'#fff3b0');
+        }else if(art==='reach'){
+          R(2,7,8,2,'#7dfce6');R(2,7,8,1,'#d8fff9');
+          R(10,5,2,6,'#7dfce6');R(12,6,2,4,'#7dfce6');R(14,7,1,2,'#e8fffd');
+        }
+        url=c.toDataURL();
+      }catch(e){}
+      SKILL_ICONS[art]=url;return url;
+    }
     /* Knowledge cost to go from rank -> rank+1. */
     function rankCost(rank){ return 1+Math.floor(rank/4); }
     /* Progression is Knowledge, not levels: watching videos earns Knowledge,
@@ -3013,17 +3243,17 @@
       saveSkills();paintStatus();paintKnowledge();
       if(window.__espilToast)window.__espilToast('📚 +'+n+' Knowledge'+(source?' — '+source:''));
     }
-    function moveStats(id){
+    function moveStatsAt(id,rank){
       var m=MOVES[id];
-      var mr=skillState.alloc['m_'+id]||0;
       return {
         m:m,
-        dmg:Math.round(m.dmg*(1+.05*mr)),
+        dmg:Math.round(m.dmg*(1+.05*rank)),
         range:m.range*(1+.07*(skillState.alloc.reach||0)),
         cd:m.cd/(1+.05*(skillState.alloc.swift||0)),
-        guardDur:m.guard?(1.2+0.06*mr):0
+        guardDur:m.guard?(1.2+0.06*rank):0
       };
     }
+    function moveStats(id){return moveStatsAt(id,skillState.alloc['m_'+id]||0);}
     /* Synthesized swing / impact sounds — no audio assets needed. */
     function skillSfx(kind){
       try{
@@ -3203,50 +3433,93 @@
         el.style.setProperty('--cdp',pct+'%');
       });
     }
-    function rootDesc(){
-      return 'Ordinary human moves. Watch videos to earn Knowledge, then raise each skill toward Lv 20.<br>'+
-        MOVE_ORDER.map(function(id){
-          var s2=moveStats(id);
-          var stat=id==='defense'
-            ? s2.guardDur.toFixed(1)+'s guard &middot; '+s2.cd.toFixed(2)+'s cd'
-            : s2.dmg+' dmg &middot; '+s2.range.toFixed(1)+'m &middot; '+s2.cd.toFixed(2)+'s';
-          return '<b style="color:'+s2.m.css+'">'+s2.m.name+' ('+s2.m.key+')</b> '+stat;
-        }).join('<br>');
+    function raiseSkill(id){
+      var n=skillNodeById(id);
+      if(!n||n.locked||n.root)return;
+      var spent=totalSpent();
+      if(n.need&&spent<n.need){
+        if(window.__espilToast)window.__espilToast('Requires '+n.need+' ranks learned first.');
+        return;
+      }
+      var rank=skillState.alloc[id]||0;
+      if(rank>=n.max)return;
+      var c=rankCost(rank);
+      if(skillState.knowledge<c){
+        if(window.__espilToast)window.__espilToast('Not enough Knowledge — watch videos to earn more.');
+        return;
+      }
+      skillState.knowledge-=c;skillState.alloc[id]=rank+1;
+      saveSkills();
+      if(window.EspilAudio&&window.EspilAudio.tick)window.EspilAudio.tick();
+      renderSkillTree();paintStatus();paintMoveSlots();
+    }
+    function statLine(n,rank){
+      var id=n.id;
+      if(id.indexOf('m_')===0){
+        var mid=id.slice(2),s=moveStatsAt(mid,rank);
+        if(MOVES[mid].guard)return s.guardDur.toFixed(2)+'s guard · '+s.cd.toFixed(2)+'s cd';
+        return s.dmg+' dmg · '+s.range.toFixed(1)+'m · '+s.cd.toFixed(2)+'s';
+      }
+      if(id==='swift')return '+'+(5*rank)+'% attack speed';
+      if(id==='reach')return '+'+(7*rank)+'% range';
+      return '';
+    }
+    function renderSkillDesc(){
+      var d=document.getElementById('st-desc');
+      if(!d)return;
+      var n=skillNodeById(selectedSkillId);
+      if(!n){d.innerHTML='';return;}
+      var rank=skillState.alloc[n.id]||0;
+      if(n.locked){
+        d.innerHTML='<h3>'+n.name+'</h3><p>'+n.desc+'</p><p class="cost">🔒 Locked</p>';
+        return;
+      }
+      var maxed=rank>=n.max;
+      d.innerHTML='<h3>'+n.name+'</h3><p>'+n.desc+'</p>'+
+        '<p class="cur">현재 Lv '+rank+': '+statLine(n,rank)+'</p>'+
+        (maxed?'<p class="cost">MAX LEVEL</p>'
+              :'<p class="nxt">다음 Lv '+(rank+1)+': '+statLine(n,rank+1)+'</p>'+
+               '<p class="cost">비용: 📚 '+rankCost(rank)+'</p>');
     }
     function renderSkillTree(){
-      var grid=document.getElementById('st-grid');
-      if(grid){
-        grid.innerHTML='';
+      paintKnowledge();
+      var tabs=document.querySelectorAll('.st-tab'),ti;
+      for(ti=0;ti<tabs.length;ti++){
+        (function(t){t.classList.toggle('is-active',t.getAttribute('data-tab')===skillTab);})(tabs[ti]);
+      }
+      var ids=skillTab==='basic'?BASIC_IDS:TRAIN_IDS;
+      if(ids.indexOf(selectedSkillId)<0)selectedSkillId=ids[0];
+      var list=document.getElementById('st-list');
+      if(list){
+        list.innerHTML='';
         var spent=totalSpent();
-        SKILL_NODES.forEach(function(n){
-          var rank=skillState.alloc[n.id]||0;
-          var div=document.createElement('div');
+        ids.forEach(function(id){
+          var n=skillNodeById(id),rank=skillState.alloc[id]||0;
           var needMet=!n.need||spent>=n.need;
           var maxed=!n.locked&&rank>=n.max;
-          div.className='st-node'+(n.root?' st-root':'')+((n.id==='swift'||n.id==='reach'||n.locked)?' st-wide':'')+
-            (n.locked||!needMet?' is-locked':'')+(maxed?' is-maxed':'');
-          var cost=(n.root||n.locked||maxed)?null:rankCost(rank);
-          var desc=n.root?rootDesc():n.desc+(cost!==null?'<br><span class="st-req">Next rank: 📚 '+cost+'</span>':'');
-          div.innerHTML='<div class="st-nm">'+n.name+'</div>'+
-            '<div class="st-rk">'+(n.locked?'SOON':(n.root?'':'Lv '+rank+'/'+n.max))+'</div>'+
-            '<div class="st-ds">'+desc+(n.need&&!n.locked?'<br><span class="st-req">Requires '+n.need+' ranks learned</span>':'')+'</div>';
-          if(!n.locked&&!n.root&&needMet&&!maxed){
-            div.addEventListener('click',function(){
-              var c=rankCost(rank);
-              if(skillState.knowledge<c){
-                if(window.__espilToast)window.__espilToast('Not enough Knowledge — watch videos to earn more.');
-                return;
-              }
-              skillState.knowledge-=c;skillState.alloc[n.id]=rank+1;
-              saveSkills();
-              if(window.EspilAudio&&window.EspilAudio.tick)window.EspilAudio.tick();
-              renderSkillTree();paintStatus();paintMoveSlots();
-            });
-          }
-          grid.appendChild(div);
+          var row=document.createElement('div');
+          row.className='ms-row'+(n.locked?' is-locked':'')+(maxed?' is-maxed':'')+(id===selectedSkillId?' is-selected':'');
+          row.setAttribute('role','button');
+          row.setAttribute('aria-label',n.name+(n.locked?' (locked)':'')+', Lv '+rank+' of '+n.max);
+          var icon=pxIcon(n.art||id);
+          row.innerHTML=
+            '<span class="ms-icon">'+(icon?'<img alt="" src="'+icon+'">':'')+'</span>'+
+            '<span class="ms-name">'+n.name+'</span>'+
+            '<span class="ms-lv'+(maxed?' is-max':'')+'">'+
+              (n.locked?'🔒':(maxed?'MASTER':'Lv '+rank+'/'+n.max))+'</span>'+
+            ((!n.locked&&!maxed)?'<button type="button" class="ms-plus" aria-label="Raise '+n.name+'">+</button>':'');
+          row.addEventListener('click',function(e){
+            var t=e&&e.target;
+            var isPlus=t&&(t.className==='ms-plus'||(t.classList&&typeof t.classList.contains==='function'&&t.classList.contains('ms-plus')));
+            if(isPlus){raiseSkill(id);return;}
+            selectedSkillId=id;
+            if(n.locked&&window.__espilToast)window.__espilToast(n.name+' arrives with the combat update.');
+            renderSkillTree();
+          });
+          list.appendChild(row);
         });
       }
-      paintKnowledge();
+      renderSkillDesc();
     }
     var skillTreeOpen=false;
     function toggleSkillTree(force){
@@ -3288,9 +3561,10 @@
           b.type='button';b.className='move-slot'+(s.move?'':' is-locked');b.id='slot-'+s.key;
           if(s.move){
             var m=MOVES[s.move];
+            var sic=pxIcon(s.move);
             b.setAttribute('aria-label',m.name+', key '+s.key.toUpperCase());
             b.innerHTML='<span class="key">'+s.key.toUpperCase()+'</span>'+
-              '<span class="sicon">'+m.icon+'</span>'+
+              '<span class="sicon">'+(sic?'<img alt="" src="'+sic+'">':m.icon)+'</span>'+
               '<span class="mn">'+m.name.toUpperCase()+'</span>'+
               '<span class="cd" id="move-cd-'+s.move+'"></span>';
             (function(mid){b.addEventListener('pointerdown',function(e){e.preventDefault();doMove(mid);});})(s.move);
@@ -3342,6 +3616,10 @@
       if(tt)tt.addEventListener('click',function(e){e.stopPropagation();toggleSkillTree();});
       var sc=document.getElementById('st-close');
       if(sc)sc.addEventListener('click',function(){toggleSkillTree(false);});
+      var stTabs=document.querySelectorAll('.st-tab');
+      for(var sti=0;sti<stTabs.length;sti++)(function(t){
+        t.addEventListener('click',function(){skillTab=t.getAttribute('data-tab');renderSkillTree();});
+      })(stTabs[sti]);
       var st=document.getElementById('skill-tree');
       if(st)st.addEventListener('click',function(e){if(e.target===st)toggleSkillTree(false);});
       /* Demo: simulate finishing a video (+5 Knowledge). The real video
@@ -3421,8 +3699,8 @@
     if(sprintBtn)sprintBtn.addEventListener('pointerdown',function(e){e.preventDefault();sprintOn=!sprintOn;updateSprintUI();});
     function collideCircleAxis(p,axis){
       var r=PLAYER_R;
-      /* Check downtown colliders + nearby chunk colliders (spatial hash). */
-      var lists=[walkColliders];
+      /* Check downtown colliders + nearby chunk colliders (spatial hash) + cars. */
+      var lists=[walkColliders,carColliders];
       var pcx=Math.floor(p.pos.x/CHUNK_SIZE),pcz=Math.floor(p.pos.z/CHUNK_SIZE);
       for(var ox=-1;ox<=1;ox++)for(var oz=-1;oz<=1;oz++){
         var key=(pcx+ox)+','+(pcz+oz);
@@ -3490,22 +3768,28 @@
         p.pos.y+=(WATER_Y-p.pos.y)*Math.min(1,dt*5);
         p.velY=0;p.onGround=false;p.jumps=0;
       }
-      /* --- vertical: gravity + landing on tops (rooftops, planters, plaza) --- */
+      /* --- vertical: gravity + landing on tops (rooftops, planters, plaza, cars) --- */
       p.velY-=26*dt;
       p.pos.y+=p.velY*dt;
-      var support=.05;
-      for(var i=0;i<walkColliders.length;i++){
-        var c=walkColliders[i];
+      var support=.05,supportCar=null;
+      function considerSupport(c){
         var cz=p.pos.z<c.z0?c.z0:(p.pos.z>c.z1?c.z1:p.pos.z);
         var cx=p.pos.x<c.x0?c.x0:(p.pos.x>c.x1?c.x1:p.pos.x);
-        if(Math.abs(p.pos.z-cz)>PLAYER_R||Math.abs(p.pos.x-cx)>PLAYER_R)continue;
-        if(c.top<=p.pos.y+.55&&c.top>support)support=c.top;
+        if(Math.abs(p.pos.z-cz)>PLAYER_R||Math.abs(p.pos.x-cx)>PLAYER_R)return;
+        if(c.top<=p.pos.y+.55&&c.top>support){support=c.top;supportCar=c.car||null;}
       }
+      for(var i=0;i<walkColliders.length;i++)considerSupport(walkColliders[i]);
+      for(var ci=0;ci<carColliders.length;ci++)considerSupport(carColliders[ci]);
       if(p.pos.y<=support){
         if(!p.onGround&&p.velY<-9)walkSfx('land');
         p.pos.y=support;p.velY=0;p.onGround=true;p.jumps=0;
       }else if(p.pos.y>support+.02){
         p.onGround=false;
+      }
+      /* ride moving cars: carry the player with the car's frame delta */
+      if(p.onGround&&supportCar){
+        var cu=supportCar.userData.car;
+        p.pos.x+=cu.x-cu.px;p.pos.z+=cu.z-cu.pz;
       }
       /* --- avatar pose --- */
       var g=p.av.group;
@@ -4150,6 +4434,8 @@
         updateMapSky();
         updateProps();
         updateTraffic(dt);
+        updateTrafficCars(dt);
+        updateTransitBuses();
         renderer.render(mapScene,mapCamera);
         return;
       }
