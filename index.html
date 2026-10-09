@@ -2527,7 +2527,7 @@
         mesh.userData.car={si:si,t:t0,lane:lane,dir:lane>0?1:-1,len:len,x:x0,px:x0,z:z0,pz:z0};
         var col={x0:0,x1:0,z0:0,z1:0,bottom:0,top:CAR_TOP,car:mesh};
         mesh.userData.car.col=col;carColliders.push(col);
-        mesh.scale.x=lane>0?1:-1;
+        /* scale.x flip now handled per-frame in updateTrafficCars (screen-space direction) */
         mapScene.add(mesh);trafficCars.push(mesh);
       }
       function syncTrafficCars(){
@@ -2553,6 +2553,9 @@
         }
       }
       updateTrafficCars=function(dt){
+        /* Reusable vector for screen-space direction (avoid per-car allocation) */
+        if(!updateTrafficCars._cr)updateTrafficCars._cr=new THREE.Vector3();
+        var camRight=updateTrafficCars._cr.set(1,0,0).applyQuaternion(mapCamera.quaternion);
         for(var i=0;i<trafficCars.length;i++){
           var m=trafficCars[i],u=m.userData.car,seg=trafficSegs[u.si];
           var speed=1.5+seg.flow*16; /* jammed crawls, clear flies */
@@ -2564,6 +2567,11 @@
           u.px=u.x;u.pz=u.z;u.x=x;u.z=z;
           m.position.set(x,CAR_H/2-curveDropAt(x,z),z);
           m.quaternion.copy(mapCamera.quaternion);
+          /* Han 2026-10-08: flip sprite based on screen-space travel direction.
+             The texture faces +x (nose right); mirror when moving left on screen. */
+          var vx=x-u.px,vz=z-u.pz;
+          var screenVX=vx*camRight.x+vz*camRight.z;
+          if(Math.abs(screenVX)>0.005)m.scale.x=screenVX>0?1:-1;
           /* axis-aligned AABB collider follows the car */
           var horiz=Math.abs(dz)<.01,ax=horiz?CAR_W/2:0.9,az=horiz?0.9:CAR_W/2;
           var col=u.col;col.x0=x-ax;col.x1=x+ax;col.z0=z-az;col.z1=z+az;
@@ -2613,6 +2621,9 @@
       updateTransitBuses=function(){
         if(!walkPlayer||!walkPlayer.pos)return;
         if(!busTimer){busTimer=setInterval(fetchBusFeed,30000);fetchBusFeed();}
+        /* Reusable vector for screen-space direction */
+        if(!updateTransitBuses._cr)updateTransitBuses._cr=new THREE.Vector3();
+        var camRight=updateTransitBuses._cr.set(1,0,0).applyQuaternion(mapCamera.quaternion);
         var nowS=Date.now()/1000,px=walkPlayer.pos.x,pz=walkPlayer.pos.z;
         var seen={};
         for(var i=0;i<busFeed.buses.length;i++){
@@ -2638,6 +2649,11 @@
           }
           mesh.position.set(m.x,BUS_H/2-curveDropAt(m.x,m.z),m.z);
           mesh.quaternion.copy(mapCamera.quaternion);
+          /* Han 2026-10-08: flip bus sprite based on bearing (screen-space).
+             Bearing 0=north(-z), 90=east(+x). Texture faces +x (nose right). */
+          var bdx=Math.sin(br),bdz=-Math.cos(br);
+          var bScreenX=bdx*camRight.x+bdz*camRight.z;
+          if(Math.abs(bScreenX)>0.01)mesh.scale.x=bScreenX>0?1:-1;
           rec.seen=2;
         }
         for(var id in transitBuses){
