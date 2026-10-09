@@ -385,6 +385,7 @@
     body.in-map #city-info,
     body.in-map #city-return,
     body.in-map #city-phase,
+    body.in-map #city-pins,
     body.in-map .city-markers { display:none !important; }
     /* #6: Direct entry (/vancouver) — hide landing immediately */
     body.direct-entry #intro,
@@ -5483,8 +5484,9 @@
     }
     function paintToggle(){
       if(!toggle)return;
-      toggle.innerHTML=muted?'&#9834; OFF':'&#9834; ON';
+      toggle.innerHTML='&#9834;'; /* Han 2차 QA #2: ON/OFF 텍스트 제거, 아이콘만 */
       toggle.setAttribute('aria-pressed',String(!muted));
+      toggle.style.opacity=muted?.45:1;
     }
     function play(){
       if(!audio||muted||userPaused)return;
