@@ -251,6 +251,31 @@
     }
     .building-name .loc-dot {
       display:inline-block;
+    /* #12 (Han 2nd QA): Store interaction modal */
+    #store-modal { position:fixed; inset:0; z-index:100; display:flex; align-items:center; justify-content:center;
+      background:rgba(0,0,0,.55); backdrop-filter:blur(4px); }
+    #store-modal.hidden { display:none; }
+    .store-modal-panel { background:rgba(12,20,32,.96); border:1px solid rgba(140,220,255,.3); border-radius:16px;
+      padding:24px; max-width:480px; width:90vw; max-height:80vh; overflow-y:auto; position:relative;
+      box-shadow:0 12px 48px rgba(0,0,0,.5); color:#eaf6ff; }
+    #store-modal-close { position:absolute; top:12px; right:16px; background:none; border:none; color:#9fb3c8;
+      font-size:1.5rem; cursor:pointer; }
+    #store-modal h3 { margin:0 0 16px; font:700 1.1rem "Manrope",sans-serif; letter-spacing:.06em; }
+    #store-list .store-item { padding:12px 16px; margin:8px 0; background:rgba(255,255,255,.06);
+      border-radius:10px; cursor:pointer; border:1px solid transparent; transition:border-color .2s; }
+    #store-list .store-item:hover { border-color:rgba(140,220,255,.4); background:rgba(255,255,255,.1); }
+    #store-list .store-item .s-name { font-weight:700; }
+    #store-list .store-item .s-meta { font-size:.8rem; color:#9fb3c8; margin-top:4px; }
+    #store-back { background:none; border:none; color:#7ed957; cursor:pointer; margin-bottom:12px; font-size:.9rem; }
+    .store-actions { display:flex; gap:8px; margin:16px 0; flex-wrap:wrap; }
+    .store-actions button { flex:1; min-width:100px; padding:10px; background:rgba(126,217,87,.15);
+      border:1px solid rgba(126,217,87,.4); color:#eaf6ff; border-radius:8px; cursor:pointer; font-weight:600; }
+    .store-actions button:hover { background:rgba(126,217,87,.3); }
+    #store-detail-content { margin-top:16px; font-size:.9rem; line-height:1.6; }
+    #store-detail-content .review { background:rgba(255,255,255,.05); padding:12px; border-radius:8px; margin:8px 0; }
+    #store-detail-content .review .r-stars { color:#f2b134; }
+    #store-detail-content .photo-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    #store-detail-content .photo-grid img { width:100%; border-radius:8px; }
       width:7px;height:7px;border-radius:50%;
       background:#7fe3ff;margin-right:9px;
       box-shadow:0 0 8px #7fe3ff;
@@ -375,6 +400,16 @@
     .ms-bar > i { display:block; height:100%; border-radius:99px; transition:width .25s ease; }
     .ms-hp > i { background:linear-gradient(90deg,#ff5f6d,#ff9a5a); width:100%; }
     .ms-mp > i { background:linear-gradient(90deg,#3fa7ff,#7dfce6); width:100%; }
+    /* QA #7 (2026-10-09): minimap top-right, player-centered. */
+    #minimap {
+      position:fixed; z-index:30; top:calc(64px + env(safe-area-inset-top)); right:14px;
+      width:140px; height:140px; border-radius:50%;
+      border:2px solid rgba(134,238,228,.4);
+      background:rgba(4,16,20,.7); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);
+      box-shadow:0 0 18px rgba(80,232,220,.15);
+      pointer-events:none;
+    }
+    body:not(.in-map) #minimap { display:none !important; }
     /* QA hotbar (2026-10-08): desktop = keyboard layout (1234/QWER/ASDF) + menu keys on right. */
     .skill-bar {
       position:fixed; z-index:30; left:50%; bottom:calc(14px + env(safe-area-inset-bottom));
@@ -830,6 +865,13 @@
       animation:intro-pulse 1.8s ease-in-out infinite;
     }
     .city-entry-sub.show { opacity:1; visibility:visible; }
+    /* #3 (Han 2nd QA): loading progress bar — preloads city, auto-enters */
+    #city-loading { display:none; text-align:center; padding:20px; max-width:400px; margin:0 auto; }
+    #city-loading.show { display:block; }
+    #city-loading .load-label { font:700 .75rem/1.6 "Manrope",sans-serif; letter-spacing:.28em; color:#eafffb; margin-bottom:12px; }
+    #city-loading .load-bar-bg { width:100%; height:8px; background:rgba(255,255,255,.15); border-radius:4px; overflow:hidden; }
+    #city-loading .load-bar-fill { height:100%; width:0%; background:linear-gradient(90deg,#40ffcd,#7ed957); border-radius:4px; transition:width .3s ease; }
+    #city-loading .load-pct { font:600 .7rem/1.6 "Manrope",sans-serif; color:#9fb3c8; margin-top:8px; }
     /* DNA imprint flash (2026-10-06): the Cauldron sticks its DNA on the city. */
     #dna-flash{position:fixed;inset:0;pointer-events:none;opacity:0;z-index:60;
       background:radial-gradient(ellipse at 50% 62%,rgba(255,224,242,.9),rgba(255,178,218,.28) 46%,rgba(255,178,218,0) 72%);
@@ -871,9 +913,9 @@
     <div id="city-pins" aria-hidden="true"></div>
     <header class="topbar">
       <div class="topbar-actions">
-        <button class="pill-btn" id="bgm-toggle" type="button" aria-pressed="true" aria-label="Toggle theme music" aria-describedby="bgm-card">&#9834; ON</button>
+        <button class="pill-btn" id="bgm-toggle" type="button" aria-pressed="true" aria-label="Toggle theme music" aria-describedby="bgm-card">&#9834;</button>
         <button class="pill-btn" id="tree-toggle" type="button" title="Skill tree (K)">SKILL TREE</button>
-        <button class="pill-btn" id="signin-open" type="button">SIGN IN</button>
+        <!-- QA #2 (2026-10-09): SIGN IN button removed per Han. -->
       </div>
     </header>
     <div class="bgm-card" id="bgm-card" aria-hidden="true" role="status">
@@ -939,6 +981,27 @@
       </div>
       <div class="building-name hidden" id="building-name" aria-live="polite"><span class="loc-dot"></span><span id="building-name-text"></span></div>
       <div class="interact-prompt hidden" id="interact-prompt"><span class="key">SPACE</span>Interact</div>
+      <!-- #12 (Han 2nd QA): Store interaction modal -->
+      <div id="store-modal" class="hidden" role="dialog" aria-label="Store interaction">
+        <div class="store-modal-panel">
+          <button id="store-modal-close" type="button" aria-label="Close">×</button>
+          <div id="store-list-view">
+            <h3>Nearby Places</h3>
+            <div id="store-list"></div>
+          </div>
+          <div id="store-detail-view" class="hidden">
+            <button id="store-back" type="button">← Back</button>
+            <h3 id="store-detail-name"></h3>
+            <div class="store-actions">
+              <button data-action="info" type="button">Info</button>
+              <button data-action="reviews" type="button">Reviews</button>
+              <button data-action="photos" type="button">Photos</button>
+              <button data-action="enter" type="button">Enter →</button>
+            </div>
+            <div id="store-detail-content"></div>
+          </div>
+        </div>
+      </div>
       <div id="sprint-indicator">SPRINT ON</div>
       <button id="sprint-toggle" type="button" aria-label="Toggle sprint">SPRINT</button>
       <div class="city-message" id="city-message" aria-live="polite">Loading Earth surface…</div>
@@ -956,6 +1019,11 @@
     <div class="city-entry" id="city-entry" aria-hidden="true" role="button" tabindex="0" aria-label="Enter the city">
       <p class="city-entry-name" aria-hidden="true"><span id="city-entry-typed"></span><span class="city-entry-caret" id="city-entry-caret"></span></p>
       <div class="city-entry-sub" id="city-entry-sub">TAP OR PRESS ANY KEY TO ENTER</div>
+      <div id="city-loading" aria-hidden="true">
+        <div class="load-label">LOADING CITY…</div>
+        <div class="load-bar-bg"><div class="load-bar-fill" id="city-load-fill"></div></div>
+        <div class="load-pct" id="city-load-pct">0%</div>
+      </div>
     </div>
     <div class="city-comingsoon" id="city-comingsoon" aria-hidden="true" role="dialog" aria-label="Coming soon">
       <p class="city-comingsoon-kicker">TESTING PHASE</p>
@@ -976,6 +1044,8 @@
       <div class="ms-label"><span>MP</span><span id="ms-mp-t">50/50</span></div>
       <div class="ms-bar ms-mp"><i id="ms-mp"></i></div>
     </div>
+    <!-- QA #7 (2026-10-09): minimap, player-centered. -->
+    <canvas id="minimap" width="280" height="280" aria-label="Minimap"></canvas>
     <div class="skill-bar" id="skill-bar" aria-hidden="true">
       <div class="kb-main">
         <!-- QA #13 (UI room, 2026-10-06): 1234 item bar. -->
@@ -1024,6 +1094,29 @@
           <button class="st-close" id="char-close" type="button" aria-label="Close character panel">&#10005;</button>
         </div>
         <div class="st-grid" id="char-grid"><p class="st-foot">Outfit system arrives with the character update.</p></div>
+      </div>
+    </div>
+    <!-- QA #18 (UI room, 2026-10-09): Friends/Party panel (Y key). Local UI only — sync needs server. -->
+    <div class="skill-tree" id="friends-panel" aria-hidden="true" role="dialog" aria-label="Friends and party">
+      <div class="st-card">
+        <div class="st-head">
+          <div>
+            <h2>FRIENDS / PARTY</h2>
+            <p class="st-sub">Press Y to close. Friend sync needs the server.</p>
+          </div>
+          <button class="st-close" id="friends-close" type="button" aria-label="Close friends panel">&#10005;</button>
+        </div>
+        <div class="st-grid" id="friends-grid">
+          <p class="st-foot" id="friends-username">Your name: (set in character customization)</p>
+          <p class="st-foot">No friends yet. Add by username:</p>
+          <div style="display:flex;gap:8px;margin:8px 0;">
+            <input type="text" id="friend-add-input" placeholder="Username" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(134,238,228,.3);background:rgba(0,0,0,.3);color:#ddfffc;" />
+            <button class="pill-btn" id="friend-add-btn" type="button">ADD</button>
+          </div>
+          <div id="friends-list"><p class="st-foot">Friend list is local only until the server is ready.</p></div>
+          <p class="st-foot" style="margin-top:12px;">PARTY</p>
+          <p class="st-foot">Party invites need the server — coming with multiplayer.</p>
+        </div>
       </div>
     </div>
     <span class="sr-only">Drag to orbit the camera around the fixed Earth. Scroll to move closer or farther away. Select a city landmark or city name to approach its boundary in a tilted, forward-looking navigation view.</span>
@@ -2531,23 +2624,76 @@
         for(var v=0;v<4;v++)for(var k=0;k<3;k++)
           carTextures.push(carTexture(v,CAR_COLORS[(v*3+k)%CAR_COLORS.length]));
       }
+      /* #5 (Han 2nd QA): top-view car sprite for N/S movement.
+         Simple top-down: body, windshield at front (+x), roof. */
+      var carTopTextures=[];
+      function carTopTexture(color){
+        var c=document.createElement('canvas');c.width=72;c.height=30;
+        var g=c.getContext('2d');g.clearRect(0,0,72,30);
+        g.fillStyle='rgba(0,0,0,.25)';g.beginPath();g.ellipse(36,26,30,3,0,0,7);g.fill();
+        g.fillStyle=color;
+        g.beginPath();g.roundRect(6,5,60,20,8);g.fill(); /* body from top */
+        g.fillStyle='#bcd6f5';g.beginPath();g.roundRect(44,9,14,12,3);g.fill(); /* windshield (front) */
+        g.fillStyle=color;g.globalAlpha=.85;
+        g.beginPath();g.roundRect(12,9,26,12,4);g.fill(); /* roof */
+        g.globalAlpha=1;
+        g.fillStyle='#ffe9a8';g.fillRect(64,8,3,4);g.fillRect(64,18,3,4); /* headlights */
+        g.fillStyle='#e5484d';g.fillRect(6,8,3,4);g.fillRect(6,18,3,4); /* taillights */
+        var t=new THREE.CanvasTexture(c);t.anisotropy=4;return t;
+      }
+      function initCarTopTextures(){
+        for(var k=0;k<CAR_COLORS.length;k++)
+          carTopTextures.push(carTopTexture(CAR_COLORS[k]));
+      }
       function carCountFor(flow,len){
-        var want=Math.round(10-9*flow); /* flow 1 -> 1 car, flow 0 -> 10 cars */
-        return Math.max(1,Math.min(want,Math.max(1,Math.floor(len/5.5))));
+        /* #4 (Han 2nd QA): reduced from 10 to 5 max per segment for perf */
+        var want=Math.round(5-4*flow); /* flow 1 -> 1 car, flow 0 -> 5 cars */
+        return Math.max(1,Math.min(want,Math.max(1,Math.floor(len/8))));
+      }
+      /* #4: object pool for car meshes (avoid create/dispose churn) */
+      var carPool=[];
+      function getCarMesh(){
+        if(carPool.length>0)return carPool.pop();
+        return null;
+      }
+      function releaseCarMesh(mesh){
+        mesh.visible=false;
+        carPool.push(mesh);
       }
       function spawnCar(si){
+        /* #4: distance culling — only spawn cars near player (400m) */
+        if(walkPlayer&&walkPlayer.pos){
+          var seg=trafficSegs[si];
+          var scx=(seg.x1+seg.x2)/2,scz=(seg.z1+seg.z2)/2;
+          var pdx=scx-walkPlayer.pos.x,pdz=scz-walkPlayer.pos.z;
+          if(pdx*pdx+pdz*pdz>400*400)return;
+        }
+        /* #4: total cap — max 80 cars */
+        if(trafficCars.length>=80)return;
         var seg=trafficSegs[si],len=Math.hypot(seg.x2-seg.x1,seg.z2-seg.z1);
         var lane=Math.random()<.5?1:-1;
-        var mat=new THREE.MeshBasicMaterial({map:carTextures[(Math.random()*carTextures.length)|0],transparent:true,side:THREE.DoubleSide,fog:true,depthWrite:false});
-        var mesh=new THREE.Mesh(new THREE.PlaneGeometry(CAR_W,CAR_H),mat);
-        mesh.renderOrder=2;mesh.frustumCulled=false;
+        var texIdx=(Math.random()*carTextures.length)|0;
+        var colorIdx=texIdx%CAR_COLORS.length;
+        var mesh=getCarMesh();
+        if(mesh){
+          /* Reuse pooled mesh */
+          mesh.material.map=carTextures[texIdx];
+          mesh.material.needsUpdate=true;
+          mesh.visible=true;
+        }else{
+          var mat=new THREE.MeshBasicMaterial({map:carTextures[texIdx],transparent:true,side:THREE.DoubleSide,fog:true,depthWrite:false});
+          mesh=new THREE.Mesh(new THREE.PlaneGeometry(CAR_W,CAR_H),mat);
+          mesh.renderOrder=2;mesh.frustumCulled=false;
+          mapScene.add(mesh);
+        }
         var t0=Math.random(),dx=seg.x2-seg.x1,dz=seg.z2-seg.z1;
         var off=1.4*lane,x0=seg.x1+dx*t0+(-dz/len)*off,z0=seg.z1+dz*t0+(dx/len)*off;
-        mesh.userData.car={si:si,t:t0,lane:lane,dir:lane>0?1:-1,len:len,x:x0,px:x0,z:z0,pz:z0};
+        mesh.userData.car={si:si,t:t0,lane:lane,dir:lane>0?1:-1,len:len,x:x0,px:x0,z:z0,pz:z0,
+          sideTex:carTextures[texIdx],topTex:carTopTextures[colorIdx]};
         var col={x0:0,x1:0,z0:0,z1:0,bottom:0,top:CAR_TOP,car:mesh};
         mesh.userData.car.col=col;carColliders.push(col);
         /* scale.x flip now handled per-frame in updateTrafficCars (screen-space direction) */
-        mapScene.add(mesh);trafficCars.push(mesh);
+        trafficCars.push(mesh);
       }
       function syncTrafficCars(){
         var counts={};
@@ -2561,12 +2707,26 @@
             var removed=0;
             for(var j=trafficCars.length-1;j>=0&&removed<-step;j--){
               if(trafficCars[j].userData.car.si===si){
-                mapScene.remove(trafficCars[j]);
-                var ci=carColliders.indexOf(trafficCars[j].userData.car.col);
+                /* #4: pool instead of dispose */
+                var mesh=trafficCars[j];
+                var ci=carColliders.indexOf(mesh.userData.car.col);
                 if(ci>=0)carColliders.splice(ci,1);
-                trafficCars[j].material.map=null;trafficCars[j].material.dispose();
+                releaseCarMesh(mesh);
                 trafficCars.splice(j,1);removed++;
               }
+            }
+          }
+        }
+        /* #4: despawn cars that drifted too far from player (>500m) */
+        if(walkPlayer&&walkPlayer.pos){
+          for(var k=trafficCars.length-1;k>=0;k--){
+            var cm=trafficCars[k],cu=cm.userData.car;
+            var ddx=cu.x-walkPlayer.pos.x,ddz=cu.z-walkPlayer.pos.z;
+            if(ddx*ddx+ddz*ddz>500*500){
+              var ci2=carColliders.indexOf(cu.col);
+              if(ci2>=0)carColliders.splice(ci2,1);
+              releaseCarMesh(cm);
+              trafficCars.splice(k,1);
             }
           }
         }
@@ -2589,9 +2749,8 @@
           var x=seg.x1+dx*u.t+px*off,z=seg.z1+dz*u.t+pz*off;
           u.px=u.x;u.pz=u.z;u.x=x;u.z=z;
           m.position.set(x,CAR_H/2-curveDropAt(x,z),z);
-          /* Han 2026-10-09: nose points along screen-space travel direction.
-             Billboard the plane, then rotate in the screen plane by the velocity
-             angle. Flip (not 180° spin) for leftward motion to keep wheels down. */
+          /* #5 (Han 2nd QA): N/S movement shows top view, E/W shows side view.
+             Top view rotates freely (no flip needed); side view flips for left. */
           var vx=x-u.px,vz=z-u.pz;
           var screenVX=vx*camRight.x+vz*camRight.z;
           var screenVY=vx*camUp.x+vz*camUp.z;
@@ -2599,8 +2758,15 @@
           m.quaternion.copy(mapCamera.quaternion);
           if(spd>0.005){
             var ang=Math.atan2(screenVY,screenVX);
+            var useTop=Math.abs(screenVY)>Math.abs(screenVX);
+            /* Swap texture if view changed */
+            var wantTex=useTop?u.topTex:u.sideTex;
+            if(m.material.map!==wantTex){m.material.map=wantTex;m.material.needsUpdate=true;}
             var rot;
-            if(ang>Math.PI/2){m.scale.x=-1;rot=ang-Math.PI;}
+            if(useTop){
+              /* Top view: rotate freely, nose (+x) follows direction */
+              m.scale.x=1;rot=ang;
+            }else if(ang>Math.PI/2){m.scale.x=-1;rot=ang-Math.PI;}
             else if(ang<-Math.PI/2){m.scale.x=-1;rot=ang+Math.PI;}
             else{m.scale.x=1;rot=ang;}
             updateTrafficCars._qz.setFromAxisAngle(updateTrafficCars._zAxis,rot);
@@ -2616,7 +2782,7 @@
         carTextures=[tex];
         for(var i=0;i<trafficCars.length;i++){trafficCars[i].material.map=tex;trafficCars[i].material.needsUpdate=true;}
       }
-      initCarTextures();syncTrafficCars();
+      initCarTextures();initCarTopTextures();syncTrafficCars();
       /* Real TransLink buses — Han 2026-10-08: GTFS-RT vehicle positions via the
          local poller (tools/translink_poller.py -> assets/transit/buses.json).
          Buses within BUS_RADIUS of the player appear as camera-facing billboards
@@ -3158,22 +3324,201 @@
       }
     }
     /* QA #8 (2026-10-06): Space = interact when near a building. */
+    /* #11-16 (Han 2nd QA): Store interaction system.
+       Space near building → fetch nearby places → selection list →
+       Info / Reviews / Photos / Enter. Uses Google Places API (New). */
+    var storeCache={};
+    function fetchNearbyStores(b,cb){
+      var ll=mapToLatLng(b.x,b.z);
+      var key=ll.lat.toFixed(4)+','+ll.lng.toFixed(4);
+      if(storeCache[key]){cb(storeCache[key]);return;}
+      if(GOOGLE_PLACES_KEY&&GOOGLE_PLACES_KEY.indexOf('__PUT_')!==0){
+        fetch('https://places.googleapis.com/v1/places:searchNearby',{
+          method:'POST',
+          headers:{
+            'Content-Type':'application/json',
+            'X-Goog-Api-Key':GOOGLE_PLACES_KEY,
+            'X-Goog-FieldMask':'places.id,places.displayName,places.primaryType,places.formattedAddress,places.rating,places.userRatingCount'
+          },
+          body:JSON.stringify({
+            locationRestriction:{circle:{center:{latitude:ll.lat,longitude:ll.lng},radius:60}},
+            maxResultCount:10,
+            rankPreference:'DISTANCE'
+          })
+        })
+        .then(function(r){return r.json();})
+        .then(function(j){
+          var places=(j.places||[]).map(function(p){
+            return {
+              id:p.id,
+              name:(p.displayName&&p.displayName.text)||'Unknown',
+              type:p.primaryType||'',
+              address:p.formattedAddress||'',
+              rating:p.rating||0,
+              ratingCount:p.userRatingCount||0
+            };
+          });
+          storeCache[key]=places;cb(places);
+        })
+        .catch(function(){cb([]);});
+      }else{cb([]);}
+    }
+    function fetchPlaceDetails(placeId,cb){
+      if(GOOGLE_PLACES_KEY&&GOOGLE_PLACES_KEY.indexOf('__PUT_')!==0){
+        fetch('https://places.googleapis.com/v1/places/'+placeId,{
+          headers:{
+            'X-Goog-Api-Key':GOOGLE_PLACES_KEY,
+            'X-Goog-FieldMask':'displayName,primaryType,formattedAddress,rating,userRatingCount,reviews,photos,websiteUri,regularOpeningHours,priceLevel'
+          }
+        })
+        .then(function(r){return r.json();})
+        .then(function(j){cb(j);})
+        .catch(function(){cb(null);});
+      }else{cb(null);}
+    }
+    var currentStores=[],currentStore=null;
+    function showStoreModal(stores){
+      var modal=document.getElementById('store-modal');
+      var listView=document.getElementById('store-list-view');
+      var detailView=document.getElementById('store-detail-view');
+      var listEl=document.getElementById('store-list');
+      if(!modal)return;
+      currentStores=stores;
+      listView.classList.remove('hidden');
+      detailView.classList.add('hidden');
+      listEl.innerHTML='';
+      if(stores.length===0){
+        listEl.innerHTML='<p style="color:#9fb3c8">No places found nearby.</p>';
+      }else{
+        stores.forEach(function(s,idx){
+          var div=document.createElement('div');
+          div.className='store-item';
+          var stars=s.rating>0?'★'.repeat(Math.round(s.rating))+' '+s.rating.toFixed(1):'';
+          div.innerHTML='<div class="s-name">'+escapeHtml(s.name)+'</div>'+
+            '<div class="s-meta">'+escapeHtml(s.type)+' · '+stars+
+            (s.ratingCount>0?' ('+s.ratingCount+')':'')+'</div>';
+          div.addEventListener('click',function(){showStoreDetail(idx);});
+          listEl.appendChild(div);
+        });
+      }
+      modal.classList.remove('hidden');
+    }
+    function escapeHtml(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+    function showStoreDetail(idx){
+      currentStore=currentStores[idx];
+      if(!currentStore)return;
+      document.getElementById('store-list-view').classList.add('hidden');
+      document.getElementById('store-detail-view').classList.remove('hidden');
+      document.getElementById('store-detail-name').textContent=currentStore.name;
+      document.getElementById('store-detail-content').innerHTML='<p style="color:#9fb3c8">Select an option above.</p>';
+    }
+    function showStoreInfo(){
+      if(!currentStore)return;
+      var el=document.getElementById('store-detail-content');
+      el.innerHTML='<p style="color:#9fb3c8">Loading…</p>';
+      fetchPlaceDetails(currentStore.id,function(d){
+        if(!d){el.innerHTML='<p>Details unavailable.</p>';return;}
+        var html='<p><strong>Type:</strong> '+escapeHtml(d.primaryType||currentStore.type||'—')+'</p>';
+        html+='<p><strong>Address:</strong> '+escapeHtml(d.formattedAddress||currentStore.address||'—')+'</p>';
+        if(d.rating)html+='<p><strong>Rating:</strong> ★ '+d.rating.toFixed(1)+' ('+(d.userRatingCount||0)+' reviews)</p>';
+        if(d.priceLevel)html+='<p><strong>Price:</strong> '+'$'.repeat(d.priceLevel)+'</p>';
+        if(d.regularOpeningHours&&d.regularOpeningHours.weekdayDescriptions){
+          html+='<p><strong>Hours:</strong><br>'+d.regularOpeningHours.weekdayDescriptions.map(escapeHtml).join('<br>')+'</p>';
+        }
+        el.innerHTML=html;
+      });
+    }
+    function showStoreReviews(){
+      if(!currentStore)return;
+      var el=document.getElementById('store-detail-content');
+      el.innerHTML='<p style="color:#9fb3c8">Loading reviews…</p>';
+      fetchPlaceDetails(currentStore.id,function(d){
+        if(!d||!d.reviews||!d.reviews.length){el.innerHTML='<p>No reviews available.</p>';return;}
+        var html='';
+        d.reviews.slice(0,5).forEach(function(r){
+          var stars='★'.repeat(r.rating||0);
+          html+='<div class="review"><div class="r-stars">'+stars+'</div>'+
+            '<div><strong>'+escapeHtml((r.authorAttribution&&r.authorAttribution.displayName)||'Anonymous')+'</strong></div>'+
+            '<div>'+escapeHtml((r.text&&r.text.text)||'').slice(0,300)+'</div></div>';
+        });
+        el.innerHTML=html;
+      });
+    }
+    function showStorePhotos(){
+      if(!currentStore)return;
+      var el=document.getElementById('store-detail-content');
+      el.innerHTML='<p style="color:#9fb3c8">Loading photos…</p>';
+      fetchPlaceDetails(currentStore.id,function(d){
+        if(!d||!d.photos||!d.photos.length){el.innerHTML='<p>No photos available.</p>';return;}
+        var html='<div class="photo-grid">';
+        d.photos.slice(0,6).forEach(function(p){
+          if(p.name){
+            var url='https://places.googleapis.com/v1/'+p.name+'/media?maxWidthPx=400&key='+GOOGLE_PLACES_KEY;
+            html+='<img src="'+escapeHtml(url)+'" loading="lazy" alt="Place photo">';
+          }
+        });
+        el.innerHTML=html+'</div>';
+      });
+    }
+    function enterStoreWebsite(){
+      if(!currentStore)return;
+      fetchPlaceDetails(currentStore.id,function(d){
+        var url=d&&d.websiteUri;
+        if(url){window.open(url,'_blank');}
+        else{
+          var el=document.getElementById('store-detail-content');
+          el.innerHTML='<p>No website available for this place.</p>';
+        }
+      });
+    }
     function tryInteract(){
       if(!cityPhaseActive||!walkPlayer)return;
-      /* Play checkout/chat animation (placeholder — Han will pick which) */
+      /* Play checkout/chat animation */
       if(walkPlayer.av&&walkPlayer.av.playOneShot){
-        // Alternate between checkout and chat for now; Han picks the final
         var useCheckout=Math.random()>.5;
         walkPlayer.av.playOneShot(useCheckout?'checkout':'chat');
       }
-      if(nearBldg&&nearBldg.name){
-        /* Placeholder dialogue — real building interaction UI comes later. */
-        var t=document.getElementById('toast');
-        if(t){t.textContent='🏢 '+nearBldg.name; t.classList.add('show');
-          clearTimeout(t._it); t._it=setTimeout(function(){t.classList.remove('show');},2200);}
+      if(nearBldg){
+        /* #12: fetch nearby stores, show selection modal */
+        fetchNearbyStores(nearBldg,function(stores){
+          showStoreModal(stores);
+        });
         if(window.EspilAudio&&window.EspilAudio.tick)window.EspilAudio.tick();
       }
     }
+    /* Store modal wiring */
+    (function initStoreModal(){
+      function onReady(){
+        var closeBtn=document.getElementById('store-modal-close');
+        if(closeBtn)closeBtn.addEventListener('click',function(){
+          document.getElementById('store-modal').classList.add('hidden');
+        });
+        var backBtn=document.getElementById('store-back');
+        if(backBtn)backBtn.addEventListener('click',function(){
+          document.getElementById('store-detail-view').classList.add('hidden');
+          document.getElementById('store-list-view').classList.remove('hidden');
+        });
+        var actions=document.querySelectorAll('#store-modal .store-actions button');
+        actions.forEach(function(btn){
+          btn.addEventListener('click',function(){
+            var action=btn.getAttribute('data-action');
+            if(action==='info')showStoreInfo();
+            else if(action==='reviews')showStoreReviews();
+            else if(action==='photos')showStorePhotos();
+            else if(action==='enter')enterStoreWebsite();
+          });
+        });
+        /* ESC closes modal */
+        document.addEventListener('keydown',function(e){
+          if(e.key==='Escape'){
+            var m=document.getElementById('store-modal');
+            if(m&&!m.classList.contains('hidden'))m.classList.add('hidden');
+          }
+        });
+      }
+      if(document.readyState==='complete')onReady();
+      else window.addEventListener('load',onReady);
+    })();
     /* ================================================================
        Skill system — Keeper (the only class for now).
        No weapons exist yet, so the whole kit is unarmed: punch slash,
@@ -3733,6 +4078,24 @@
       panel.setAttribute('aria-hidden',String(!open));
       if(open&&window.EspilAudio&&window.EspilAudio.tick)window.EspilAudio.tick();
     }
+    /* QA #18 (UI room, 2026-10-09): Y toggles friends/party. Local only — sync needs server. */
+    var friendsOpen=false;
+    function toggleFriendsPanel(force){
+      var panel=document.getElementById('friends-panel');
+      if(!panel)return;
+      var open=typeof force==='boolean'?force:!friendsOpen;
+      friendsOpen=open;
+      panel.setAttribute('aria-hidden',String(!open));
+      if(open){
+        var un=document.getElementById('friends-username');
+        if(un){
+          var name=null;
+          try{name=localStorage.getItem('espil_username');}catch(_){}
+          un.textContent='Your name: '+(name||'(set in character customization)');
+        }
+        if(window.EspilAudio&&window.EspilAudio.tick)window.EspilAudio.tick();
+      }
+    }
     function teleportHome(){
       /* QA #14 placeholder: no home set yet → go to spawn, toast notice. */
       if(window.__espilToast)window.__espilToast('집 위치가 아직 설정되지 않았어요');
@@ -3836,6 +4199,24 @@
       if(cc)cc.addEventListener('click',function(){toggleCharacterPanel(false);});
       var cp=document.getElementById('character-panel');
       if(cp)cp.addEventListener('click',function(e){if(e.target===cp)toggleCharacterPanel(false);});
+      /* QA #18 (UI room, 2026-10-09): friends panel close + add-friend (local only). */
+      var fc=document.getElementById('friends-close');
+      if(fc)fc.addEventListener('click',function(){toggleFriendsPanel(false);});
+      var fp=document.getElementById('friends-panel');
+      if(fp)fp.addEventListener('click',function(e){if(e.target===fp)toggleFriendsPanel(false);});
+      var fab=document.getElementById('friend-add-btn');
+      if(fab)fab.addEventListener('click',function(){
+        var inp=document.getElementById('friend-add-input');
+        var name=inp?inp.value.trim():'';
+        if(!name)return;
+        var list=document.getElementById('friends-list');
+        if(list){
+          var p=document.createElement('p');p.className='st-foot';p.textContent='\u2022 '+name+' (local — server sync pending)';
+          list.appendChild(p);
+        }
+        if(inp)inp.value='';
+        if(window.__espilToast)window.__espilToast(name+' added locally. Server sync coming.');
+      });
     }());
     /* Camera-look drag + pinch/wheel zoom, only while the map is open. */
     function mapPointerDown(e){
@@ -3886,6 +4267,9 @@
         }else if(lk==='p'){
           /* QA #14 (UI room): P toggles character status + outfit. */
           if(!e.repeat)toggleCharacterPanel();
+        }else if(lk==='y'){
+          /* QA #18 (UI room, 2026-10-09): Y toggles friends/party. */
+          if(!e.repeat)toggleFriendsPanel();
         }
         /* Note: M (map cycle 1→2→3→1) not applied — shared copy has no 3-stage map. */
       }
@@ -4453,9 +4837,59 @@
       if(entryActive&&entryTypedDone&&!entrySubShown&&
          (Math.abs(orbitDistance-targetDistance)<.12||performance.now()-entryStartedAt>12000)){
         entrySubShown=true;
-        if(entrySub)entrySub.classList.add('show');
-        status.textContent=(selected?selected.userData.name+' — ':'')+'press any key to enter';
+        /* #3 (Han 2nd QA): preload with progress bar, auto-enter (no keypress).
+           On prod host, still show COMING SOON (no preload needed). */
+        if(isProdHost()){
+          if(entrySub)entrySub.classList.add('show');
+          status.textContent=(selected?selected.userData.name+' — ':'')+'press any key to enter';
+        }else{
+          startCityPreload();
+        }
       }
+    }
+    /* #3: Preload city assets with progress bar, then auto-enter. */
+    function startCityPreload(){
+      var loadingEl=document.getElementById('city-loading');
+      var fillEl=document.getElementById('city-load-fill');
+      var pctEl=document.getElementById('city-load-pct');
+      if(loadingEl){loadingEl.classList.add('show');loadingEl.setAttribute('aria-hidden','false');}
+      status.textContent='Loading '+(selected?selected.userData.name:'city')+'…';
+      function setProgress(pct,label){
+        if(fillEl)fillEl.style.width=pct+'%';
+        if(pctEl)pctEl.textContent=Math.round(pct)+'%'+(label?' — '+label:'');
+      }
+      setProgress(5,'Initializing…');
+      /* Stage 1: build map geometry (synchronous, but chunked to update UI) */
+      setTimeout(function(){
+        setProgress(20,'Building city…');
+        try{
+          if(typeof buildWalkMapOnce==='function')buildWalkMapOnce();
+        }catch(e){console.warn('Preload map build failed:',e);}
+        setProgress(55,'City built');
+        /* Stage 2: wait for character avatar (async GLB loads) */
+        var tries=0;
+        function checkAvatar(){
+          tries++;
+          var ready=false;
+          try{
+            /* walkPlayer is created in buildWalkMapOnce; av.ready set on GLB load */
+            ready=!!(walkPlayer&&walkPlayer.av&&walkPlayer.av.ready);
+          }catch(e){}
+          var pct=Math.min(92,55+tries*2);
+          setProgress(pct,ready?'Character ready':'Loading character…');
+          if(ready||tries>60){
+            setProgress(100,'Ready');
+            setTimeout(function(){
+              if(loadingEl)loadingEl.classList.remove('show');
+              /* Auto-enter (no keypress) */
+              if(typeof finishCityEntry==='function')finishCityEntry();
+            },400);
+          }else{
+            setTimeout(checkAvatar,250);
+          }
+        }
+        setTimeout(checkAvatar,300);
+      },100);
     }
     var entryStartedAt=0;
     function typeEntryName(name){
@@ -4624,6 +5058,51 @@
 
     var worldPoint=new THREE.Vector3(),cameraDirection=new THREE.Vector3();
     function shortestAngle(from,to){return Math.atan2(Math.sin(to-from),Math.cos(to-from));}
+    /* QA #7 (2026-10-09): minimap draw — player-centered, buildings from mapBuildings. */
+    var minimapCanvas=null,minimapCtx=null,lastMinimapDraw=0;
+    function drawMinimap(){
+      if(!walkPlayer||!walkPlayer.pos)return;
+      if(!minimapCanvas){minimapCanvas=document.getElementById('minimap');if(!minimapCanvas)return;minimapCtx=minimapCanvas.getContext('2d');}
+      var now=performance.now();
+      if(now-lastMinimapDraw<100)return; /* ~10fps, cheap */
+      lastMinimapDraw=now;
+      var ctx=minimapCtx,W=280,H=280,cx=W/2,cy=H/2;
+      var range=120; /* world units shown across the minimap diameter */
+      var scale=W/range;
+      ctx.clearRect(0,0,W,H);
+      ctx.save();
+      /* Circular clip */
+      ctx.beginPath();ctx.arc(cx,cy,cx-2,0,Math.PI*2);ctx.clip();
+      /* Background */
+      ctx.fillStyle='rgba(8,24,28,.9)';ctx.fillRect(0,0,W,H);
+      var px=walkPlayer.pos.x,pz=walkPlayer.pos.z;
+      /* Grid */
+      ctx.strokeStyle='rgba(134,238,228,.08)';ctx.lineWidth=1;
+      var gs=20*scale;
+      var offX=cx-(px*scale)%gs,offY=cy-(pz*scale)%gs;
+      for(var gx=offX%gs;gx<W;gx+=gs){ctx.beginPath();ctx.moveTo(gx,0);ctx.lineTo(gx,H);ctx.stroke();}
+      for(var gy=offY%gs;gy<H;gy+=gs){ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(W,gy);ctx.stroke();}
+      /* Buildings */
+      ctx.fillStyle='rgba(120,160,170,.55)';
+      for(var i=0;i<mapBuildings.length;i++){
+        var b=mapBuildings[i];
+        var bx=cx+(b.x-px)*scale, bz=cy+(b.z-pz)*scale;
+        var bw=Math.max(1,b.w*scale), bd=Math.max(1,b.d*scale);
+        if(bx+bw/2<0||bx-bw/2>W||bz+bd/2<0||bz-bd/2>H)continue;
+        ctx.fillRect(bx-bw/2,bz-bd/2,bw,bd);
+      }
+      /* Player arrow */
+      var ang=walkPlayer.faceY||0;
+      ctx.save();
+      ctx.translate(cx,cy);ctx.rotate(-ang);
+      ctx.fillStyle='#ffd97a';
+      ctx.beginPath();ctx.moveTo(0,-9);ctx.lineTo(6,7);ctx.lineTo(0,3);ctx.lineTo(-6,7);ctx.closePath();ctx.fill();
+      ctx.restore();
+      /* North indicator */
+      ctx.fillStyle='rgba(255,217,122,.9)';ctx.font='700 16px Manrope,sans-serif';ctx.textAlign='center';
+      ctx.fillText('N',cx,22);
+      ctx.restore();
+    }
     var lastFrameT=performance.now();
     function animate(){
       requestAnimationFrame(animate);
@@ -4638,6 +5117,7 @@
         updateTraffic(dt);
         updateTrafficCars(dt);
         updateTransitBuses();
+        drawMinimap();
         renderer.render(mapScene,mapCamera);
         return;
       }
@@ -4667,13 +5147,21 @@
     window.__espilGlobe={
       beginEarthReveal:function(){
         /* Seamless entry (2026-10-06, per Han): the camera starts high and far,
-           then descends in the arrow's direction while gliding in — Earth
-           rises into view as the intro fades. One continuous motion. */
+           then descends — Earth rises into view as the intro fades.
+           (2026-10-09, Han 2차 QA #1): the descent was hidden behind the intro
+           fade, so Earth "suddenly appeared". Now staged: jump to far/high
+           while the intro is still opaque, then visibly pan down AFTER the
+           0.8s fade completes. */
         var defaultD=Math.max(6.6,2.12/(Math.tan(camera.fov*Math.PI/360)*camera.aspect));
-        targetDistance=defaultD;
-        orbitDistance=defaultD*1.45;
-        pitch=.78;targetPitch=0;targetYaw=yaw;
+        /* Phase 1 — hidden behind the opaque intro: park far and high. */
+        orbitDistance=defaultD*1.6;targetDistance=defaultD*1.6;
+        pitch=.9;targetPitch=.9;targetYaw=yaw;
         placeCamera();
+        /* Phase 2 — after the intro fade: visible pan down to Earth. */
+        setTimeout(function(){
+          targetDistance=defaultD;
+          targetPitch=0;
+        },900);
       },
       skipStationReveal:function(){/* no-op: the station reveal no longer exists */}
     };
