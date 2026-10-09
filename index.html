@@ -375,28 +375,30 @@
     .ms-bar > i { display:block; height:100%; border-radius:99px; transition:width .25s ease; }
     .ms-hp > i { background:linear-gradient(90deg,#ff5f6d,#ff9a5a); width:100%; }
     .ms-mp > i { background:linear-gradient(90deg,#3fa7ff,#7dfce6); width:100%; }
+    /* QA hotbar (2026-10-08): Minecraft-style compact 12-slot hotbar, bottom-center. */
     .skill-bar {
-      position:fixed; z-index:30; left:50%; bottom:calc(128px + env(safe-area-inset-bottom));
+      position:fixed; z-index:30; left:50%; bottom:calc(14px + env(safe-area-inset-bottom));
       transform:translateX(-50%); font-family:"Manrope",sans-serif;
+      display:flex; gap:5px; align-items:center; justify-content:center;
     }
-    .move-row { display:grid; grid-template-columns:repeat(4,62px); gap:8px; }
+    .move-row { display:contents; }
     .move-slot {
-      position:relative; width:62px; height:62px; appearance:none; cursor:pointer;
-      border:2px solid rgba(134,238,228,.45); border-radius:10px;
+      position:relative; width:44px; height:44px; appearance:none; cursor:pointer;
+      border:2px solid rgba(134,238,228,.45); border-radius:8px;
       background:rgba(8,20,24,.8); box-shadow:0 0 14px rgba(80,232,220,.18);
-      display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
+      display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
       color:#ddfffc; font-family:"Manrope",sans-serif;
       touch-action:manipulation; user-select:none; -webkit-user-select:none;
     }
     .move-slot:active { border-color:var(--signal); }
     .move-slot.is-locked { opacity:.5; cursor:default; border-style:dashed; }
     .move-slot.is-locked:active { border-color:rgba(134,238,228,.45); }
-    .move-slot .sicon { font-size:1.4rem; line-height:1; }
+    .move-slot .sicon { font-size:1rem; line-height:1; }
     .move-slot .key {
-      position:absolute; top:3px; left:6px;
-      font:800 .6rem/1 "Manrope",sans-serif; color:#9df2e8; text-shadow:0 1px 2px #000;
+      position:absolute; top:2px; left:4px;
+      font:800 .52rem/1 "Manrope",sans-serif; color:#9df2e8; text-shadow:0 1px 2px #000;
     }
-    .move-slot .mn { font:700 .5rem/1 "Manrope",sans-serif; letter-spacing:.06em; color:#eafffd; }
+    .move-slot .mn { font:700 .42rem/1 "Manrope",sans-serif; letter-spacing:.04em; color:#eafffd; }
     .move-slot .cd {
       position:absolute; inset:0; border-radius:8px; pointer-events:none;
       background:conic-gradient(rgba(4,12,14,.78) var(--cdp,0%), transparent 0);
@@ -415,7 +417,7 @@
     @media (pointer:coarse) {
       body.in-map .map-attack { display:block; }
       .map-status { width:172px; }
-      .skill-bar { bottom:calc(168px + env(safe-area-inset-bottom)); }
+      .skill-bar { bottom:calc(86px + env(safe-area-inset-bottom)); }
     }
     /* ---- Skill tree panel ---- */
     .skill-tree { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; background:rgba(4,12,14,.74); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); }
@@ -440,22 +442,6 @@
     .st-foot { margin:14px 0 0; font:600 .62rem/1.6 "Manrope",sans-serif; color:rgba(181,255,248,.55); letter-spacing:.03em; }
     @media (max-width:640px) { .st-grid { grid-template-columns:repeat(2,1fr); } }
     /* ---- MapleStory-style skill book ---- */
-    .st-tabs { display:flex; gap:6px; margin:12px 0 10px; }
-    .st-tab { flex:1; appearance:none; border:1px solid rgba(201,168,106,.45); border-bottom:none; border-radius:8px 8px 0 0; background:#141824; color:#8a93a8; font:800 .66rem/1 "Manrope",sans-serif; letter-spacing:.1em; padding:10px 0; cursor:pointer; }
-    .st-tab.is-active { background:#232a40; color:#ffd97a; }
-    .st-list { display:flex; flex-direction:column; gap:6px; max-height:290px; overflow-y:auto; padding:10px; border:1px solid rgba(201,168,106,.45); border-radius:0 0 8px 8px; background:#171c2b; }
-    .ms-row { display:flex; align-items:center; gap:12px; border:1px solid rgba(201,168,106,.25); border-radius:8px; background:#1e2436; padding:7px 10px; cursor:pointer; }
-    .ms-row:hover { border-color:rgba(255,217,122,.65); }
-    .ms-row.is-selected { border-color:#ffd97a; box-shadow:inset 0 0 0 1px #ffd97a; }
-    .ms-row.is-locked { opacity:.5; cursor:default; }
-    .ms-icon { flex:none; width:42px; height:42px; border:2px solid #6b5a34; border-radius:6px; background:#0d1017; overflow:hidden; }
-    .ms-icon img { width:100%; height:100%; image-rendering:pixelated; display:block; }
-    .ms-row.is-locked .ms-icon img { filter:grayscale(1) brightness(.55); }
-    .ms-name { flex:1; font:800 .78rem/1.2 "Manrope",sans-serif; color:#f2ead6; letter-spacing:.04em; }
-    .ms-lv { font:800 .72rem/1 "Manrope",sans-serif; color:#ffd97a; letter-spacing:.05em; white-space:nowrap; }
-    .ms-lv.is-max { color:#ff9d3c; }
-    .ms-plus { flex:none; width:30px; height:30px; border:1px solid #8a6a2f; border-radius:6px; background:linear-gradient(180deg,#f0b45a,#d18a2e); color:#3a2708; font:900 1.05rem/1 "Manrope",sans-serif; cursor:pointer; padding:0; }
-    .ms-plus:active { transform:translateY(1px); }
     .st-desc { margin-top:10px; border:1px solid rgba(201,168,106,.35); border-radius:8px; background:#10141f; padding:12px 14px; min-height:118px; }
     .st-desc h3 { margin:0 0 6px; font:800 .82rem/1.2 "Manrope",sans-serif; color:#ffd97a; letter-spacing:.06em; }
     .st-desc p { margin:4px 0; font:600 .66rem/1.55 "Manrope",sans-serif; color:#cfd6e4; }
@@ -463,6 +449,25 @@
     .st-desc .nxt { color:#8fe6a0; }
     .st-desc .cost { color:#ffd97a; font-weight:800; }
     .move-slot .sicon img { width:26px; height:26px; image-rendering:pixelated; }
+    /* ---- Skill tree: living tree theme ---- */
+    .st-treeview { position:relative; height:440px; margin-top:12px; border:1px solid rgba(139,105,72,.55); border-radius:12px; overflow:hidden;
+      background:radial-gradient(ellipse at 50% 105%, rgba(52,94,50,.4), rgba(13,18,28,.92) 72%); }
+    .st-treeview svg.branches { position:absolute; inset:0; width:100%; height:100%; }
+    .tnode { position:absolute; transform:translate(-50%,-50%); display:flex; flex-direction:column; align-items:center; cursor:pointer; z-index:2; }
+    .tnode-icon { width:46px; height:46px; border-radius:50%; border:3px solid #6b4a2f; background:#1c2b1e; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 8px rgba(0,0,0,.55); }
+    .tnode-icon img { width:30px; height:30px; image-rendering:pixelated; }
+    .tnode-root .tnode-icon { width:58px; height:58px; border-color:#8a6a3f; font-size:1.6rem; }
+    .tnode-name { margin-top:4px; font:800 .62rem/1.2 "Manrope",sans-serif; color:#f2ead6; letter-spacing:.04em; white-space:nowrap; text-shadow:0 1px 3px #000; }
+    .tnode-lv { margin-top:2px; font:800 .6rem/1 "Manrope",sans-serif; color:#ffd97a; text-shadow:0 1px 3px #000; }
+    .tnode-lv.is-max { color:#ff9d3c; }
+    .tnode.is-selected .tnode-icon { border-color:#ffd97a; box-shadow:0 0 14px rgba(255,217,122,.75); }
+    .tnode.is-maxed .tnode-icon { border-color:#ff9d3c; box-shadow:0 0 12px rgba(255,157,60,.6); }
+    .tnode.is-locked { opacity:.5; cursor:default; }
+    .tnode.is-locked .tnode-icon img { filter:grayscale(1) brightness(.55); }
+    .tnode.is-dim { opacity:.55; }
+    .tnode-plus { position:absolute; top:-8px; right:2px; width:22px; height:22px; border-radius:50%; border:1px solid #8a6a2f; background:linear-gradient(180deg,#f0b45a,#d18a2e); color:#3a2708; font:900 .85rem/1 "Manrope",sans-serif; cursor:pointer; padding:0; z-index:3; }
+    .tnode-plus:active { transform:translateY(1px); }
+    @media (max-width:640px) { .st-treeview { height:380px; } .tnode-icon { width:40px; height:40px; } .tnode-icon img { width:26px; height:26px; } }
     /* Testing-bypass note (auth + character gates). */
     .bypass-note { margin:10px 0 0; color:#ffd97a; font:700 .68rem/1.5 "Manrope",sans-serif; letter-spacing:.08em; text-align:center; }
     .bypass-note b { color:#ffe9ad; }
@@ -959,7 +964,7 @@
     <div class="skill-bar" id="skill-bar" aria-hidden="true">
       <div class="move-row" id="move-row" aria-label="Attack moves"></div>
       <!-- QA #13 (UI room, 2026-10-06): 1234 item bar. -->
-      <div class="move-row" id="item-row" aria-label="Item slots" style="margin-top:8px"></div>
+      <div class="move-row" id="item-row" aria-label="Item slots"></div>
     </div>
     <div class="skill-tree" id="skill-tree" aria-hidden="true" role="dialog" aria-label="Skill tree: Keeper">
       <div class="st-card">
@@ -971,14 +976,10 @@
           <button class="st-close" id="st-close" type="button" aria-label="Close skill tree">&#10005;</button>
         </div>
         <div class="st-knrow"><span id="st-kn">📚 Knowledge: 10</span><button class="st-study" id="st-study" type="button">▶ Watch a video (demo) +5</button></div>
-        <p class="st-knsub">Knowledge comes from watching videos — not from leveling up. Spend it to raise each skill toward Lv 20.</p>
-        <div class="st-tabs">
-          <button class="st-tab is-active" data-tab="basic" type="button">BASIC SKILLS</button>
-          <button class="st-tab" data-tab="training" type="button">TRAINING</button>
-        </div>
-        <div class="st-list" id="st-list"></div>
+        <p class="st-knsub">Knowledge comes from watching videos — not from leveling up. Spend it to grow each branch toward mastery.</p>
+        <div class="st-treeview" id="st-treeview" role="tree" aria-label="Keeper skill tree"></div>
         <div class="st-desc" id="st-desc"></div>
-        <p class="st-foot">Keeper fights unarmed: punch, kick, throw, defense. New moves plug into the same table later.</p>
+        <p class="st-foot">Walking, running, jumping — every human movement is a skill. New branches grow with the combat update.</p>
       </div>
     </div>
     <!-- QA #14 (UI room, 2026-10-06): Inventory panel (I key). -->
@@ -3103,7 +3104,8 @@
       var p=walkPlayer;
       if(p.swimming)return; /* QA #17: no jumping while swimming */
       if(p.onGround||p.jumps<2){
-        p.velY=9;p.onGround=false;p.jumps++;
+        var _mj=moveSpeeds();
+        p.velY=(p.jumps>0?_mj.djumpV:_mj.jumpV);p.onGround=false;p.jumps++;
         walkSfx(p.jumps>1?'double':'jump');
         /* QA #7: Mixamo jump motion hooks here when assets arrive (male/female). */
         if(p.av&&p.av.playJump)try{p.av.playJump(p.jumps>1);}catch(e){}
@@ -3167,7 +3169,10 @@
       return null;
     }
     var SKILL_NODES=[
-      {id:'basics',name:'Keeper Basics',root:true,max:1,desc:''},
+      {id:'m_walk',name:'Walking',max:20,art:'walk',desc:'+1.5% walk speed per rank. A good walker is a fast walker.'},
+      {id:'m_run',name:'Running',max:20,art:'run',needNode:'m_walk',needRank:3,desc:'+2% run speed per rank. Requires Walking Lv 3.'},
+      {id:'m_jump',name:'Jump',max:20,art:'jump',desc:'+1% jump velocity per rank.'},
+      {id:'m_djump',name:'Double Jump',max:10,art:'djump',needNode:'m_jump',needRank:3,desc:'+2% double-jump velocity per rank. Requires Jump Lv 3.'},
       {id:'m_punch',name:'Punch',max:20,art:'punch',desc:'+5% Punch damage per rank.'},
       {id:'m_kick',name:'Kick',max:20,art:'kick',desc:'+5% Kick damage per rank.'},
       {id:'m_throw',name:'Throw',max:20,art:'throw',desc:'+5% Throw damage per rank.'},
@@ -3177,12 +3182,43 @@
       {id:'toss',name:'Cauldron Toss',locked:true,art:'throw',desc:'Hurl a whole burning cauldron. Arrives with the combat update.'},
       {id:'guard',name:'Ember Guard',locked:true,art:'defense',desc:'A ring of forge-fire around you. Arrives with the combat update.'}
     ];
-    var BASIC_IDS=['m_punch','m_kick','m_throw','m_defense'];
-    var TRAIN_IDS=['swift','reach','toss','guard'];
-    var skillTab='basic',selectedSkillId='m_punch';
+    /* The tree itself: node positions (percent) + branch parents. One page. */
+    var TREE_LAYOUT=[
+      {id:'keeper',x:50,y:90,root:true},
+      {id:'m_walk',x:30,y:76,parent:'keeper'},
+      {id:'m_run',x:20,y:58,parent:'m_walk'},
+      {id:'swift',x:24,y:38,parent:'m_run'},
+      {id:'m_jump',x:43,y:64,parent:'keeper'},
+      {id:'m_djump',x:43,y:46,parent:'m_jump'},
+      {id:'reach',x:57,y:32,parent:'m_djump'},
+      {id:'m_defense',x:57,y:74,parent:'keeper'},
+      {id:'m_punch',x:68,y:68,parent:'keeper'},
+      {id:'m_kick',x:78,y:58,parent:'m_punch'},
+      {id:'m_throw',x:88,y:68,parent:'keeper'},
+      {id:'toss',x:72,y:26,parent:null},
+      {id:'guard',x:85,y:32,parent:null}
+    ];
+    var selectedSkillId='m_punch';
     function skillNodeById(id){
       for(var i=0;i<SKILL_NODES.length;i++)if(SKILL_NODES[i].id===id)return SKILL_NODES[i];
       return null;
+    }
+    function prereqMet(n){
+      if(!n||n.locked||n.root)return true;
+      if(n.need&&totalSpent()<n.need)return false;
+      if(n.needNode&&(skillState.alloc[n.needNode]||0)<(n.needRank||0))return false;
+      return true;
+    }
+    /* Movement skills feed back into the walk controller. */
+    function moveSpeeds(){
+      var a=skillState.alloc;
+      return {
+        walk:7.5*(1+.015*(a['m_walk']||0)),
+        run:12*(1+.02*(a['m_run']||0)),
+        swim:4,
+        jumpV:9*(1+.01*(a['m_jump']||0)),
+        djumpV:9*(1+.02*(a['m_djump']||0))
+      };
     }
     /* MapleStory-style pixel skill icons, drawn on a 16x16 canvas at runtime. */
     var SKILL_ICONS={};
@@ -3215,6 +3251,19 @@
         }else if(art==='reach'){
           R(2,7,8,2,'#7dfce6');R(2,7,8,1,'#d8fff9');
           R(10,5,2,6,'#7dfce6');R(12,6,2,4,'#7dfce6');R(14,7,1,2,'#e8fffd');
+        }else if(art==='walk'){
+          R(7,6,3,5,'#8a5a33');R(6,10,5,2,'#a06a3c');R(6,12,5,1,'#4e3018');
+          R(2,7,3,1,'#7dfce6');R(1,10,4,1,'#7dfce6');
+        }else if(art==='run'){
+          R(8,6,3,5,'#8a5a33');R(7,10,5,2,'#a06a3c');R(7,12,5,1,'#4e3018');
+          R(1,5,4,1,'#ffd23f');R(2,8,4,1,'#ffd23f');R(1,11,4,1,'#ffd23f');
+        }else if(art==='jump'){
+          R(7,2,2,8,'#bfe9ff');R(5,4,2,3,'#bfe9ff');R(9,4,2,3,'#bfe9ff');
+          R(7,2,1,8,'#e8f4ff');R(6,11,4,2,'#8a5a33');
+        }else if(art==='djump'){
+          R(3,7,2,5,'#7dfce6');R(2,5,2,3,'#7dfce6');R(4,5,2,3,'#7dfce6');
+          R(10,7,2,5,'#7dfce6');R(9,5,2,3,'#7dfce6');R(11,5,2,3,'#7dfce6');
+          R(3,7,1,5,'#d8fff9');R(10,7,1,5,'#d8fff9');
         }
         url=c.toDataURL();
       }catch(e){}
@@ -3452,10 +3501,16 @@
     function raiseSkill(id){
       var n=skillNodeById(id);
       if(!n||n.locked||n.root)return;
-      var spent=totalSpent();
-      if(n.need&&spent<n.need){
+      if(n.need&&totalSpent()<n.need){
         if(window.__espilToast)window.__espilToast('Requires '+n.need+' ranks learned first.');
         return;
+      }
+      if(n.needNode){
+        var pr=skillState.alloc[n.needNode]||0,pn=skillNodeById(n.needNode);
+        if(pr<(n.needRank||0)){
+          if(window.__espilToast)window.__espilToast((pn?pn.name:'Previous skill')+' Lv '+(n.needRank||0)+' required first.');
+          return;
+        }
       }
       var rank=skillState.alloc[id]||0;
       if(rank>=n.max)return;
@@ -3471,6 +3526,10 @@
     }
     function statLine(n,rank){
       var id=n.id;
+      if(id==='m_walk')return (7.5*(1+.015*rank)).toFixed(1)+' m/s walk speed';
+      if(id==='m_run')return (12*(1+.02*rank)).toFixed(1)+' m/s run speed';
+      if(id==='m_jump')return (9*(1+.01*rank)).toFixed(1)+' jump velocity';
+      if(id==='m_djump')return (9*(1+.02*rank)).toFixed(1)+' double-jump velocity';
       if(id.indexOf('m_')===0){
         var mid=id.slice(2),s=moveStatsAt(mid,rank);
         if(MOVES[mid].guard)return s.guardDur.toFixed(2)+'s guard · '+s.cd.toFixed(2)+'s cd';
@@ -3483,6 +3542,13 @@
     function renderSkillDesc(){
       var d=document.getElementById('st-desc');
       if(!d)return;
+      if(selectedSkillId==='keeper'){
+        d.innerHTML='<h3>The Keeper\'s Tree</h3>'+
+          '<p>Every branch is a human skill — walking, running, jumping, fighting. '+
+          'Watch videos to earn Knowledge, then grow each branch toward mastery.</p>'+
+          '<p class="cur">Ranks learned: '+totalSpent()+'</p>';
+        return;
+      }
       var n=skillNodeById(selectedSkillId);
       if(!n){d.innerHTML='';return;}
       var rank=skillState.alloc[n.id]||0;
@@ -3497,42 +3563,95 @@
               :'<p class="nxt">다음 Lv '+(rank+1)+': '+statLine(n,rank+1)+'</p>'+
                '<p class="cost">비용: 📚 '+rankCost(rank)+'</p>');
     }
+    function branchPath(NS,x1,y1,x2,y2,w,col){
+      var mx=(x1+x2)/2,my=(y1+y2)/2;
+      var dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy)||1;
+      var cx=mx-dy/len*len*.12,cy=my+dx/len*len*.12;
+      var p=document.createElementNS(NS,'path');
+      p.setAttribute('d','M'+x1+','+y1+' Q'+cx.toFixed(1)+','+cy.toFixed(1)+' '+x2+','+y2);
+      p.setAttribute('stroke',col);p.setAttribute('stroke-width',w);
+      p.setAttribute('fill','none');p.setAttribute('stroke-linecap','round');
+      return p;
+    }
     function renderSkillTree(){
       paintKnowledge();
-      var tabs=document.querySelectorAll('.st-tab'),ti;
-      for(ti=0;ti<tabs.length;ti++){
-        (function(t){t.classList.toggle('is-active',t.getAttribute('data-tab')===skillTab);})(tabs[ti]);
-      }
-      var ids=skillTab==='basic'?BASIC_IDS:TRAIN_IDS;
-      if(ids.indexOf(selectedSkillId)<0)selectedSkillId=ids[0];
-      var list=document.getElementById('st-list');
-      if(list){
-        list.innerHTML='';
-        var spent=totalSpent();
-        ids.forEach(function(id){
-          var n=skillNodeById(id),rank=skillState.alloc[id]||0;
-          var needMet=!n.need||spent>=n.need;
-          var maxed=!n.locked&&rank>=n.max;
-          var row=document.createElement('div');
-          row.className='ms-row'+(n.locked?' is-locked':'')+(maxed?' is-maxed':'')+(id===selectedSkillId?' is-selected':'');
-          row.setAttribute('role','button');
-          row.setAttribute('aria-label',n.name+(n.locked?' (locked)':'')+', Lv '+rank+' of '+n.max);
-          var icon=pxIcon(n.art||id);
-          row.innerHTML=
-            '<span class="ms-icon">'+(icon?'<img alt="" src="'+icon+'">':'')+'</span>'+
-            '<span class="ms-name">'+n.name+'</span>'+
-            '<span class="ms-lv'+(maxed?' is-max':'')+'">'+
-              (n.locked?'🔒':(maxed?'MASTER':'Lv '+rank+'/'+n.max))+'</span>'+
-            ((!n.locked&&!maxed)?'<button type="button" class="ms-plus" aria-label="Raise '+n.name+'">+</button>':'');
-          row.addEventListener('click',function(e){
+      var tv=document.getElementById('st-treeview');
+      if(tv){
+        tv.innerHTML='';
+        var NS='http://www.w3.org/2000/svg';
+        var svg=document.createElementNS(NS,'svg');
+        svg.setAttribute('viewBox','0 0 100 100');
+        svg.setAttribute('preserveAspectRatio','none');
+        svg.setAttribute('class','branches');
+        /* trunk + roots */
+        svg.appendChild(branchPath(NS,50,101,50,86,3.4,'#5a3d26'));
+        svg.appendChild(branchPath(NS,50,95,43,101,1.6,'#5a3d26'));
+        svg.appendChild(branchPath(NS,50,95,57,101,1.6,'#5a3d26'));
+        var byId={};
+        TREE_LAYOUT.forEach(function(L){byId[L.id]=L;});
+        TREE_LAYOUT.forEach(function(L,li){
+          if(L.parent&&byId[L.parent]){
+            var P=byId[L.parent];
+            svg.appendChild(branchPath(NS,P.x,P.y,L.x,L.y,1.3,'#6b4a2f'));
+            /* leaves along the branch (deterministic scatter) */
+            for(var k=1;k<=2;k++){
+              var t=k/3,lx=P.x+(L.x-P.x)*t,ly=P.y+(L.y-P.y)*t;
+              var lf=document.createElementNS(NS,'ellipse');
+              lf.setAttribute('cx',(lx+((li*7+k*13)%5-2)*.9).toFixed(1));
+              lf.setAttribute('cy',(ly+((li*11+k*7)%5-2)*.9).toFixed(1));
+              lf.setAttribute('rx','1.8');lf.setAttribute('ry','1.1');
+              lf.setAttribute('fill','#3f7d44');lf.setAttribute('opacity','.85');
+              lf.setAttribute('transform','rotate('+((li*37+k*53)%60-30).toFixed(0)+' '+lx.toFixed(1)+' '+ly.toFixed(1)+')');
+              svg.appendChild(lf);
+            }
+          }else if(!L.parent&&!L.root){
+            /* locked bud: dashed stem */
+            var st=document.createElementNS(NS,'line');
+            st.setAttribute('x1',L.x);st.setAttribute('y1',L.y+11);
+            st.setAttribute('x2',L.x);st.setAttribute('y2',L.y+2.5);
+            st.setAttribute('stroke','#5a5a5a');st.setAttribute('stroke-width','1');
+            st.setAttribute('stroke-dasharray','1.5 1.2');
+            svg.appendChild(st);
+          }
+        });
+        tv.appendChild(svg);
+        TREE_LAYOUT.forEach(function(L){
+          var isRoot=!!L.root;
+          var n=isRoot?{id:'keeper',name:'KEEPER',root:true}:skillNodeById(L.id);
+          if(!n)return;
+          var rank=isRoot?0:(skillState.alloc[n.id]||0);
+          var maxed=!isRoot&&!n.locked&&rank>=n.max;
+          var ok=isRoot||prereqMet(n);
+          var d=document.createElement('div');
+          d.className='tnode'+(isRoot?' tnode-root':'')+(n.locked?' is-locked':'')+
+            (maxed?' is-maxed':'')+((!isRoot&&!ok)?' is-dim':'')+
+            (selectedSkillId===n.id?' is-selected':'');
+          d.style.left=L.x+'%';d.style.top=L.y+'%';
+          d.setAttribute('role','button');
+          var icon=isRoot?null:pxIcon(n.art||n.id);
+          var inner='<span class="tnode-icon">'+(icon?'<img alt="" src="'+icon+'">':'\uD83C\uDF33')+'</span>'+
+            '<span class="tnode-name">'+n.name+'</span>';
+          if(!isRoot){
+            inner+='<span class="tnode-lv'+(maxed?' is-max':'')+'">'+
+              (n.locked?'\uD83D\uDD12':(maxed?'MASTER':'Lv '+rank+'/'+n.max))+'</span>';
+            if(!n.locked&&!maxed&&ok)
+              inner+='<button type="button" class="tnode-plus" aria-label="Raise '+n.name+'">+</button>';
+          }
+          d.innerHTML=inner;
+          d.addEventListener('click',function(e){
             var t=e&&e.target;
-            var isPlus=t&&(t.className==='ms-plus'||(t.classList&&typeof t.classList.contains==='function'&&t.classList.contains('ms-plus')));
-            if(isPlus){raiseSkill(id);return;}
-            selectedSkillId=id;
+            var isPlus=t&&(t.className==='tnode-plus'||(t.classList&&typeof t.classList.contains==='function'&&t.classList.contains('tnode-plus')));
+            if(isRoot){selectedSkillId='keeper';renderSkillTree();return;}
+            if(isPlus){raiseSkill(n.id);return;}
+            selectedSkillId=n.id;
             if(n.locked&&window.__espilToast)window.__espilToast(n.name+' arrives with the combat update.');
+            else if(!ok&&window.__espilToast){
+              var req=n.needNode?(skillNodeById(n.needNode).name+' Lv '+n.needRank):(n.need+' ranks learned');
+              window.__espilToast('Requires '+req+' first.');
+            }
             renderSkillTree();
           });
-          list.appendChild(row);
+          tv.appendChild(d);
         });
       }
       renderSkillDesc();
@@ -3632,10 +3751,6 @@
       if(tt)tt.addEventListener('click',function(e){e.stopPropagation();toggleSkillTree();});
       var sc=document.getElementById('st-close');
       if(sc)sc.addEventListener('click',function(){toggleSkillTree(false);});
-      var stTabs=document.querySelectorAll('.st-tab');
-      for(var sti=0;sti<stTabs.length;sti++)(function(t){
-        t.addEventListener('click',function(){skillTab=t.getAttribute('data-tab');renderSkillTree();});
-      })(stTabs[sti]);
       var st=document.getElementById('skill-tree');
       if(st)st.addEventListener('click',function(e){if(e.target===st)toggleSkillTree(false);});
       /* Demo: simulate finishing a video (+5 Knowledge). The real video
@@ -3764,7 +3879,8 @@
       p.running=p.moving&&(sprintOn||joyMag>.88);
       /* QA #17: swimming mode when in water. */
       p.swimming=isWaterAt(p.pos.x,p.pos.z)&&p.pos.y<1.5;
-      var SPEED=p.swimming?4:(p.running?12:7.5);
+      var _ms=moveSpeeds();
+      var SPEED=p.swimming?_ms.swim:(p.running?_ms.run:_ms.walk);
       p._dx=mx*SPEED*dt;p._dz=mz*SPEED*dt;
       p.moving=il>.12;
       p.pos.x+=p._dx;collideCircleAxis(p,'x');
