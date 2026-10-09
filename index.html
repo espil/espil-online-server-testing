@@ -386,6 +386,10 @@
     body.in-map #city-return,
     body.in-map #city-phase,
     body.in-map .city-markers { display:none !important; }
+    /* #6: Direct entry (/vancouver) — hide landing immediately */
+    body.direct-entry #intro,
+    body.direct-entry #city-info,
+    body.direct-entry .city-markers { display:none !important; }
     .map-status {
       position:fixed; z-index:30; top:calc(14px + env(safe-area-inset-top)); left:14px;
       width:212px; padding:10px 12px 12px;
@@ -2433,6 +2437,8 @@
     }
     function buildWalkMapOnce(){
       if(mapBuilt)return;mapBuilt=true;
+      /* #8: Start loading OSM real building data (async, chunks refresh when ready) */
+      if(typeof loadOsmChunks==='function')loadOsmChunks();
       mapScene=new THREE.Scene();
       mapScene.fog=new THREE.Fog(0x9ec8e8,200,1500);
       /* 5km city base ground: 10km x 10km plane at y=0, below downtown pads (.04)
@@ -3087,6 +3093,38 @@
       h=Math.imul(h^(h>>>13),1274126177);
       return (h^(h>>>16))>>>0;
     }
+    /* #8 (Han 2nd QA): OSM real building data. Loaded async; chunks use it when
+       available, falling back to procedural. */
+    var osmChunks=null,osmLoading=false;
+    function loadOsmChunks(){
+      if(osmChunks||osmLoading)return;
+      osmLoading=true;
+      fetch('assets/osm/vancouver_chunks.json')
+        .then(function(r){return r.json();})
+        .then(function(j){
+          osmChunks=j.chunks||{};
+          console.log('[OSM] Loaded '+Object.keys(osmChunks).length+' chunks, '+
+            (j.meta?j.meta.building_count:0)+' buildings');
+          /* Regenerate visible procedural chunks with real data */
+          if(typeof refreshOsmChunks==='function')refreshOsmChunks();
+        })
+        .catch(function(e){console.warn('[OSM] Failed to load:',e);});
+    }
+    function refreshOsmChunks(){
+      /* Unload and regenerate chunks that now have OSM data */
+      if(!osmChunks)return;
+      var toRefresh=[];
+      for(var key in chunkMap){
+        if(osmChunks[key]&&!chunkMap[key].isOsm)toRefresh.push(key);
+      }
+      toRefresh.forEach(function(key){
+        var parts=key.split(',');
+        var cx=parseInt(parts[0],10),cz=parseInt(parts[1],10);
+        unloadChunk(cx,cz);
+        generateChunk(cx,cz);
+      });
+      if(toRefresh.length>0)console.log('[OSM] Refreshed '+toRefresh.length+' chunks with real data');
+    }
     function chunkRNG(seed){
       var s=seed>>>0;
       return function(){
@@ -3136,32 +3174,49 @@
         gmesh.position.set(x0+CHUNK_SIZE/2,.03,z0+CHUNK_SIZE/2);
         gmesh.receiveShadow=true;
         group.add(gmesh);
-        /* --- Buildings: InstancedMesh, one draw call per chunk. --- */
-        var blockSize=zone===0?38:(zone===1?60:100);
+        /* --- Buildings: OSM real data if available, else procedural. --- */
+        var osmData=osmChunks&&osmChunks[key];
         var items=[]; /* {x,z,w,d,h,color} */
-        for(var bx=x0+8;bx<x0+CHUNK_SIZE-8;bx+=blockSize){
-          for(var bz=z0+8;bz<z0+CHUNK_SIZE-8;bz+=blockSize){
-            var bcx=bx+blockSize/2,bcz=bz+blockSize/2;
-            if(isWaterAt(bcx,bcz))continue;
-            if(Math.sqrt(bcx*bcx+bcz*bcz)>CITY_RADIUS)continue;
-            var lots=zone===2?1:4; /* suburban: 1 house per block, else 2x2 */
-            for(var li=0;li<lots;li++){
-              if(rnd()>.72)continue; /* some lots empty */
-              var lx=bcx,bz2=bcz;
-              if(lots>1){
-                lx=bcx+((li%2)?blockSize*0.22:-blockSize*0.22);
-                bz2=bcz+((li<2)?blockSize*0.22:-blockSize*0.22);
+        var isOsmChunk=false;
+        if(osmData&&osmData.b&&osmData.b.length>0){
+          /* Real OSM buildings */
+          for(var oi=0;oi<osmData.b.length;oi++){
+            var ob=osmData.b[oi];
+            var ox=ob[0],oz=ob[1],ow=ob[2],od=ob[3],oh=ob[4];
+            if(isWaterAt(ox,oz))continue;
+            var ocol=chunkPalette[(oi*7)%chunkPalette.length];
+            items.push({x:ox,z:oz,w:ow,d:od,h:oh,color:ocol});
+            colliders.push({x0:ox-ow/2,x1:ox+ow/2,z0:oz-od/2,z1:oz+od/2,bottom:0,top:oh});
+            buildings.push({x:ox,z:oz,w:ow,d:od,h:oh});
+          }
+          isOsmChunk=true;
+        }else{
+          /* Procedural fallback */
+          var blockSize=zone===0?38:(zone===1?60:100);
+          for(var bx=x0+8;bx<x0+CHUNK_SIZE-8;bx+=blockSize){
+            for(var bz=z0+8;bz<z0+CHUNK_SIZE-8;bz+=blockSize){
+              var bcx=bx+blockSize/2,bcz=bz+blockSize/2;
+              if(isWaterAt(bcx,bcz))continue;
+              if(Math.sqrt(bcx*bcx+bcz*bcz)>CITY_RADIUS)continue;
+              var lots=zone===2?1:4;
+              for(var li=0;li<lots;li++){
+                if(rnd()>.72)continue;
+                var lx=bcx,bz2=bcz;
+                if(lots>1){
+                  lx=bcx+((li%2)?blockSize*0.22:-blockSize*0.22);
+                  bz2=bcz+((li<2)?blockSize*0.22:-blockSize*0.22);
+                }
+                lx+=(rnd()-.5)*blockSize*.12;
+                bz2+=(rnd()-.5)*blockSize*.12;
+                var w,d,h;
+                if(zone===0){w=10+rnd()*14;d=10+rnd()*14;h=25+rnd()*45;}
+                else if(zone===1){w=8+rnd()*10;d=8+rnd()*10;h=12+rnd()*18;}
+                else{w=7+rnd()*5;d=6+rnd()*5;h=6+rnd()*6;}
+                var col=chunkPalette[Math.floor(rnd()*chunkPalette.length)];
+                items.push({x:lx,z:bz2,w:w,d:d,h:h,color:col});
+                colliders.push({x0:lx-w/2,x1:lx+w/2,z0:bz2-d/2,z1:bz2+d/2,bottom:0,top:h});
+                buildings.push({x:lx,z:bz2,w:w,d:d,h:h});
               }
-              lx+=(rnd()-.5)*blockSize*.12;
-              bz2+=(rnd()-.5)*blockSize*.12;
-              var w,d,h;
-              if(zone===0){w=10+rnd()*14;d=10+rnd()*14;h=25+rnd()*45;}
-              else if(zone===1){w=8+rnd()*10;d=8+rnd()*10;h=12+rnd()*18;}
-              else{w=7+rnd()*5;d=6+rnd()*5;h=6+rnd()*6;}
-              var col=chunkPalette[Math.floor(rnd()*chunkPalette.length)];
-              items.push({x:lx,z:bz2,w:w,d:d,h:h,color:col});
-              colliders.push({x0:lx-w/2,x1:lx+w/2,z0:bz2-d/2,z1:bz2+d/2,bottom:0,top:h});
-              buildings.push({x:lx,z:bz2,w:w,d:d,h:h});
             }
           }
         }
@@ -3187,7 +3242,7 @@
         }
       }
       mapScene.add(group);
-      var chunk={group:group,colliders:colliders,buildings:buildings,cx:cx,cz:cz};
+      var chunk={group:group,colliders:colliders,buildings:buildings,cx:cx,cz:cz,isOsm:isOsmChunk};
       chunkMap[key]=chunk;
       chunkColliders[key]=colliders;
       /* Register buildings for the proximity pill (mapBuildings). */
@@ -3287,6 +3342,34 @@
       startDnaImprint(); /* the Cauldron sticks its DNA on the city: it evolves */
       if(window.EspilAudio&&window.EspilAudio.onCitySelect)window.EspilAudio.onCitySelect();
       if(window.EspilAudio&&window.EspilAudio.onMapEnter)window.EspilAudio.onMapEnter('vancouver');
+      /* #17 (Han 2nd QA): Store deep link — /vancouver/store/{placeId}.
+         Teleport to store location and open info panel. */
+      try{
+        var dce=window.__directCityEntry;
+        if(dce&&dce.storePlaceId&&typeof fetchPlaceDetails==='function'){
+          (function(pid){
+            fetchPlaceDetails(pid,function(d){
+              if(!d||!d.location){console.warn('[StoreLink] Place not found:',pid);return;}
+              var lat=d.location.latitude,lng=d.location.longitude;
+              var mx=(lng-MAP_LNG0)*111320*Math.cos(MAP_LAT0*Math.PI/180);
+              var mz=-(lat-MAP_LAT0)*111320;
+              if(walkPlayer){
+                walkPlayer.pos.set(mx,0.05,mz);
+                if(walkPlayer.av)walkPlayer.av.group.position.copy(walkPlayer.pos);
+                if(typeof updateChunks==='function')updateChunks(mx,mz);
+              }
+              var store={id:pid,
+                name:(d.displayName&&d.displayName.text)||'Store',
+                type:d.primaryType||'',address:d.formattedAddress||'',
+                rating:d.rating||0,ratingCount:d.userRatingCount||0};
+              currentStores=[store];
+              showStoreModal([store]);
+              setTimeout(function(){showStoreDetail(0);showStoreInfo();},500);
+            });
+          })(dce.storePlaceId);
+          window.__directCityEntry.storePlaceId=null;
+        }
+      }catch(e){console.warn('[StoreLink] Failed:',e);}
       if(selected&&selected.userData&&window.EspilAudio&&window.EspilAudio.onCityEnter)window.EspilAudio.onCityEnter(selected.userData.name);
       try{
         if(!walkAudioCtx)walkAudioCtx=new (window.AudioContext||window.webkitAudioContext)();
@@ -3368,7 +3451,7 @@
         fetch('https://places.googleapis.com/v1/places/'+placeId,{
           headers:{
             'X-Goog-Api-Key':GOOGLE_PLACES_KEY,
-            'X-Goog-FieldMask':'displayName,primaryType,formattedAddress,rating,userRatingCount,reviews,photos,websiteUri,regularOpeningHours,priceLevel'
+            'X-Goog-FieldMask':'displayName,primaryType,formattedAddress,location,rating,userRatingCount,reviews,photos,websiteUri,regularOpeningHours,priceLevel'
           }
         })
         .then(function(r){return r.json();})
@@ -5290,6 +5373,43 @@
     }
     function boot(){
       if(!intro)return;
+      /* #6 (Han 2nd QA): Path routing. /vancouver skips landing → direct map entry.
+         /vancouver/store/{placeId} → map + center on store + open panel (#17). */
+      var pathMatch=null,storePlaceId=null;
+      try{
+        var pth=window.location.pathname;
+        if(pth==='/vancouver'||pth==='/vancouver/'){
+          pathMatch='vancouver';
+        }else{
+          var sm=pth.match(/^\/vancouver\/store\/([A-Za-z0-9_-]+)/);
+          if(sm){pathMatch='vancouver';storePlaceId=sm[1];}
+        }
+      }catch(e){}
+      if(pathMatch==='vancouver'){
+        /* Direct city entry: hide landing, auto-select Vancouver */
+        window.__directCityEntry={city:'Vancouver',storePlaceId:storePlaceId};
+        /* Skip intro — go straight to map flow */
+        if(document.body)document.body.classList.add('direct-entry');
+        /* Auto-trigger after markers are ready */
+        setTimeout(function(){
+          try{
+            if(typeof markers!=='undefined'&&markers.length>0){
+              var van=null;
+              for(var i=0;i<markers.length;i++){
+                if(markers[i].userData&&markers[i].userData.name==='Vancouver'){van=markers[i];break;}
+              }
+              if(van&&typeof selectCity==='function'){
+                selectCity(van);
+                /* Auto-click ENTER CITY after info panel shows */
+                setTimeout(function(){
+                  var btn=document.getElementById('city-info-enter');
+                  if(btn&&!btn.classList.contains('is-disabled'))btn.click();
+                },800);
+              }
+            }
+          }catch(e){console.warn('Direct entry failed:',e);}
+        },2500);
+      }
       sizeStars();initStars();
       requestAnimationFrame(drawStars);
       window.addEventListener('resize',function(){sizeStars();initStars();});
