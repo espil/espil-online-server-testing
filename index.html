@@ -382,23 +382,25 @@
       display:flex; gap:5px; align-items:center; justify-content:center;
     }
     .move-row { display:contents; }
+    /* QA skill theme (2026-10-08, Han): Tree/Nature — living tree, branches, leaves, growth rings. */
     .move-slot {
       position:relative; width:44px; height:44px; appearance:none; cursor:pointer;
-      border:2px solid rgba(134,238,228,.45); border-radius:8px;
-      background:rgba(8,20,24,.8); box-shadow:0 0 14px rgba(80,232,220,.18);
+      border:2px solid #6b4a2f; border-radius:50%;
+      background:radial-gradient(circle at 50% 40%, #2d4a2f 0%, #1a2e1c 70%, #0f1d10 100%);
+      box-shadow:0 0 12px rgba(63,125,68,.35), inset 0 0 8px rgba(107,74,47,.3);
       display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
-      color:#ddfffc; font-family:"Manrope",sans-serif;
+      color:#e8f5e9; font-family:"Manrope",sans-serif;
       touch-action:manipulation; user-select:none; -webkit-user-select:none;
     }
-    .move-slot:active { border-color:var(--signal); }
-    .move-slot.is-locked { opacity:.5; cursor:default; border-style:dashed; }
-    .move-slot.is-locked:active { border-color:rgba(134,238,228,.45); }
+    .move-slot:active { border-color:#ffd97a; box-shadow:0 0 16px rgba(255,217,122,.5); }
+    .move-slot.is-locked { opacity:.5; cursor:default; border-style:dashed; border-color:#5a3d26; }
+    .move-slot.is-locked:active { border-color:#5a3d26; }
     .move-slot .sicon { font-size:1rem; line-height:1; }
     .move-slot .key {
-      position:absolute; top:2px; left:4px;
-      font:800 .52rem/1 "Manrope",sans-serif; color:#9df2e8; text-shadow:0 1px 2px #000;
+      position:absolute; top:2px; left:50%; transform:translateX(-50%);
+      font:800 .52rem/1 "Manrope",sans-serif; color:#ffd97a; text-shadow:0 1px 2px #000;
     }
-    .move-slot .mn { font:700 .42rem/1 "Manrope",sans-serif; letter-spacing:.04em; color:#eafffd; }
+    .move-slot .mn { font:700 .42rem/1 "Manrope",sans-serif; letter-spacing:.04em; color:#c8e6c9; }
     .move-slot .cd {
       position:absolute; inset:0; border-radius:8px; pointer-events:none;
       background:conic-gradient(rgba(4,12,14,.78) var(--cdp,0%), transparent 0);
@@ -420,26 +422,28 @@
       .skill-bar { bottom:calc(86px + env(safe-area-inset-bottom)); }
     }
     /* ---- Skill tree panel ---- */
-    .skill-tree { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; background:rgba(4,12,14,.74); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); }
+    /* QA skill theme (2026-10-08, Han): skill tree — dark forest, round nodes, no angular boxes. */
+    .skill-tree { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; background:linear-gradient(180deg, rgba(10,20,12,.85) 0%, rgba(20,35,20,.9) 100%); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); }
     .skill-tree[aria-hidden="false"] { display:flex; }
     .st-card {
       width:min(640px,calc(100% - 32px)); max-height:88vh; overflow-y:auto;
-      padding:22px; border:1px solid rgba(134,238,228,.3); border-radius:16px;
-      background:rgba(8,20,24,.96); box-shadow:0 0 44px rgba(80,232,220,.14);
-      color:#ddfffc; font-family:"Manrope",sans-serif;
+      padding:22px; border:2px solid #6b4a2f; border-radius:24px;
+      background:linear-gradient(180deg, #1e3320 0%, #142414 50%, #0d1a0d 100%);
+      box-shadow:0 0 44px rgba(63,125,68,.25), inset 0 0 30px rgba(90,61,38,.15);
+      color:#e8f5e9; font-family:"Manrope",sans-serif;
     }
     .st-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
-    .st-head h2 { margin:0; font:800 1.05rem/1.2 "Manrope",sans-serif; letter-spacing:.14em; color:#eafffd; text-shadow:0 0 12px rgba(80,232,220,.6); }
-    .st-sub { margin:6px 0 0; font:600 .7rem/1.5 "Manrope",sans-serif; color:rgba(181,255,248,.62); letter-spacing:.04em; }
-    .st-close { appearance:none; flex:none; width:34px; height:34px; border-radius:50%; border:1px solid rgba(134,238,228,.3); background:none; color:#ddfffc; font-size:.95rem; cursor:pointer; }
-    .st-close:hover { border-color:var(--signal); }
+    .st-head h2 { margin:0; font:800 1.05rem/1.2 "Manrope",sans-serif; letter-spacing:.14em; color:#ffd97a; text-shadow:0 0 12px rgba(255,217,122,.4); }
+    .st-sub { margin:6px 0 0; font:600 .7rem/1.5 "Manrope",sans-serif; color:rgba(200,230,201,.7); letter-spacing:.04em; }
+    .st-close { appearance:none; flex:none; width:34px; height:34px; border-radius:50%; border:2px solid #6b4a2f; background:radial-gradient(circle, #2d4a2f, #1a2e1c); color:#ffd97a; font-size:.95rem; cursor:pointer; }
+    .st-close:hover { border-color:#ffd97a; box-shadow:0 0 12px rgba(255,217,122,.4); }
     .st-knrow { display:flex; justify-content:space-between; align-items:center; gap:10px; margin:14px 0 6px; }
     #st-kn { font:800 .8rem/1 "Manrope",sans-serif; letter-spacing:.08em; color:#ffd97a; }
-    .st-study { appearance:none; flex:none; border:1px solid rgba(134,238,228,.4); border-radius:999px; background:rgba(14,42,47,.8); color:#ddfffc; font:700 .62rem/1 "Manrope",sans-serif; letter-spacing:.06em; padding:9px 14px; cursor:pointer; }
-    .st-study:hover { border-color:var(--signal); }
-    .st-knsub { margin:0 0 12px; font:600 .62rem/1.5 "Manrope",sans-serif; color:rgba(181,255,248,.55); letter-spacing:.02em; }
+    .st-study { appearance:none; flex:none; border:2px solid #6b4a2f; border-radius:999px; background:linear-gradient(180deg, #3f7d44, #2d5a31); color:#fff; font:700 .62rem/1 "Manrope",sans-serif; letter-spacing:.06em; padding:9px 14px; cursor:pointer; box-shadow:0 2px 8px rgba(63,125,68,.4); }
+    .st-study:hover { border-color:#ffd97a; box-shadow:0 0 12px rgba(255,217,122,.4); }
+    .st-knsub { margin:0 0 12px; font:600 .62rem/1.5 "Manrope",sans-serif; color:rgba(200,230,201,.6); letter-spacing:.02em; }
     .st-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
-    .st-foot { margin:14px 0 0; font:600 .62rem/1.6 "Manrope",sans-serif; color:rgba(181,255,248,.55); letter-spacing:.03em; }
+    .st-foot { margin:14px 0 0; font:600 .62rem/1.6 "Manrope",sans-serif; color:rgba(200,230,201,.6); letter-spacing:.03em; }
     @media (max-width:640px) { .st-grid { grid-template-columns:repeat(2,1fr); } }
     /* ---- MapleStory-style skill book ---- */
     .st-desc { margin-top:10px; border:1px solid rgba(201,168,106,.35); border-radius:8px; background:#10141f; padding:12px 14px; min-height:118px; }
