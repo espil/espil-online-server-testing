@@ -375,13 +375,24 @@
     .ms-bar > i { display:block; height:100%; border-radius:99px; transition:width .25s ease; }
     .ms-hp > i { background:linear-gradient(90deg,#ff5f6d,#ff9a5a); width:100%; }
     .ms-mp > i { background:linear-gradient(90deg,#3fa7ff,#7dfce6); width:100%; }
-    /* QA hotbar (2026-10-08): Minecraft-style compact 12-slot hotbar, bottom-center. */
+    /* QA hotbar (2026-10-08): desktop = keyboard layout (1234/QWER/ASDF) + menu keys on right. */
     .skill-bar {
       position:fixed; z-index:30; left:50%; bottom:calc(14px + env(safe-area-inset-bottom));
       transform:translateX(-50%); font-family:"Manrope",sans-serif;
-      display:flex; gap:5px; align-items:center; justify-content:center;
+      display:flex; gap:10px; align-items:flex-end; justify-content:center;
     }
-    .move-row { display:contents; }
+    .kb-main { display:flex; flex-direction:column; gap:5px; }
+    #item-row { display:flex; gap:5px; }
+    #move-row { display:grid; grid-template-columns:repeat(4, 44px); gap:5px; }
+    .kb-menu { display:grid; grid-template-columns:repeat(2, 44px); gap:5px; }
+    .kb-menu .move-slot { border-radius:12px; }
+    /* Mobile: keep pre-hotbar layout (not keyboard, not single-row hotbar). */
+    @media (pointer:coarse) {
+      .skill-bar { display:block; bottom:calc(86px + env(safe-area-inset-bottom)); }
+      #move-row { display:grid; grid-template-columns:repeat(4, 44px); gap:5px; }
+      #item-row { display:flex; gap:5px; margin-top:5px; }
+      .kb-menu { display:none; }
+    }
     /* QA skill theme (2026-10-08, Han): Tree/Nature — living tree, branches, leaves, growth rings. */
     .move-slot {
       position:relative; width:44px; height:44px; appearance:none; cursor:pointer;
@@ -966,9 +977,12 @@
       <div class="ms-bar ms-mp"><i id="ms-mp"></i></div>
     </div>
     <div class="skill-bar" id="skill-bar" aria-hidden="true">
-      <div class="move-row" id="move-row" aria-label="Attack moves"></div>
-      <!-- QA #13 (UI room, 2026-10-06): 1234 item bar. -->
-      <div class="move-row" id="item-row" aria-label="Item slots"></div>
+      <div class="kb-main">
+        <!-- QA #13 (UI room, 2026-10-06): 1234 item bar. -->
+        <div class="kb-row" id="item-row" aria-label="Item slots"></div>
+        <div class="kb-row" id="move-row" aria-label="Attack moves"></div>
+      </div>
+      <div class="kb-menu" id="kb-menu" aria-label="Menu shortcuts"></div>
     </div>
     <div class="skill-tree" id="skill-tree" aria-hidden="true" role="dialog" aria-label="Skill tree: Keeper">
       <div class="st-card">
@@ -3731,6 +3745,26 @@
             '<span class="sicon"></span>'+
             '<span class="mn">\u2014</span>';
           irow.appendChild(b);
+        });
+      }
+      /* QA (UI room, 2026-10-08): keyboard-style menu buttons on right (desktop only). */
+      var kbm=document.getElementById('kb-menu');
+      if(kbm&&!kbm.children.length){
+        var menus=[
+          {key:'K',label:'SKILL',fn:function(){toggleSkillTree();}},
+          {key:'M',label:'MAP',fn:function(){if(window.__espilToast)window.__espilToast('Map stages arrive with the UI update.');}},
+          {key:'I',label:'INV',fn:function(){toggleInventory();}},
+          {key:'P',label:'CHAR',fn:function(){toggleCharacterPanel();}},
+          {key:'H',label:'HOME',fn:function(){teleportHome();}},
+          {key:'\u2699',label:'SET',fn:function(){if(window.__espilToast)window.__espilToast('Settings coming soon.');}}
+        ];
+        menus.forEach(function(m){
+          var b=document.createElement('button');
+          b.type='button';b.className='move-slot';
+          b.setAttribute('aria-label',m.label+' ('+m.key+')');
+          b.innerHTML='<span class="key">'+m.key+'</span><span class="mn">'+m.label+'</span>';
+          b.addEventListener('pointerdown',function(e){e.preventDefault();m.fn();});
+          kbm.appendChild(b);
         });
       }
       ['map-status','skill-bar'].forEach(function(id){
