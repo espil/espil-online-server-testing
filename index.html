@@ -2572,9 +2572,13 @@
         }
       }
       updateTrafficCars=function(dt){
-        /* Reusable vector for screen-space direction (avoid per-car allocation) */
+        /* Reusable temporaries (avoid per-car allocation) */
         if(!updateTrafficCars._cr)updateTrafficCars._cr=new THREE.Vector3();
+        if(!updateTrafficCars._cu)updateTrafficCars._cu=new THREE.Vector3();
+        if(!updateTrafficCars._qz)updateTrafficCars._qz=new THREE.Quaternion();
+        if(!updateTrafficCars._zAxis)updateTrafficCars._zAxis=new THREE.Vector3(0,0,1);
         var camRight=updateTrafficCars._cr.set(1,0,0).applyQuaternion(mapCamera.quaternion);
+        var camUp=updateTrafficCars._cu.set(0,1,0).applyQuaternion(mapCamera.quaternion);
         for(var i=0;i<trafficCars.length;i++){
           var m=trafficCars[i],u=m.userData.car,seg=trafficSegs[u.si];
           var speed=1.5+seg.flow*16; /* jammed crawls, clear flies */
@@ -2585,12 +2589,23 @@
           var x=seg.x1+dx*u.t+px*off,z=seg.z1+dz*u.t+pz*off;
           u.px=u.x;u.pz=u.z;u.x=x;u.z=z;
           m.position.set(x,CAR_H/2-curveDropAt(x,z),z);
-          m.quaternion.copy(mapCamera.quaternion);
-          /* Han 2026-10-08: flip sprite based on screen-space travel direction.
-             The texture faces +x (nose right); mirror when moving left on screen. */
+          /* Han 2026-10-09: nose points along screen-space travel direction.
+             Billboard the plane, then rotate in the screen plane by the velocity
+             angle. Flip (not 180° spin) for leftward motion to keep wheels down. */
           var vx=x-u.px,vz=z-u.pz;
           var screenVX=vx*camRight.x+vz*camRight.z;
-          if(Math.abs(screenVX)>0.005)m.scale.x=screenVX>0?1:-1;
+          var screenVY=vx*camUp.x+vz*camUp.z;
+          var spd=Math.sqrt(screenVX*screenVX+screenVY*screenVY);
+          m.quaternion.copy(mapCamera.quaternion);
+          if(spd>0.005){
+            var ang=Math.atan2(screenVY,screenVX);
+            var rot;
+            if(ang>Math.PI/2){m.scale.x=-1;rot=ang-Math.PI;}
+            else if(ang<-Math.PI/2){m.scale.x=-1;rot=ang+Math.PI;}
+            else{m.scale.x=1;rot=ang;}
+            updateTrafficCars._qz.setFromAxisAngle(updateTrafficCars._zAxis,rot);
+            m.quaternion.multiply(updateTrafficCars._qz);
+          }
           /* axis-aligned AABB collider follows the car */
           var horiz=Math.abs(dz)<.01,ax=horiz?CAR_W/2:0.9,az=horiz?0.9:CAR_W/2;
           var col=u.col;col.x0=x-ax;col.x1=x+ax;col.z0=z-az;col.z1=z+az;
@@ -2640,9 +2655,13 @@
       updateTransitBuses=function(){
         if(!walkPlayer||!walkPlayer.pos)return;
         if(!busTimer){busTimer=setInterval(fetchBusFeed,30000);fetchBusFeed();}
-        /* Reusable vector for screen-space direction */
+        /* Reusable temporaries */
         if(!updateTransitBuses._cr)updateTransitBuses._cr=new THREE.Vector3();
+        if(!updateTransitBuses._cu)updateTransitBuses._cu=new THREE.Vector3();
+        if(!updateTransitBuses._qz)updateTransitBuses._qz=new THREE.Quaternion();
+        if(!updateTransitBuses._zAxis)updateTransitBuses._zAxis=new THREE.Vector3(0,0,1);
         var camRight=updateTransitBuses._cr.set(1,0,0).applyQuaternion(mapCamera.quaternion);
+        var camUp=updateTransitBuses._cu.set(0,1,0).applyQuaternion(mapCamera.quaternion);
         var nowS=Date.now()/1000,px=walkPlayer.pos.x,pz=walkPlayer.pos.z;
         var seen={};
         for(var i=0;i<busFeed.buses.length;i++){
@@ -2668,11 +2687,20 @@
           }
           mesh.position.set(m.x,BUS_H/2-curveDropAt(m.x,m.z),m.z);
           mesh.quaternion.copy(mapCamera.quaternion);
-          /* Han 2026-10-08: flip bus sprite based on bearing (screen-space).
-             Bearing 0=north(-z), 90=east(+x). Texture faces +x (nose right). */
+          /* Han 2026-10-09: nose points along screen-space travel direction
+             (same as cars). Bearing 0=north(-z), 90=east(+x). */
           var bdx=Math.sin(br),bdz=-Math.cos(br);
           var bScreenX=bdx*camRight.x+bdz*camRight.z;
-          if(Math.abs(bScreenX)>0.01)mesh.scale.x=bScreenX>0?1:-1;
+          var bScreenY=bdx*camUp.x+bdz*camUp.z;
+          var bSpd=Math.sqrt(bScreenX*bScreenX+bScreenY*bScreenY);
+          if(bSpd>0.01){
+            var bAng=Math.atan2(bScreenY,bScreenX),bRot;
+            if(bAng>Math.PI/2){mesh.scale.x=-1;bRot=bAng-Math.PI;}
+            else if(bAng<-Math.PI/2){mesh.scale.x=-1;bRot=bAng+Math.PI;}
+            else{mesh.scale.x=1;bRot=bAng;}
+            updateTransitBuses._qz.setFromAxisAngle(updateTransitBuses._zAxis,bRot);
+            mesh.quaternion.multiply(updateTransitBuses._qz);
+          }
           rec.seen=2;
         }
         for(var id in transitBuses){
@@ -3082,7 +3110,7 @@
       var coarse=window.matchMedia&&window.matchMedia('(pointer:coarse)').matches;
       if(hint)hint.textContent=coarse?
         'Left stick walks (full tilt = run) \u00B7 drag to look around \u00B7 JUMP to hop (twice = double jump)':
-        'Arrow keys walk \u00B7 SHIFT jump (twice = double jump) \u00B7 SPACE interact \u00B7 CTRL sprint toggle \u00B7 Q punch \u00B7 W kick \u00B7 E throw \u00B7 R defense \u00B7 K skills \u00B7 drag to look \u00B7 ESC to leave';
+        'Arrow keys walk \u00B7 SHIFT jump (twice = double jump) \u00B7 SPACE interact \u00B7 CTRL sprint toggle \u00B7 Q punch \u00B7 W kick \u00B7 E 도구 인용 \u00B7 R defense \u00B7 K skills \u00B7 drag to look \u00B7 ESC to leave';
       cityPhasePanel.setAttribute('aria-hidden','false');
       document.getElementById('city-status').classList.add('is-city');
       document.body.classList.add('in-map');
@@ -3149,7 +3177,7 @@
     /* ================================================================
        Skill system — Keeper (the only class for now).
        No weapons exist yet, so the whole kit is unarmed: punch slash,
-       kick, and an ember throw. Each move carries its own damage, range,
+       kick, and a tool quotation. Each move carries its own damage, range,
        cooldown, arc effect and synthesized sound. MOVES is the single
        table new moves plug into later (weapons included, once forged).
        Skill points come from levels (EXP arrives with enemies); 3 starter
@@ -3163,9 +3191,9 @@
       kick:{name:'Kick',key:'W',icon:'🦵',color:0x7dfce6,css:'#7dfce6',
         dmg:13,range:2.8,cd:.65,arc:2.2,y:.6,
         desc:'A heavy kick. Slower, longer reach.'},
-      throw:{name:'Throw',key:'E',icon:'🔥',color:0xffb35c,css:'#ffb35c',
+      throw:{name:'도구 인용',key:'E',icon:'「」',art:'quote',color:0xffd76e,css:'#ffd76e',
         dmg:10,range:8,cd:.9,arc:1.6,y:1.3,proj:true,
-        desc:'Throw an ember. Flies straight, bursts on arrival.'},
+        desc:'Quote a tool from your knowledge. It flies forth and bursts on arrival.'},
       defense:{name:'Defense',key:'R',icon:'🛡️',color:0x9fe8b3,css:'#9fe8b3',
         dmg:0,range:0,cd:2.5,arc:0,y:1.0,guard:true,
         desc:'Raise your guard. Blocks while active.'}
@@ -3193,7 +3221,7 @@
       {id:'m_djump',name:'Double Jump',max:10,art:'djump',needNode:'m_jump',needRank:3,desc:'+2% double-jump velocity per rank. Requires Jump Lv 3.'},
       {id:'m_punch',name:'Punch',max:20,art:'punch',desc:'+5% Punch damage per rank.'},
       {id:'m_kick',name:'Kick',max:20,art:'kick',desc:'+5% Kick damage per rank.'},
-      {id:'m_throw',name:'Throw',max:20,art:'throw',desc:'+5% Throw damage per rank.'},
+      {id:'m_throw',name:'도구 인용',max:20,art:'quote',desc:'+5% damage per rank.'},
       {id:'m_defense',name:'Defense',max:20,art:'defense',desc:'+0.06s guard duration per rank.'},
       {id:'swift',name:'Swift Forge',max:5,need:2,art:'swift',desc:'+5% attack speed per rank.'},
       {id:'reach',name:'Long Reach',max:3,need:2,art:'reach',desc:'+7% range per rank.'},
@@ -3269,6 +3297,10 @@
         }else if(art==='reach'){
           R(2,7,8,2,'#7dfce6');R(2,7,8,1,'#d8fff9');
           R(10,5,2,6,'#7dfce6');R(12,6,2,4,'#7dfce6');R(14,7,1,2,'#e8fffd');
+        }else if(art==='quote'){
+          R(4,4,2,8,'#ffd76e');R(4,4,4,2,'#ffd76e');
+          R(10,4,2,8,'#ffd76e');R(8,10,4,2,'#ffd76e');
+          R(7,7,2,2,'#fff3b0');
         }else if(art==='walk'){
           R(7,6,3,5,'#8a5a33');R(6,10,5,2,'#a06a3c');R(6,12,5,1,'#4e3018');
           R(2,7,3,1,'#7dfce6');R(1,10,4,1,'#7dfce6');
@@ -3441,7 +3473,7 @@
       for(i=fxPool.length-1;i>=0;i--){
         var f=fxPool[i];f.t+=dt;var k=f.t/f.life;
         if(k>=1){
-          /* Thrown ember bursts where it lands. */
+          /* Cited tool bursts where it lands. */
           if(f.proj)spawnFlash(f.mat.color,0,f.grp.position.x,f.grp.position.z,f.grp.position.y);
           mapScene.remove(f.grp);
           if(f.geo)f.geo.dispose();
@@ -3714,7 +3746,7 @@
           b.type='button';b.className='move-slot'+(s.move?'':' is-locked');b.id='slot-'+s.key;
           if(s.move){
             var m=MOVES[s.move];
-            var sic=pxIcon(s.move);
+            var sic=pxIcon(m.art||s.move);
             b.setAttribute('aria-label',m.name+', key '+s.key.toUpperCase());
             b.innerHTML='<span class="key">'+s.key.toUpperCase()+'</span>'+
               '<span class="sicon">'+(sic?'<img alt="" src="'+sic+'">':m.icon)+'</span>'+
