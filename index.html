@@ -2522,11 +2522,14 @@
             tex.anisotropy=4;
             tex.colorSpace=THREE.SRGBColorSpace;
             var smat=new THREE.MeshLambertMaterial({map:tex});
-            var smesh=new THREE.Mesh(new THREE.PlaneGeometry(w,h),smat);
+            /* 32x32 segments for globe curvature (Han 2026-10-10 #3) */
+            var smesh=new THREE.Mesh(new THREE.PlaneGeometry(w,h,32,32),smat);
             smesh.rotation.x=-Math.PI/2;
             smesh.position.set((satBounds.x0+satBounds.x1)/2,0.035,(satBounds.z0+satBounds.z1)/2);
             smesh.receiveShadow=true;
             smesh.frustumCulled=false;
+            /* Apply globe curve */
+            if(typeof curvePatch==='function')curvePatch(smat);
             mapScene.add(smesh);
             window.__satelliteReady=true;
             window.__satTexSize=tex.image.width+'x'+tex.image.height;
@@ -3367,8 +3370,100 @@
       /* The walker. */
       var av=buildWalkerAvatar();
       mapScene.add(av.group);mapScene.add(av.shadow);
-      walkPlayer={av:av,pos:new THREE.Vector3(19,.05,-57),velY:0,onGround:true,jumps:0,faceY:.5,bobT:0,moving:false};
+      walkPlayer={av:av,pos:new THREE.Vector3(19,.05,-57),velY:0,onGround:true,jumps:0,faceY:.5,bobT:0,moving:false,flying:false,vehicle:null};
       av.shadow.position.set(19,.03,-57);
+    }
+    /* Han 2026-10-10 #8: Fly vehicle (B key). Test version — will be paid feature.
+       Simple airplane from primitives. WASD move, Space up, Ctrl down, B dismount. */
+    function summonVehicle(){
+      if(!walkPlayer||!mapScene)return;
+      if(walkPlayer.flying){
+        /* Dismount */
+        dismountVehicle();
+        return;
+      }
+      /* Build simple airplane */
+      var grp=new THREE.Group();
+      var mat=new THREE.MeshLambertMaterial({color:0x4f7ed9});
+      /* Fuselage */
+      var fus=new THREE.Mesh(new THREE.BoxGeometry(1.2,1.2,5),mat);
+      grp.add(fus);
+      /* Wings */
+      var wing=new THREE.Mesh(new THREE.BoxGeometry(8,0.2,1.5),mat);
+      wing.position.z=0.5;
+      grp.add(wing);
+      /* Tail */
+      var tail=new THREE.Mesh(new THREE.BoxGeometry(0.2,1.5,1),mat);
+      tail.position.set(0,0.8,-2.2);
+      grp.add(tail);
+      /* Cockpit */
+      var cock=new THREE.Mesh(new THREE.SphereGeometry(0.6,12,12),
+        new THREE.MeshLambertMaterial({color:0xbcd6f5}));
+      cock.position.set(0,0.7,1);
+      grp.add(cock);
+      grp.position.copy(walkPlayer.pos);
+      grp.position.y+=2;
+      mapScene.add(grp);
+      walkPlayer.flying=true;
+      walkPlayer.vehicle=grp;
+      /* Hide character, show vehicle */
+      if(walkPlayer.av&&walkPlayer.av.group)walkPlayer.av.group.visible=false;
+      console.log('[Vehicle] Summoned airplane — WASD fly, SPACE up, CTRL down, B dismount');
+      var t=document.getElementById('toast');
+      if(t){t.textContent='✈️ Flying vehicle summoned (B to dismount)';t.classList.add('show');
+        clearTimeout(t._it);t._it=setTimeout(function(){t.classList.remove('show');},2500);}
+    }
+    function dismountVehicle(){
+      if(!walkPlayer||!walkPlayer.flying)return;
+      if(walkPlayer.vehicle){
+        mapScene.remove(walkPlayer.vehicle);
+        walkPlayer.vehicle=null;
+      }
+      walkPlayer.flying=false;
+      /* Land player at vehicle position (ground level) */
+      walkPlayer.pos.y=0.05;
+      walkPlayer.velY=0;
+      walkPlayer.onGround=true;
+      if(walkPlayer.av&&walkPlayer.av.group){
+        walkPlayer.av.group.visible=true;
+        walkPlayer.av.group.position.copy(walkPlayer.pos);
+      }
+      console.log('[Vehicle] Dismounted');
+    }
+    function updateVehicle(dt){
+      if(!walkPlayer||!walkPlayer.flying||!walkPlayer.vehicle)return;
+      var v=walkPlayer.vehicle;
+      var speed=25*dt; /* m/s */
+      var moved=false;
+      /* WASD movement (relative to camera yaw) */
+      var yaw=walkCamYaw;
+      var fx=-Math.sin(yaw),fz=-Math.cos(yaw); /* forward */
+      var rx=Math.cos(yaw),rz=-Math.sin(yaw); /* right */
+      if(walkKeys['w']||walkKeys['arrowup']){v.position.x+=fx*speed;v.position.z+=fz*speed;moved=true;}
+      if(walkKeys['s']||walkKeys['arrowdown']){v.position.x-=fx*speed;v.position.z-=fz*speed;moved=true;}
+      if(walkKeys['a']||walkKeys['arrowleft']){v.position.x-=rx*speed;v.position.z-=rz*speed;moved=true;}
+      if(walkKeys['d']||walkKeys['arrowright']){v.position.x+=rx*speed;v.position.z+=rz*speed;moved=true;}
+      /* Space up, Ctrl down */
+      if(walkKeys[' ']){v.position.y+=speed*0.7;moved=true;}
+      if(walkKeys['control']){v.position.y-=speed*0.7;moved=true;}
+      /* Clamp altitude */
+      v.position.y=Math.max(2,Math.min(300,v.position.y));
+      /* Clamp to 5km radius */
+      var d=Math.sqrt(v.position.x*v.position.x+v.position.z*v.position.z);
+      if(d>4950){
+        v.position.x*=4950/d;
+        v.position.z*=4950/d;
+      }
+      /* Update player pos to vehicle */
+      walkPlayer.pos.copy(v.position);
+      /* Face vehicle in movement direction */
+      if(moved){
+        var targetYaw=Math.atan2(fx,fz);
+        /* Simple lerp for smooth turning */
+        v.rotation.y+=(targetYaw-v.rotation.y)*0.1;
+      }
+      /* Banking on turn */
+      v.rotation.z=0;
     }
     /* QA #6 (2026-10-06): remember last location in localStorage (server sync later). */
     var LAST_POS_KEY='espil_last_pos';
@@ -3480,6 +3575,8 @@
         /* Translate so base is at y=0 (not centered) */
         bgeo.translate(0,0.5,0);
         var bmat=new THREE.MeshLambertMaterial({color:0xffffff});
+        /* Apply globe curve (Han 2026-10-10 #3) */
+        if(typeof curvePatch==='function')curvePatch(bmat);
         var inst=new THREE.InstancedMesh(bgeo,bmat,items.length);
         var m4=new THREE.Matrix4(),q=new THREE.Quaternion(),sv=new THREE.Vector3(),pv=new THREE.Vector3();
         var cc=new THREE.Color();
@@ -3537,8 +3634,11 @@
                    (Math.abs(A.x1-B.x1)<2&&Math.abs(A.z1-B.z1)<2);
         if(touch){A.nb.push(b);B.nb.push(a);}
       }
-      /* Rebuild traffic lights for OSM intersections (simplified: skip for now) */
-      /* Cars will use flow-based speed without lights initially */
+      /* Init car textures (was in skipped procedural block) */
+      if(typeof initCarTextures==='function'&&carTextures.length===0){
+        initCarTextures();
+        initCarTopTextures();
+      }
       if(typeof syncTrafficCars==='function')syncTrafficCars();
     }
     function chunkRNG(seed){
@@ -3998,9 +4098,24 @@
         walkPlayer.av.playOneShot(useCheckout?'checkout':'chat');
       }
       if(nearBldg){
-        /* #12: fetch nearby stores, show selection modal */
+        /* Han 2026-10-10: Only work at real stores, not all buildings */
         fetchNearbyStores(nearBldg,function(stores){
-          showStoreModal(stores);
+          if(stores&&stores.length>0){
+            showStoreModal(stores);
+          }else{
+            /* Not a store — show toast */
+            var t=document.getElementById('toast');
+            if(t){
+              var msg='Not a store';
+              if(GOOGLE_PLACES_KEY.indexOf('__PUT_')===0){
+                msg='Store data unavailable (API key needed)';
+              }
+              t.textContent=msg;
+              t.classList.add('show');
+              clearTimeout(t._it);
+              t._it=setTimeout(function(){t.classList.remove('show');},2000);
+            }
+          }
         });
         if(window.EspilAudio&&window.EspilAudio.tick)window.EspilAudio.tick();
       }
@@ -4802,6 +4917,10 @@
       if(k===' '&&!e.repeat)tryInteract();
       /* QA #15 (2026-10-06): Ctrl toggles sprint on/off. */
       if(k==='Control'&&!e.repeat){sprintOn=!sprintOn;updateSprintUI();}
+      /* Han 2026-10-10 #8: B summons/dismounts fly vehicle */
+      if(k.toLowerCase()==='b'&&!e.repeat){
+        if(typeof summonVehicle==='function')summonVehicle();
+      }
       /* Skill slots: QWER row, then ASDF row (1-4 are item slots — UI room).
          K opens the skill tree. */
       var ae=document.activeElement,atag=(ae&&ae.tagName)||'';
@@ -4874,6 +4993,13 @@
     function updateWalkMap(dt,t){
       var p=walkPlayer;
       if(!p)return;
+      /* Han 2026-10-10 #8: Vehicle mode — skip normal movement */
+      if(p.flying){
+        if(typeof updateVehicle==='function')updateVehicle(dt);
+        /* Update camera to follow vehicle */
+        if(typeof updateWalkCamera==='function')updateWalkCamera(dt);
+        return;
+      }
       updateDnaImprint(dt);
       /* --- input: keys + touch stick, relative to camera yaw --- */
       var ix=0,iz=0;
