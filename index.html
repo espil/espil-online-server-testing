@@ -3057,13 +3057,10 @@
       var palette=[0x8fa3b8,0x9aa5a8,0xb0a897,0x7d8b99,0xa89a8c,0x6f7f8e,0x93a7bb,0x8794a0];
       var bldgMatCache={};
       function bldgMat(color){
-        /* Han 2026-10-09: buildings glow slightly at night */
+        /* Han 2026-10-10: MeshBasicMaterial (unlit) — always visible, day or night */
         var key='b'+color, m=bldgMatCache[key];
         if(!m){
-          m=new THREE.MeshLambertMaterial({color:color});
-          m.emissive=new THREE.Color(color);
-          m.emissiveIntensity=0.4;
-          /* Note: no curveShader — keeps lighting simple and visible */
+          m=new THREE.MeshBasicMaterial({color:color});
           bldgMatCache[key]=m;
         }
         return m;
@@ -3399,11 +3396,8 @@
         if(items.length>0){
           var bgeo=new THREE.BoxGeometry(1,1,1);
           bgeo.translate(0,.5,0); /* pivot at base */
-          var bmat=new THREE.MeshLambertMaterial({color:0xffffff});
-          /* Han 2026-10-10: emissive so chunk buildings visible at night */
-          bmat.emissive=new THREE.Color(0xffffff);
-          bmat.emissiveIntensity=0.18;
-          curvePatch(bmat);
+          /* Han 2026-10-10: MeshBasicMaterial (unlit) — always visible */
+          var bmat=new THREE.MeshBasicMaterial({color:0xffffff});
           var inst=new THREE.InstancedMesh(bgeo,bmat,items.length);
           var m4=new THREE.Matrix4(),q=new THREE.Quaternion(),sv=new THREE.Vector3(),pv=new THREE.Vector3();
           var cc=new THREE.Color();
@@ -5418,7 +5412,8 @@
       var el=document.getElementById('minimap');
       if(!el)return;
       leafletMap=L.map('minimap',{zoomControl:false,attributionControl:false}).setView([MAP_CENTER_LAT,MAP_CENTER_LNG],16);
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(leafletMap);
+      /* Han 2026-10-10: CartoDB Voyager (more reliable than OSM tile server for apps) */
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{maxZoom:19,subdomains:'abcd'}).addTo(leafletMap);
       playerMarker=L.circleMarker([MAP_CENTER_LAT,MAP_CENTER_LNG],{radius:8,color:'#ffd97a',fillColor:'#ffd97a',fillOpacity:1}).addTo(leafletMap);
     }
     function updateLeafletMap(){
