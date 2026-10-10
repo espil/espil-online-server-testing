@@ -226,7 +226,7 @@
       top:18px;
       left:50%;
       transform:translateX(-50%) translateY(0);
-      z-index:40;
+      z-index:200; /* Han: above store modal, always at top */
       background:rgba(8,16,26,.78);
       color:#eaf6ff;
       padding:10px 24px;
@@ -2595,6 +2595,11 @@
         if(!fm){
           var ftex=new THREE.TextureLoader().load('assets/props/facades/'+file);
           var fside=new THREE.MeshLambertMaterial({map:ftex});
+          /* Han 2026-10-09: slight emissive so buildings are visible at night
+             (placeholder until real window lights are implemented) */
+          fside.emissive=new THREE.Color(0x222831);
+          fside.emissiveMap=ftex;
+          fside.emissiveIntensity=0.35;
           curvePatch(fside);
           var froof=curvedMat(roofColor);
           fm=[fside,fside,froof,froof,fside,fside]; /* +x,-x,+y,-y,+z,-z */
