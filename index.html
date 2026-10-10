@@ -2494,49 +2494,41 @@
       window.__satelliteReady=false;
       (function loadSatellite(){
         var url='assets/ground/satellite_z15.jpg';
-        fetch(url).then(function(resp){
-          if(!resp.ok)throw new Error('HTTP '+resp.status);
-          var total=resp.headers.get('Content-Length');
-          total=total?parseInt(total,10):2900000;
-          var loaded=0;
-          var reader=resp.body.getReader();
-          var chunks=[];
-          function pump(){
-            return reader.read().then(function(r){
-              if(r.done){
-                var blob=new Blob(chunks,{type:'image/jpeg'});
-                var objUrl=URL.createObjectURL(blob);
-                var tex=new THREE.TextureLoader().load(objUrl,function(){
-                  URL.revokeObjectURL(objUrl);
-                });
-                tex.anisotropy=4;
-                tex.colorSpace=THREE.SRGBColorSpace;
-                var w=satBounds.x1-satBounds.x0,h=satBounds.z1-satBounds.z0;
-                var smat=new THREE.MeshLambertMaterial({map:tex});
-                curvePatch(smat);
-                var smesh=new THREE.Mesh(new THREE.PlaneGeometry(w,h),smat);
-                smesh.rotation.x=-Math.PI/2;
-                /* y=0.035: above chunk grounds (0.03) and base (0), below downtown pads (0.04) */
-                smesh.position.set((satBounds.x0+satBounds.x1)/2,0.035,(satBounds.z0+satBounds.z1)/2);
-                smesh.receiveShadow=true;
-                mapScene.add(smesh);
-                window.__satelliteReady=true;
-                if(window.__satelliteProgress)window.__satelliteProgress(100);
-                console.log('[Satellite] Loaded');
-              }else{
-                chunks.push(r.value);
-                loaded+=r.value.length;
-                var pct=Math.min(99,Math.round(loaded/total*100));
-                if(window.__satelliteProgress)window.__satelliteProgress(pct);
-                return pump();
-              }
-            });
+        var w=satBounds.x1-satBounds.x0,h=satBounds.z1-satBounds.z0;
+        /* Create mesh with placeholder material first */
+        var smat=new THREE.MeshLambertMaterial({color:0x6a7a5a});
+        var smesh=new THREE.Mesh(new THREE.PlaneGeometry(w,h),smat);
+        smesh.rotation.x=-Math.PI/2;
+        smesh.position.set((satBounds.x0+satBounds.x1)/2,0.035,(satBounds.z0+satBounds.z1)/2);
+        smesh.receiveShadow=true;
+        smesh.frustumCulled=false;
+        mapScene.add(smesh);
+        /* Load texture directly with progress */
+        new THREE.TextureLoader().load(url,
+          function(tex){
+            /* onLoad */
+            tex.anisotropy=4;
+            tex.colorSpace=THREE.SRGBColorSpace;
+            smat.map=tex;
+            smat.color.set(0xffffff);
+            smat.needsUpdate=true;
+            window.__satelliteReady=true;
+            if(window.__satelliteProgress)window.__satelliteProgress(100);
+            console.log('[Satellite] Loaded');
+          },
+          function(prog){
+            /* onProgress */
+            if(prog.total>0){
+              var pct=Math.min(99,Math.round(prog.loaded/prog.total*100));
+              if(window.__satelliteProgress)window.__satelliteProgress(pct);
+            }
+          },
+          function(err){
+            /* onError */
+            console.error('[Satellite] Failed:',err);
+            if(window.__satelliteProgress)window.__satelliteProgress(-1);
           }
-          return pump();
-        }).catch(function(e){
-          console.warn('[Satellite] Failed to load:',e);
-          if(window.__satelliteProgress)window.__satelliteProgress(-1);
-        });
+        );
       })();
       /* Esri attribution (required) */
       (function addSatAttribution(){
