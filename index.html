@@ -5534,8 +5534,8 @@
       var el=document.getElementById('minimap');
       if(!el)return;
       leafletMap=L.map('minimap',{zoomControl:false,attributionControl:false}).setView([MAP_CENTER_LAT,MAP_CENTER_LNG],16);
-      /* Han 2026-10-10: CartoDB Voyager (more reliable than OSM tile server for apps) */
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{maxZoom:19,subdomains:'abcd'}).addTo(leafletMap);
+      /* OSM standard tiles (no API key required) */
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(leafletMap);
       playerMarker=L.circleMarker([MAP_CENTER_LAT,MAP_CENTER_LNG],{radius:8,color:'#ffd97a',fillColor:'#ffd97a',fillOpacity:1}).addTo(leafletMap);
     }
     function updateLeafletMap(){
