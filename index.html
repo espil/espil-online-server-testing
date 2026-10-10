@@ -2320,29 +2320,32 @@
         s.beam=s.helix=s.ring=null;s.ambient=true;
       }
     }
+    /* Han 2026-10-10: jump/double/land SFX go file-based (replaces the old
+       WebAudio synth blips). Files: assets/sfx/movement/jump_whoosh.wav etc. */
+    var JUMP_SFX_SRC={jump:'assets/sfx/movement/jump_whoosh.wav',double:'assets/sfx/movement/double_whoosh.wav',land:'assets/sfx/movement/land_thud.wav'};
+    var jumpSfxCache={};
     function walkSfx(kind){
       try{
-        if(!walkAudioCtx)walkAudioCtx=new (window.AudioContext||window.webkitAudioContext)();
-        if(walkAudioCtx.state==='suspended')walkAudioCtx.resume();
-        var ctx=walkAudioCtx,t=ctx.currentTime;
-        var o=ctx.createOscillator(),g=ctx.createGain();
-        o.connect(g);g.connect(ctx.destination);
-        if(kind==='jump'){o.type='sine';o.frequency.setValueAtTime(300,t);o.frequency.exponentialRampToValueAtTime(640,t+.13);g.gain.setValueAtTime(.11,t);g.gain.exponentialRampToValueAtTime(.001,t+.17);}
-        else if(kind==='double'){o.type='sine';o.frequency.setValueAtTime(420,t);o.frequency.exponentialRampToValueAtTime(880,t+.13);g.gain.setValueAtTime(.1,t);g.gain.exponentialRampToValueAtTime(.001,t+.17);}
-        else{/* land */o.type='triangle';o.frequency.setValueAtTime(150,t);o.frequency.exponentialRampToValueAtTime(65,t+.1);g.gain.setValueAtTime(.09,t);g.gain.exponentialRampToValueAtTime(.001,t+.13);}
-        o.start(t);o.stop(t+.22);
+        var src=JUMP_SFX_SRC[kind]||JUMP_SFX_SRC.land;
+        if(!jumpSfxCache[kind]){
+          var a=new Audio(src); a.preload='auto'; a.volume=.5;
+          jumpSfxCache[kind]=a;
+        }
+        /* Clone for overlap (double-jump chains, quick landings). */
+        var c=jumpSfxCache[kind].cloneNode(); c.volume=.5; c.play().catch(function(){});
       }catch(e){}
     }
-    /* QA #12 (2026-10-06): footstep SFX — walk=snow crunch, run=leaves crunch.
-       Files: assets/sfx/footsteps/walk_snow.wav, run_leaves.wav */
+    /* Footstep SFX — Han 2026-10-10: walk/run replaced with pavement steps
+       (was snow crunch / leaf crunch per 2026-10-06).
+       Files: assets/sfx/movement/walk_pavement.wav, run_pavement.wav */
     var stepAudioWalk=null, stepAudioRun=null;
     function ensureStepAudio(){
       if(!stepAudioWalk){
-        stepAudioWalk=new Audio('assets/sfx/footsteps/walk_snow.wav');
+        stepAudioWalk=new Audio('assets/sfx/movement/walk_pavement.wav');
         stepAudioWalk.preload='auto'; stepAudioWalk.volume=.5;
       }
       if(!stepAudioRun){
-        stepAudioRun=new Audio('assets/sfx/footsteps/run_leaves.wav');
+        stepAudioRun=new Audio('assets/sfx/movement/run_pavement.wav');
         stepAudioRun.preload='auto'; stepAudioRun.volume=.5;
       }
     }
