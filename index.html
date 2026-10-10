@@ -1930,8 +1930,10 @@
        - English Bay: x < -2500 (west side)
        Global helper — used by updateWalkMap AND the chunk generator. */
     function isWaterAt(x,z){
-      if(z<WATER_Z)return true; /* harbor + inlet */
-      if(x<-2500)return true; /* English Bay */
+      /* Real OSM water positions (Han 2026-10-10 rebuild) */
+      if(z<-4350&&x>-1392&&x<561)return true; /* Burrard Inlet */
+      if(x<-2000)return true; /* English Bay / Strait of Georgia */
+      if(x>-1500&&x<400&&z>100&&z<1700)return true; /* False Creek */
       return false;
     }
     var walkPlayer=null,walkColliders=[];
@@ -2480,8 +2482,17 @@
     }
     function buildWalkMapOnce(){
       if(mapBuilt)return;mapBuilt=true;
-      /* #8: Start loading OSM real building data (async, chunks refresh when ready) */
+      /* #8: Start loading OSM real building data */
       if(typeof loadOsmChunks==='function')loadOsmChunks();
+      /* Han 2026-10-10 rebuild: Build OSM city when data ready */
+      var osmBuildTimer=setInterval(function(){
+        if(typeof osmChunks!=='undefined'&&osmChunks&&typeof buildOsmCity==='function'){
+          clearInterval(osmBuildTimer);
+          buildOsmCity();
+        }
+      },500);
+      /* Timeout after 10s */
+      setTimeout(function(){clearInterval(osmBuildTimer);},10000);
       mapScene=new THREE.Scene();
       mapScene.fog=new THREE.Fog(0x9ec8e8,200,1500);
       /* 5km city base ground: 10km x 10km plane at y=0, below downtown pads (.04)
@@ -2640,6 +2651,9 @@
       var lawnMat=curvedMat(0x7fae62);
       var padMat=curvedMat(0xb9c1ac);
       var BLOCK=26,STREET=12,HALF=101;
+      /* Han 2026-10-10 rebuild: Skip procedural grid, use OSM data instead */
+      var USE_OSM_REBUILD=true;
+      if(!USE_OSM_REBUILD){
       var streetC=[-95,-57,-19,19,57,95],blockC=[-76,-38,0,38,76];
       var si;
       for(si=0;si<streetC.length;si++){
@@ -3349,6 +3363,7 @@
       /* QA #10 (2026-10-06): Genshin-style invisible walls — direct clamping instead of
          huge collider boxes (which caused far-side teleport when moving inward). */
       /* (Boundary walls removed; clamping applied in updateWalkMap after collision.) */
+      } /* end if(!USE_OSM_REBUILD) — procedural grid skipped */
       /* The walker. */
       var av=buildWalkerAvatar();
       mapScene.add(av.group);mapScene.add(av.shadow);
@@ -3417,6 +3432,113 @@
         generateChunk(cx,cz);
       });
       if(toRefresh.length>0)console.log('[OSM] Refreshed '+toRefresh.length+' chunks with real data');
+    }
+    /* Han 2026-10-10 rebuild: Build entire OSM city at once (no procedural grid).
+       Real buildings, real positions, real heights. 2km radius for 3D. */
+    var osmCityBuilt=false;
+    function buildOsmCity(){
+      if(osmCityBuilt)return;
+      osmCityBuilt=true;
+      if(!osmChunks){
+        console.warn('[OSM City] No chunk data, retrying in 1s');
+        setTimeout(buildOsmCity,1000);
+        return;
+      }
+      console.log('[OSM City] Building from real OSM data…');
+      var palette=[0x8fa3b8,0x9aa5a8,0xb0a897,0x7d8b99,0xa89a8c,0x6f7f8e,0x93a7bb,0x8794a0];
+      var items=[]; /* {x,z,w,d,h,color} */
+      var RADIUS=2000; /* 2km radius for 3D buildings */
+
+      for(var key in osmChunks){
+        var c=osmChunks[key];
+        if(!c.b)continue;
+        for(var i=0;i<c.b.length;i++){
+          var b=c.b[i];
+          var bx=b[0],bz=b[1],bw=b[2],bd=b[3],bh=b[4];
+          var dist=Math.sqrt(bx*bx+bz*bz);
+          if(dist>RADIUS)continue;
+          if(isWaterAt(bx,bz))continue;
+          /* Skip tiny sheds */
+          if(bw<3||bd<3)continue;
+          var col=palette[(i*7)%palette.length];
+          items.push({x:bx,z:bz,w:bw,d:bd,h:bh,color:col});
+          /* Collider */
+          walkColliders.push({x0:bx-bw/2,x1:bx+bw/2,z0:bz-bd/2,z1:bz+bd/2,bottom:0,top:bh});
+          /* Proximity */
+          if(typeof mapBuildings!=='undefined'){
+            mapBuildings.push({x:bx,z:bz,w:bw,d:bd,h:bh,name:null,osm:true});
+          }
+        }
+      }
+
+      console.log('[OSM City] '+items.length+' buildings within 2km');
+
+      /* InstancedMesh: one draw call for all buildings */
+      if(items.length>0){
+        var bgeo=new THREE.BoxGeometry(1,1,1);
+        /* Translate so base is at y=0 (not centered) */
+        bgeo.translate(0,0.5,0);
+        var bmat=new THREE.MeshLambertMaterial({color:0xffffff});
+        var inst=new THREE.InstancedMesh(bgeo,bmat,items.length);
+        var m4=new THREE.Matrix4(),q=new THREE.Quaternion(),sv=new THREE.Vector3(),pv=new THREE.Vector3();
+        var cc=new THREE.Color();
+        for(var j=0;j<items.length;j++){
+          var it=items[j];
+          pv.set(it.x,0,it.z);
+          sv.set(it.w,it.h,it.d);
+          q.identity();
+          m4.compose(pv,q,sv);
+          inst.setMatrixAt(j,m4);
+          inst.setColorAt(j,cc.setHex(it.color));
+        }
+        inst.instanceMatrix.needsUpdate=true;
+        if(inst.instanceColor)inst.instanceColor.needsUpdate=true;
+        inst.castShadow=true;
+        inst.receiveShadow=true;
+        mapScene.add(inst);
+      }
+
+      /* Build traffic on OSM roads */
+      buildOsmTraffic();
+    }
+    function buildOsmTraffic(){
+      /* Clear existing procedural segments */
+      trafficSegs.length=0;
+      if(!osmChunks)return;
+      var RADIUS=1500; /* traffic within 1.5km */
+      var count=0;
+      for(var key in osmChunks){
+        var c=osmChunks[key];
+        if(!c.r)continue;
+        for(var i=0;i<c.r.length;i++){
+          var r=c.r[i];
+          var x1=r[0],z1=r[1],x2=r[2],z2=r[3];
+          var mx=(x1+x2)/2,mz=(z1+z2)/2;
+          if(Math.sqrt(mx*mx+mz*mz)>RADIUS)continue;
+          if(isWaterAt(mx,mz))continue;
+          var len=Math.hypot(x2-x1,z2-z1);
+          if(len<10||len>500)continue; /* skip tiny/fake segments */
+          trafficSegs.push({
+            x1:x1,z1:z1,x2:x2,z2:z2,
+            flow:.45+Math.random()*.55,
+            mesh:null,nb:[]
+          });
+          count++;
+        }
+      }
+      console.log('[OSM Traffic] '+count+' segments from real roads');
+      /* Build neighbor links (for flow propagation) */
+      for(var a=0;a<trafficSegs.length;a++)for(var b=a+1;b<trafficSegs.length;b++){
+        var A=trafficSegs[a],B=trafficSegs[b];
+        var touch=(Math.abs(A.x2-B.x1)<2&&Math.abs(A.z2-B.z1)<2)||
+                   (Math.abs(A.x1-B.x2)<2&&Math.abs(A.z1-B.z2)<2)||
+                   (Math.abs(A.x2-B.x2)<2&&Math.abs(A.z2-B.z2)<2)||
+                   (Math.abs(A.x1-B.x1)<2&&Math.abs(A.z1-B.z1)<2);
+        if(touch){A.nb.push(b);B.nb.push(a);}
+      }
+      /* Rebuild traffic lights for OSM intersections (simplified: skip for now) */
+      /* Cars will use flow-based speed without lights initially */
+      if(typeof syncTrafficCars==='function')syncTrafficCars();
     }
     function chunkRNG(seed){
       var s=seed>>>0;
