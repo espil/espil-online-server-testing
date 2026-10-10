@@ -406,21 +406,42 @@
     .ms-hp > i { background:linear-gradient(90deg,#ff5f6d,#ff9a5a); width:100%; }
     .ms-mp > i { background:linear-gradient(90deg,#3fa7ff,#7dfce6); width:100%; }
     /* QA #7 (2026-10-09): minimap top-right, player-centered. */
-    #minimap {
+    /* Han 2026-10-09: 3-stage map (minimap → district → fullscreen), OSM tiles, +/- zoom, M key cycles. */
+    #minimap-wrap {
       position:fixed; z-index:30; top:calc(64px + env(safe-area-inset-top)); right:14px;
-      width:140px; height:140px; border-radius:50%;
+      width:140px; height:140px; border-radius:50%; overflow:hidden;
       border:2px solid rgba(134,238,228,.4);
-      background:rgba(4,16,20,.7); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);
+      background:rgba(4,16,20,.7);
       box-shadow:0 0 18px rgba(80,232,220,.15);
-      pointer-events:none;
+      transition:width .3s, height .3s, border-radius .3s;
     }
-    body:not(.in-map) #minimap { display:none !important; }
+    #minimap-wrap[data-stage="2"] {
+      width:min(430px,calc(100vw - 32px)); height:min(330px,calc(100vh - 32px)); border-radius:18px;
+    }
+    #minimap-wrap[data-stage="3"] {
+      top:0; right:0; width:100vw; height:100vh; border-radius:0; border:none; z-index:70;
+    }
+    #minimap { width:100%; height:100%; }
+    #minimap-wrap[data-stage="1"] .map-zoom-controls { display:none; }
+    .map-zoom-controls {
+      position:absolute; z-index:10; right:8px; top:8px; display:flex; gap:6px;
+    }
+    .map-zoom-btn {
+      width:32px; height:32px; border-radius:50%; border:1px solid rgba(134,238,228,.5);
+      background:rgba(4,16,20,.8); color:#ddfffc; font:700 18px/1 "Manrope",sans-serif;
+      cursor:pointer; display:grid; place-items:center;
+    }
+    .map-zoom-btn:hover { background:rgba(134,238,228,.2); }
+    body:not(.in-map) #minimap-wrap { display:none !important; }
     /* QA hotbar (2026-10-08): desktop = keyboard layout (1234/QWER/ASDF) + menu keys on right. */
+    /* Han 2026-10-09: left/right split — keyboard left, menu right (center clear for interact UI). */
     .skill-bar {
-      position:fixed; z-index:30; left:50%; bottom:calc(14px + env(safe-area-inset-bottom));
-      transform:translateX(-50%); font-family:"Manrope",sans-serif;
-      display:flex; gap:10px; align-items:flex-end; justify-content:center;
+      position:fixed; z-index:30; left:0; right:0; bottom:calc(14px + env(safe-area-inset-bottom));
+      font-family:"Manrope",sans-serif;
+      display:flex; gap:10px; align-items:flex-end; justify-content:space-between;
+      padding:0 14px; pointer-events:none;
     }
+    .skill-bar > * { pointer-events:auto; }
     .kb-main { display:flex; flex-direction:column; gap:5px; }
     #item-row { display:flex; gap:5px; }
     #move-row { display:grid; grid-template-columns:repeat(4, 44px); gap:5px; }
@@ -428,7 +449,7 @@
     .kb-menu .move-slot { border-radius:12px; }
     /* Mobile: keep pre-hotbar layout (not keyboard, not single-row hotbar). */
     @media (pointer:coarse) {
-      .skill-bar { display:block; bottom:calc(86px + env(safe-area-inset-bottom)); }
+      .skill-bar { display:block; left:50%; right:auto; transform:translateX(-50%); bottom:calc(86px + env(safe-area-inset-bottom)); padding:0; }
       #move-row { display:grid; grid-template-columns:repeat(4, 44px); gap:5px; }
       #item-row { display:flex; gap:5px; margin-top:5px; }
       .kb-menu { display:none; }
@@ -883,6 +904,8 @@
       transition:opacity 1s ease;}
     #dna-flash.on{opacity:1;transition:opacity .22s ease;}
   </style>
+  <!-- Leaflet for 3-stage map (QA #7, 2026-10-09) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body>
   <div class="intro" id="intro" role="button" tabindex="0" aria-label="Enter Espil Online">
@@ -1049,8 +1072,14 @@
       <div class="ms-label"><span>MP</span><span id="ms-mp-t">50/50</span></div>
       <div class="ms-bar ms-mp"><i id="ms-mp"></i></div>
     </div>
-    <!-- QA #7 (2026-10-09): minimap, player-centered. -->
-    <canvas id="minimap" width="280" height="280" aria-label="Minimap"></canvas>
+    <!-- QA #7 (2026-10-09): 3-stage map (minimap → district → fullscreen), OSM tiles. -->
+    <div id="minimap-wrap" data-stage="1" aria-label="Map">
+      <div id="minimap"></div>
+      <div class="map-zoom-controls">
+        <button class="map-zoom-btn" id="map-zoom-out" type="button" aria-label="Zoom out">−</button>
+        <button class="map-zoom-btn" id="map-zoom-in" type="button" aria-label="Zoom in">+</button>
+      </div>
+    </div>
     <div class="skill-bar" id="skill-bar" aria-hidden="true">
       <div class="kb-main">
         <!-- QA #13 (UI room, 2026-10-06): 1234 item bar. -->
@@ -1127,6 +1156,7 @@
     <span class="sr-only">Drag to orbit the camera around the fixed Earth. Scroll to move closer or farther away. Select a city landmark or city name to approach its boundary in a tilted, forward-looking navigation view.</span>
   </main>
 
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="assets/three.min.js"></script>
   <script src="assets/GLTFLoader.js"></script>
   <script>
@@ -2454,6 +2484,70 @@
       baseGround.position.set(0,0,0);
       baseGround.receiveShadow=true;
       mapScene.add(baseGround);
+      /* #8b (Asset room 2026-10-09): Esri World Imagery satellite ground.
+         Covers x:-5008~5356, z:-5521~4854. Replaces procedural grass/cobble/water/roads. */
+      var satBounds={x0:-5008,x1:5356,z0:-5521,z1:4854};
+      window.__satelliteReady=false;
+      (function loadSatellite(){
+        var url='assets/ground/satellite_z15.jpg';
+        fetch(url).then(function(resp){
+          if(!resp.ok)throw new Error('HTTP '+resp.status);
+          var total=resp.headers.get('Content-Length');
+          total=total?parseInt(total,10):2900000;
+          var loaded=0;
+          var reader=resp.body.getReader();
+          var chunks=[];
+          function pump(){
+            return reader.read().then(function(r){
+              if(r.done){
+                var blob=new Blob(chunks,{type:'image/jpeg'});
+                var objUrl=URL.createObjectURL(blob);
+                var tex=new THREE.TextureLoader().load(objUrl,function(){
+                  URL.revokeObjectURL(objUrl);
+                });
+                tex.anisotropy=4;
+                tex.colorSpace=THREE.SRGBColorSpace;
+                var w=satBounds.x1-satBounds.x0,h=satBounds.z1-satBounds.z0;
+                var smat=new THREE.MeshLambertMaterial({map:tex});
+                curvePatch(smat);
+                var smesh=new THREE.Mesh(new THREE.PlaneGeometry(w,h),smat);
+                smesh.rotation.x=-Math.PI/2;
+                smesh.position.set((satBounds.x0+satBounds.x1)/2,0.02,(satBounds.z0+satBounds.z1)/2);
+                smesh.receiveShadow=true;
+                mapScene.add(smesh);
+                window.__satelliteReady=true;
+                if(window.__satelliteProgress)window.__satelliteProgress(100);
+                console.log('[Satellite] Loaded');
+              }else{
+                chunks.push(r.value);
+                loaded+=r.value.length;
+                var pct=Math.min(99,Math.round(loaded/total*100));
+                if(window.__satelliteProgress)window.__satelliteProgress(pct);
+                return pump();
+              }
+            });
+          }
+          return pump();
+        }).catch(function(e){
+          console.warn('[Satellite] Failed to load:',e);
+          if(window.__satelliteProgress)window.__satelliteProgress(-1);
+        });
+      })();
+      /* Esri attribution (required) */
+      (function addSatAttribution(){
+        var div=document.createElement('div');
+        div.id='sat-attribution';
+        div.textContent='Imagery © Esri World Imagery';
+        div.style.cssText='position:fixed;bottom:8px;right:10px;z-index:35;'+
+          'font:500 .65rem "Manrope",sans-serif;color:rgba(255,255,255,.55);'+
+          'text-shadow:0 1px 3px rgba(0,0,0,.7);pointer-events:none;display:none;';
+        document.body.appendChild(div);
+        /* Show only in map */
+        var obs=new MutationObserver(function(){
+          div.style.display=document.body.classList.contains('in-map')?'block':'none';
+        });
+        obs.observe(document.body,{attributes:true,attributeFilter:['class']});
+      })();
       /* The landing's real sky: sun-driven shader dome (daylight through twilight to night).
          Plus real-time moon (opposite the sun = full moon, rises at sunset) and
          procedural stars that fade in at night (Han 2026-10-05). */
@@ -2545,18 +2639,24 @@
            east-west "Georgia St" (z=19, idx 3), north-south "Kingsway" (x=-19, idx 2).
            All other streets are flat grass lawns. */
         var isMajorH=(si===3), isMajorV=(si===2);
+        /* #8b: Satellite shows real roads — stylized road planes removed */
+        /*
         var rz=new THREE.Mesh(new THREE.PlaneGeometry(HALF*2,STREET,48,4),isMajorH?roadMatH4:lawnMat);
         rz.rotation.x=-Math.PI/2;rz.position.set(0,.02,streetC[si]);rz.receiveShadow=true;mapScene.add(rz);
         var rx=new THREE.Mesh(new THREE.PlaneGeometry(STREET,HALF*2,4,48),isMajorV?roadMatV4:lawnMat);
         rx.rotation.x=-Math.PI/2;rx.position.set(streetC[si],.021,0);rx.receiveShadow=true;mapScene.add(rx);
+        */
       }
       /* Intersection squares: asphalt only where a major avenue crosses (keeps it continuous);
          all minor-minor crossings are lawn. */
       for(var xi=0;xi<streetC.length;xi++)for(var xj=0;xj<streetC.length;xj++){
+        /* #8b: Satellite shows real roads — intersection planes removed */
+        /*
         var majorXing=(xi===2||xj===3);
         var ix=new THREE.Mesh(new THREE.PlaneGeometry(STREET,STREET,4,4),majorXing?roadMatX:lawnMat);
         ix.rotation.x=-Math.PI/2;ix.position.set(streetC[xi],.022,streetC[xj]);
         ix.receiveShadow=true;mapScene.add(ix);
+        */
       }
       /* Narrow alleys through block centers (Han 2026-10-05 — more interesting blocks).
          4-unit plain asphalt strips; buildings may partially overlap (colliders handle it). */
@@ -2773,9 +2873,12 @@
             if(useTop){
               /* Top view: rotate freely, nose (+x) follows direction */
               m.scale.x=1;rot=ang;
-            }else if(ang>Math.PI/2){m.scale.x=-1;rot=ang-Math.PI;}
-            else if(ang<-Math.PI/2){m.scale.x=-1;rot=ang+Math.PI;}
-            else{m.scale.x=1;rot=ang;}
+            }else{
+              /* Side view: stay level like a 2D game (QA #9-1: rotating the side
+                 sprite buried the car's nose/tail underground on diagonal moves).
+                 Flip horizontally for leftward movement only. */
+              m.scale.x=(ang>Math.PI/2||ang<-Math.PI/2)?-1:1;rot=0;
+            }
             updateTrafficCars._qz.setFromAxisAngle(updateTrafficCars._zAxis,rot);
             m.quaternion.multiply(updateTrafficCars._qz);
           }
@@ -2896,8 +2999,8 @@
       /* Park blocks: (bi,bj) indices into blockC — grass instead of plain pad. */
       var parkBlocks={ '2,1':1, '1,3':1 };
       for(bi=0;bi<blockC.length;bi++)for(bj=0;bj<blockC.length;bj++){
-        var isPark=parkBlocks[bi+','+bj];
-        var pad=new THREE.Mesh(new THREE.PlaneGeometry(BLOCK,BLOCK,8,8),isPark?grassMat:padMat);
+        /* #8b: Satellite shows real parks — use padMat instead of grass texture */
+        var pad=new THREE.Mesh(new THREE.PlaneGeometry(BLOCK,BLOCK,8,8),padMat);
         pad.rotation.x=-Math.PI/2;pad.position.set(blockC[bi],.04,blockC[bj]);pad.receiveShadow=true;mapScene.add(pad);
       }
       /* Deterministic pseudo-random for a stable downtown. */
@@ -2946,8 +3049,11 @@
             if(rectOverlap(gr,buildingRects[ri])){clear=false;break;}
           }
           if(!clear)continue;
+          /* #8b: Satellite shows real ground — grass alley patches removed */
+          /*
           var gm=new THREE.Mesh(new THREE.PlaneGeometry(4.4,4.4,2,2),grassMat);
           gm.rotation.x=-Math.PI/2;gm.position.set(cx,.045,cz);gm.receiveShadow=true;mapScene.add(gm);
+          */
         }
       }
       /* Street trees on block corners — Han's real sprites (billboard). */      var treeVariants=[
@@ -2969,14 +3075,14 @@
       ];
       for(si=0;si<streetC.length;si++){
         for(var gp=-90;gp<=90;gp+=15){
+          /* #8b: Satellite shows real vegetation — grass/tree billboards removed */
+          /*
           if(rnd()>.55)continue;
-          /* Grass on sidewalk edge (just off the road). */
           var side=rnd()>.5?1:-1;
           var gx=streetC[si]+side*(7+rnd()*2), gz=gp+(rnd()-.5)*6;
           if(Math.abs(gx)>MAP_BOUND||Math.abs(gz)>MAP_BOUND)continue;
           var gv=grassVariants[Math.floor(rnd()*grassVariants.length)],gh=1.0+rnd()*.6;
           addProp('grass',gx,gz,gh*gv.a,gh,gv.f);
-          /* Occasional street tree. */
           if(rnd()>.75){
             var stx=streetC[si]-side*(8+rnd()*2), stz=gp+(rnd()-.5)*8;
             if(Math.abs(stx)>MAP_BOUND||Math.abs(stz)>MAP_BOUND)continue;
@@ -2984,6 +3090,7 @@
             addProp('tree',stx,stz,sth*stv.a,sth,stv.f);
             addCollider(stx-.35,stx+.35,stz-.35,stz+.35,0,2.6);
           }
+          */
         }
         for(var gp2=-90;gp2<=90;gp2+=15){
           if(rnd()>.55)continue;
@@ -3033,13 +3140,14 @@
       });
       /* Waterfront: water, seawall, Canada Place sails plaza. */
       /* QA #17 (2026-10-06): water texture + swimming mode. */
-      var waterTex=new THREE.TextureLoader().load('assets/props/ground/water.png');
+      /* #8b: Satellite shows real water — textured water plane removed (swimming still via WATER_Z) */
+      /* var waterTex=new THREE.TextureLoader().load('assets/props/ground/water.png');
       waterTex.wrapS=waterTex.wrapT=THREE.RepeatWrapping;
       waterTex.repeat.set(8,2);
       var waterMat=new THREE.MeshLambertMaterial({map:waterTex});
       curvePatch(waterMat);
       var water=new THREE.Mesh(new THREE.PlaneGeometry(640,170,64,16),waterMat);
-      water.rotation.x=-Math.PI/2;water.position.set(0,.03,-186);mapScene.add(water);
+      water.rotation.x=-Math.PI/2;water.position.set(0,.03,-186);mapScene.add(water); */
       /* Swimming state — set in updateWalkMap when player enters water.
          (WATER_Z/WATER_Y now live at IIFE scope.) */
       boxAt(208,1.6,2.4,0,-.2,-100,0x8b938a);
@@ -4301,6 +4409,19 @@
         if(inp)inp.value='';
         if(window.__espilToast)window.__espilToast(name+' added locally. Server sync coming.');
       });
+      /* QA #7 (UI room, 2026-10-09): map zoom buttons. */
+      var mzi=document.getElementById('map-zoom-in');
+      if(mzi)mzi.addEventListener('click',function(e){e.stopPropagation();if(leafletMap)leafletMap.zoomIn();});
+      var mzo=document.getElementById('map-zoom-out');
+      if(mzo)mzo.addEventListener('click',function(e){e.stopPropagation();if(leafletMap)leafletMap.zoomOut();});
+      /* Init Leaflet map when entering map mode. */
+      var _origEnter=window.enterMapMode;
+      if(typeof initLeafletMap==='function'){
+        /* Defer: init on first in-map frame via updateLeafletMap guard. */
+        setInterval(function(){
+          if(document.body.classList.contains('in-map'))initLeafletMap();
+        },1000);
+      }
     }());
     /* Camera-look drag + pinch/wheel zoom, only while the map is open. */
     function mapPointerDown(e){
@@ -4354,6 +4475,9 @@
         }else if(lk==='y'){
           /* QA #18 (UI room, 2026-10-09): Y toggles friends/party. */
           if(!e.repeat)toggleFriendsPanel();
+        }else if(lk==='m'){
+          /* QA #7 (UI room, 2026-10-09): M cycles map stages 1→2→3→1. */
+          if(!e.repeat)cycleMapStage();
         }
         /* Note: M (map cycle 1→2→3→1) not applied — shared copy has no 3-stage map. */
       }
@@ -4949,30 +5073,57 @@
         try{
           if(typeof buildWalkMapOnce==='function')buildWalkMapOnce();
         }catch(e){console.warn('Preload map build failed:',e);}
-        setProgress(55,'City built');
-        /* Stage 2: wait for character avatar (async GLB loads) */
-        var tries=0;
-        function checkAvatar(){
-          tries++;
-          var ready=false;
-          try{
-            /* walkPlayer is created in buildWalkMapOnce; av.ready set on GLB load */
-            ready=!!(walkPlayer&&walkPlayer.av&&walkPlayer.av.ready);
-          }catch(e){}
-          var pct=Math.min(92,55+tries*2);
-          setProgress(pct,ready?'Character ready':'Loading character…');
-          if(ready||tries>60){
-            setProgress(100,'Ready');
-            setTimeout(function(){
-              if(loadingEl)loadingEl.classList.remove('show');
-              /* Auto-enter (no keypress) */
-              if(typeof finishCityEntry==='function')finishCityEntry();
-            },400);
+        setProgress(50,'City built');
+        /* Stage 1b: satellite imagery (async, with progress) */
+        window.__satelliteProgress=function(pct){
+          if(pct<0){
+            /* Failed — continue without satellite */
+            setProgress(55,'Satellite unavailable');
+            startAvatarCheck();
+          }else if(pct>=100){
+            setProgress(60,'Satellite ready');
+            startAvatarCheck();
           }else{
-            setTimeout(checkAvatar,250);
+            /* Map satellite 0-100 to progress 50-60 */
+            setProgress(50+pct*0.1,'Loading satellite… '+pct+'%');
           }
+        };
+        /* If satellite already loaded or failed, proceed */
+        if(window.__satelliteReady){
+          setProgress(60,'Satellite ready');
+          startAvatarCheck();
         }
-        setTimeout(checkAvatar,300);
+        var satTimeout=setTimeout(function(){
+          /* Don't wait forever for satellite */
+          if(!window.__satelliteReady)startAvatarCheck();
+        },15000);
+        var avatarStarted=false;
+        function startAvatarCheck(){
+          if(avatarStarted)return;avatarStarted=true;
+          clearTimeout(satTimeout);
+          setProgress(60,'Loading character…');
+          /* Stage 2: wait for character avatar (async GLB loads) */
+          var tries=0;
+          function checkAvatar(){
+            tries++;
+            var ready=false;
+            try{
+              ready=!!(walkPlayer&&walkPlayer.av&&walkPlayer.av.ready);
+            }catch(e){}
+            var pct=Math.min(95,60+tries*1.5);
+            setProgress(pct,ready?'Character ready':'Loading character…');
+            if(ready||tries>60){
+              setProgress(100,'Ready');
+              setTimeout(function(){
+                if(loadingEl)loadingEl.classList.remove('show');
+                if(typeof finishCityEntry==='function')finishCityEntry();
+              },400);
+            }else{
+              setTimeout(checkAvatar,250);
+            }
+          }
+          setTimeout(checkAvatar,300);
+        }
       },100);
     }
     var entryStartedAt=0;
@@ -5143,49 +5294,40 @@
     var worldPoint=new THREE.Vector3(),cameraDirection=new THREE.Vector3();
     function shortestAngle(from,to){return Math.atan2(Math.sin(to-from),Math.cos(to-from));}
     /* QA #7 (2026-10-09): minimap draw — player-centered, buildings from mapBuildings. */
-    var minimapCanvas=null,minimapCtx=null,lastMinimapDraw=0;
-    function drawMinimap(){
-      if(!walkPlayer||!walkPlayer.pos)return;
-      if(!minimapCanvas){minimapCanvas=document.getElementById('minimap');if(!minimapCanvas)return;minimapCtx=minimapCanvas.getContext('2d');}
+    /* QA #7 (2026-10-09, Han): 3-stage Leaflet map — minimap → district → fullscreen.
+       OSM tiles, +/- zoom, M key cycles stages. Game units = meters, center 49.2827,-123.1207. */
+    var leafletMap=null,playerMarker=null,mapStage=1,lastMapCenter=0;
+    var MAP_CENTER_LAT=49.2827,MAP_CENTER_LNG=-123.1207;
+    function gameToLatLng(x,z){
+      var lat=MAP_CENTER_LAT+(z/111320);
+      var lng=MAP_CENTER_LNG+(x/(111320*Math.cos(MAP_CENTER_LAT*Math.PI/180)));
+      return [lat,lng];
+    }
+    function initLeafletMap(){
+      if(leafletMap||typeof L==='undefined')return;
+      var el=document.getElementById('minimap');
+      if(!el)return;
+      leafletMap=L.map('minimap',{zoomControl:false,attributionControl:false}).setView([MAP_CENTER_LAT,MAP_CENTER_LNG],16);
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(leafletMap);
+      playerMarker=L.circleMarker([MAP_CENTER_LAT,MAP_CENTER_LNG],{radius:8,color:'#ffd97a',fillColor:'#ffd97a',fillOpacity:1}).addTo(leafletMap);
+    }
+    function updateLeafletMap(){
+      if(!leafletMap||!walkPlayer||!walkPlayer.pos)return;
       var now=performance.now();
-      if(now-lastMinimapDraw<100)return; /* ~10fps, cheap */
-      lastMinimapDraw=now;
-      var ctx=minimapCtx,W=280,H=280,cx=W/2,cy=H/2;
-      var range=120; /* world units shown across the minimap diameter */
-      var scale=W/range;
-      ctx.clearRect(0,0,W,H);
-      ctx.save();
-      /* Circular clip */
-      ctx.beginPath();ctx.arc(cx,cy,cx-2,0,Math.PI*2);ctx.clip();
-      /* Background */
-      ctx.fillStyle='rgba(8,24,28,.9)';ctx.fillRect(0,0,W,H);
-      var px=walkPlayer.pos.x,pz=walkPlayer.pos.z;
-      /* Grid */
-      ctx.strokeStyle='rgba(134,238,228,.08)';ctx.lineWidth=1;
-      var gs=20*scale;
-      var offX=cx-(px*scale)%gs,offY=cy-(pz*scale)%gs;
-      for(var gx=offX%gs;gx<W;gx+=gs){ctx.beginPath();ctx.moveTo(gx,0);ctx.lineTo(gx,H);ctx.stroke();}
-      for(var gy=offY%gs;gy<H;gy+=gs){ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(W,gy);ctx.stroke();}
-      /* Buildings */
-      ctx.fillStyle='rgba(120,160,170,.55)';
-      for(var i=0;i<mapBuildings.length;i++){
-        var b=mapBuildings[i];
-        var bx=cx+(b.x-px)*scale, bz=cy+(b.z-pz)*scale;
-        var bw=Math.max(1,b.w*scale), bd=Math.max(1,b.d*scale);
-        if(bx+bw/2<0||bx-bw/2>W||bz+bd/2<0||bz-bd/2>H)continue;
-        ctx.fillRect(bx-bw/2,bz-bd/2,bw,bd);
-      }
-      /* Player arrow */
-      var ang=walkPlayer.faceY||0;
-      ctx.save();
-      ctx.translate(cx,cy);ctx.rotate(-ang);
-      ctx.fillStyle='#ffd97a';
-      ctx.beginPath();ctx.moveTo(0,-9);ctx.lineTo(6,7);ctx.lineTo(0,3);ctx.lineTo(-6,7);ctx.closePath();ctx.fill();
-      ctx.restore();
-      /* North indicator */
-      ctx.fillStyle='rgba(255,217,122,.9)';ctx.font='700 16px Manrope,sans-serif';ctx.textAlign='center';
-      ctx.fillText('N',cx,22);
-      ctx.restore();
+      if(now-lastMapCenter<200)return;
+      lastMapCenter=now;
+      var ll=gameToLatLng(walkPlayer.pos.x,walkPlayer.pos.z);
+      leafletMap.panTo(ll,{animate:false});
+      if(playerMarker)playerMarker.setLatLng(ll);
+    }
+    function setMapStage(s){
+      mapStage=Math.max(1,Math.min(3,s));
+      var wrap=document.getElementById('minimap-wrap');
+      if(wrap)wrap.setAttribute('data-stage',String(mapStage));
+      if(leafletMap)setTimeout(function(){leafletMap.invalidateSize();},320);
+    }
+    function cycleMapStage(){
+      setMapStage(mapStage>=3?1:mapStage+1);
     }
     var lastFrameT=performance.now();
     function animate(){
@@ -5201,7 +5343,7 @@
         updateTraffic(dt);
         updateTrafficCars(dt);
         updateTransitBuses();
-        drawMinimap();
+        updateLeafletMap();
         renderer.render(mapScene,mapCamera);
         return;
       }

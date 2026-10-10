@@ -1,0 +1,20 @@
+{
+ "zoom": 15,
+ "tiles": 13,
+ "tile_px": 256,
+ "image_px": 3328,
+ "center": [
+  49.2827,
+  -123.1207
+ ],
+ "bounds": {
+  "north": 49.33228198473771,
+  "south": 49.23912083246697,
+  "west": -123.189697265625,
+  "east": -123.046875
+ },
+ "meters_per_px": 3.116372453735378,
+ "missing_tiles": [],
+ "attribution": "Esri World Imagery",
+ "note": "One-time bake for local testing. Check Esri ToS before production use."
+}
