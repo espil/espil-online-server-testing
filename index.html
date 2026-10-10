@@ -2017,11 +2017,16 @@
         if(d<bestD){bestD=d;best=b;}
       }
       if(best&&bestD<14){
+        /* Han: don't show pill/prompt while store modal is open */
+        var sm=document.getElementById('store-modal');
+        var modalOpen=sm&&!sm.classList.contains('hidden');
         if(nearBldg!==best){
           nearBldg=best;
           bldgNameText.textContent='Locating…';
-          bldgNameEl.classList.remove('hidden');
-          if(interactEl)interactEl.classList.remove('hidden'); /* QA #8: interact active */
+          if(!modalOpen){
+            bldgNameEl.classList.remove('hidden');
+            if(interactEl)interactEl.classList.remove('hidden'); /* QA #8: interact active */
+          }
           fetchBuildingName(best,function(nm){
             if(nearBldg===best)bldgNameText.textContent=nm;
           });
@@ -3057,9 +3062,8 @@
         if(!m){
           m=new THREE.MeshLambertMaterial({color:color});
           m.emissive=new THREE.Color(color);
-          m.emissiveIntensity=0.25;
-          m.onBeforeCompile=curveShader;
-          m.customProgramCacheKey=function(){return 'espil-curved-bldg';};
+          m.emissiveIntensity=0.4;
+          /* Note: no curveShader — keeps lighting simple and visible */
           bldgMatCache[key]=m;
         }
         return m;
