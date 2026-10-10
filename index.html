@@ -907,7 +907,7 @@
     #dna-flash.on{opacity:1;transition:opacity .22s ease;}
   </style>
   <!-- Leaflet for 3-stage map (QA #7, 2026-10-09) -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="assets/leaflet/leaflet.css" />
 </head>
 <body>
   <div class="intro" id="intro" role="button" tabindex="0" aria-label="Enter Espil Online">
@@ -1161,7 +1161,7 @@
     <span class="sr-only">Drag to orbit the camera around the fixed Earth. Scroll to move closer or farther away. Select a city landmark or city name to approach its boundary in a tilted, forward-looking navigation view.</span>
   </main>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="assets/leaflet/leaflet.js"></script>
   <script src="assets/three.min.js"></script>
   <script src="assets/GLTFLoader.js"></script>
   <script>
@@ -3396,6 +3396,9 @@
           var bgeo=new THREE.BoxGeometry(1,1,1);
           bgeo.translate(0,.5,0); /* pivot at base */
           var bmat=new THREE.MeshLambertMaterial({color:0xffffff});
+          /* Han 2026-10-10: emissive so chunk buildings visible at night */
+          bmat.emissive=new THREE.Color(0xffffff);
+          bmat.emissiveIntensity=0.18;
           curvePatch(bmat);
           var inst=new THREE.InstancedMesh(bgeo,bmat,items.length);
           var m4=new THREE.Matrix4(),q=new THREE.Quaternion(),sv=new THREE.Vector3(),pv=new THREE.Vector3();
