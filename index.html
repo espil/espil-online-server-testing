@@ -4019,6 +4019,8 @@
     }
     var currentStores=[],currentStore=null,storeSelIdx=0;
     function showStoreModal(stores){
+      /* Han 2026-10-10: never show store modal on landing page */
+      if(!document.body.classList.contains('in-map')) return;
       var modal=document.getElementById('store-modal');
       var listView=document.getElementById('store-list-view');
       var detailView=document.getElementById('store-detail-view');
