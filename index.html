@@ -2597,9 +2597,9 @@
           var fside=new THREE.MeshLambertMaterial({map:ftex});
           /* Han 2026-10-09: slight emissive so buildings are visible at night
              (placeholder until real window lights are implemented) */
-          fside.emissive=new THREE.Color(0x222831);
+          fside.emissive=new THREE.Color(0x3a4552);
           fside.emissiveMap=ftex;
-          fside.emissiveIntensity=0.35;
+          fside.emissiveIntensity=0.8;
           curvePatch(fside);
           var froof=curvedMat(roofColor);
           fm=[fside,fside,froof,froof,fside,fside]; /* +x,-x,+y,-y,+z,-z */
@@ -2735,17 +2735,21 @@
          Simple top-down: body, windshield at front (+x), roof. */
       var carTopTextures=[];
       function carTopTexture(color){
-        var c=document.createElement('canvas');c.width=72;c.height=30;
-        var g=c.getContext('2d');g.clearRect(0,0,72,30);
-        g.fillStyle='rgba(0,0,0,.25)';g.beginPath();g.ellipse(36,26,30,3,0,0,7);g.fill();
+        var c=document.createElement('canvas');c.width=144;c.height=60;
+        var g=c.getContext('2d');g.clearRect(0,0,144,60);
+        g.fillStyle='rgba(0,0,0,.3)';g.beginPath();g.ellipse(72,52,60,6,0,0,7);g.fill();
+        /* Han 2026-10-09: vibrant colors for N/S cars */
         g.fillStyle=color;
-        g.beginPath();g.roundRect(6,5,60,20,8);g.fill(); /* body from top */
-        g.fillStyle='#bcd6f5';g.beginPath();g.roundRect(44,9,14,12,3);g.fill(); /* windshield (front) */
-        g.fillStyle=color;g.globalAlpha=.85;
-        g.beginPath();g.roundRect(12,9,26,12,4);g.fill(); /* roof */
+        g.beginPath();g.roundRect(12,10,120,40,16);g.fill(); /* body from top */
+        g.fillStyle='#cfe4ff';g.beginPath();g.roundRect(88,18,28,24,6);g.fill(); /* windshield (front) */
+        g.fillStyle=color;g.globalAlpha=.9;
+        g.beginPath();g.roundRect(24,18,52,24,8);g.fill(); /* roof */
         g.globalAlpha=1;
-        g.fillStyle='#ffe9a8';g.fillRect(64,8,3,4);g.fillRect(64,18,3,4); /* headlights */
-        g.fillStyle='#e5484d';g.fillRect(6,8,3,4);g.fillRect(6,18,3,4); /* taillights */
+        /* dark outline for pop */
+        g.strokeStyle='rgba(0,0,0,.45)';g.lineWidth=3;
+        g.beginPath();g.roundRect(12,10,120,40,16);g.stroke();
+        g.fillStyle='#ffe9a8';g.fillRect(128,16,6,8);g.fillRect(128,36,6,8); /* headlights */
+        g.fillStyle='#ff2d2d';g.fillRect(12,16,6,8);g.fillRect(12,36,6,8); /* taillights */
         var t=new THREE.CanvasTexture(c);t.anisotropy=4;return t;
       }
       function initCarTopTextures(){
@@ -2874,7 +2878,8 @@
                  World heading: nose (+x) points along (vx,vz).
                  After Rx(-90°), local +x stays +x, local +y → -z.
                  So heading angle = atan2(-vz, vx). */
-              m.scale.x=1;
+              /* Han 2026-10-09: bigger N/S cars */
+              m.scale.set(1.6,1.6,1);
               m.rotation.set(-Math.PI/2,0,Math.atan2(-vz,vx));
               /* Lift slightly above ground */
               m.position.y=CAR_H/2-curveDropAt(x,z)+0.15;
