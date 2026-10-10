@@ -1013,10 +1013,13 @@
       <div id="store-modal" class="hidden" role="dialog" aria-label="Store interaction">
         <div class="store-modal-panel">
           <button id="store-modal-close" type="button" aria-label="Close">×</button>
+          <!-- Step 1: Choose a place (action window) -->
           <div id="store-list-view">
-            <h3>Nearby Places</h3>
+            <h3>Choose a place</h3>
+            <p style="font-size:.8rem;color:#9fb3c8;margin:-8px 0 12px;">↑↓ to select, Enter to interact, ESC to cancel</p>
             <div id="store-list"></div>
           </div>
+          <!-- Step 2: Place info (separate screen) -->
           <div id="store-detail-view" class="hidden">
             <button id="store-back" type="button">← Back</button>
             <h3 id="store-detail-name"></h3>
@@ -2512,7 +2515,8 @@
                 curvePatch(smat);
                 var smesh=new THREE.Mesh(new THREE.PlaneGeometry(w,h),smat);
                 smesh.rotation.x=-Math.PI/2;
-                smesh.position.set((satBounds.x0+satBounds.x1)/2,0.02,(satBounds.z0+satBounds.z1)/2);
+                /* y=0.035: above chunk grounds (0.03) and base (0), below downtown pads (0.04) */
+                smesh.position.set((satBounds.x0+satBounds.x1)/2,0.035,(satBounds.z0+satBounds.z1)/2);
                 smesh.receiveShadow=true;
                 mapScene.add(smesh);
                 window.__satelliteReady=true;
@@ -2856,31 +2860,40 @@
           var x=seg.x1+dx*u.t+px*off,z=seg.z1+dz*u.t+pz*off;
           u.px=u.x;u.pz=u.z;u.x=x;u.z=z;
           m.position.set(x,CAR_H/2-curveDropAt(x,z),z);
-          /* #5 (Han 2nd QA): N/S movement shows top view, E/W shows side view.
-             Top view rotates freely (no flip needed); side view flips for left. */
+          /* #5 (Han 2nd QA, revised): N/S = top view LAID FLAT on ground
+             (wheels on ground, hood/roof to sky), rotated to heading.
+             E/W = side view billboard with horizontal flip. */
           var vx=x-u.px,vz=z-u.pz;
           var screenVX=vx*camRight.x+vz*camRight.z;
           var screenVY=vx*camUp.x+vz*camUp.z;
           var spd=Math.sqrt(screenVX*screenVX+screenVY*screenVY);
-          m.quaternion.copy(mapCamera.quaternion);
           if(spd>0.005){
             var ang=Math.atan2(screenVY,screenVX);
             var useTop=Math.abs(screenVY)>Math.abs(screenVX);
             /* Swap texture if view changed */
             var wantTex=useTop?u.topTex:u.sideTex;
             if(m.material.map!==wantTex){m.material.map=wantTex;m.material.needsUpdate=true;}
-            var rot;
             if(useTop){
-              /* Top view: rotate freely, nose (+x) follows direction */
-              m.scale.x=1;rot=ang;
+              /* Flat on ground: rotation.x=-PI/2, heading via rotation.z.
+                 World heading: nose (+x) points along (vx,vz).
+                 After Rx(-90°), local +x stays +x, local +y → -z.
+                 So heading angle = atan2(-vz, vx). */
+              m.scale.x=1;
+              m.rotation.set(-Math.PI/2,0,Math.atan2(-vz,vx));
+              /* Lift slightly above ground */
+              m.position.y=CAR_H/2-curveDropAt(x,z)+0.15;
             }else{
-              /* Side view: stay level like a 2D game (QA #9-1: rotating the side
-                 sprite buried the car's nose/tail underground on diagonal moves).
-                 Flip horizontally for leftward movement only. */
-              m.scale.x=(ang>Math.PI/2||ang<-Math.PI/2)?-1:1;rot=0;
+              /* Side view: billboard, stay level, flip for leftward */
+              m.quaternion.copy(mapCamera.quaternion);
+              m.scale.x=(ang>Math.PI/2||ang<-Math.PI/2)?-1:1;
+              m.position.y=CAR_H/2-curveDropAt(x,z);
+              updateTrafficCars._qz.setFromAxisAngle(updateTrafficCars._zAxis,0);
+              m.quaternion.multiply(updateTrafficCars._qz);
             }
-            updateTrafficCars._qz.setFromAxisAngle(updateTrafficCars._zAxis,rot);
-            m.quaternion.multiply(updateTrafficCars._qz);
+          }else{
+            /* Stationary: default to side-view billboard */
+            m.quaternion.copy(mapCamera.quaternion);
+            m.position.y=CAR_H/2-curveDropAt(x,z);
           }
           /* axis-aligned AABB collider follows the car */
           var horiz=Math.abs(dz)<.01,ax=horiz?CAR_W/2:0.9,az=horiz?0.9:CAR_W/2;
@@ -2998,11 +3011,12 @@
       var bi,bj;
       /* Park blocks: (bi,bj) indices into blockC — grass instead of plain pad. */
       var parkBlocks={ '2,1':1, '1,3':1 };
+      /* Han 2026-10-09: downtown pads removed — satellite shows the real ground.
       for(bi=0;bi<blockC.length;bi++)for(bj=0;bj<blockC.length;bj++){
-        /* #8b: Satellite shows real parks — use padMat instead of grass texture */
         var pad=new THREE.Mesh(new THREE.PlaneGeometry(BLOCK,BLOCK,8,8),padMat);
         pad.rotation.x=-Math.PI/2;pad.position.set(blockC[bi],.04,blockC[bj]);pad.receiveShadow=true;mapScene.add(pad);
       }
+      */
       /* Deterministic pseudo-random for a stable downtown. */
       var seed=1234567;
       function rnd(){seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;}
@@ -3056,7 +3070,8 @@
           */
         }
       }
-      /* Street trees on block corners — Han's real sprites (billboard). */      var treeVariants=[
+      /* Street trees on block corners — REMOVED (Han 2026-10-09 #4: satellite shows real vegetation).
+      var treeVariants=[
         {f:'assets/props/trees/pine_1.png',a:96/127},
         {f:'assets/props/trees/pine_2.png',a:55/116},
         {f:'assets/props/trees/pine_3.png',a:55/116}
@@ -3068,6 +3083,7 @@
         addProp('tree',tx,tz,th*tv.a,th,tv.f);
         addCollider(tx-.35,tx+.35,tz-.35,tz+.35,0,2.8);
       }
+      */
       /* Grass tufts and trees along the streets (Han 2026-10-05). */
       var grassVariants=[
         {f:'assets/props/trees/grass.png',a:101/89},
@@ -3274,6 +3290,9 @@
         wmesh.position.set(x0+CHUNK_SIZE/2,.2,z0+CHUNK_SIZE/2);
         group.add(wmesh);
       }else{
+        /* #8b: Satellite is the ground now — chunk ground planes removed.
+           (Water chunks still get water plane below.) */
+        /*
         var ggeo=new THREE.PlaneGeometry(CHUNK_SIZE,CHUNK_SIZE,4,4);
         var gcol=zone===2?0x6a9a5a:(zone===1?0x8a8a7a:0x7a7a72);
         var gmat=new THREE.MeshLambertMaterial({color:gcol});
@@ -3283,6 +3302,7 @@
         gmesh.position.set(x0+CHUNK_SIZE/2,.03,z0+CHUNK_SIZE/2);
         gmesh.receiveShadow=true;
         group.add(gmesh);
+        */
         /* --- Buildings: OSM real data if available, else procedural. --- */
         var osmData=osmChunks&&osmChunks[key];
         var items=[]; /* {x,z,w,d,h,color} */
@@ -3568,14 +3588,14 @@
         .catch(function(){cb(null);});
       }else{cb(null);}
     }
-    var currentStores=[],currentStore=null;
+    var currentStores=[],currentStore=null,storeSelIdx=0;
     function showStoreModal(stores){
       var modal=document.getElementById('store-modal');
       var listView=document.getElementById('store-list-view');
       var detailView=document.getElementById('store-detail-view');
       var listEl=document.getElementById('store-list');
       if(!modal)return;
-      currentStores=stores;
+      currentStores=stores;storeSelIdx=0;
       listView.classList.remove('hidden');
       detailView.classList.add('hidden');
       listEl.innerHTML='';
@@ -3584,16 +3604,27 @@
       }else{
         stores.forEach(function(s,idx){
           var div=document.createElement('div');
-          div.className='store-item';
+          div.className='store-item'+(idx===0?' selected':'');
+          div.setAttribute('data-idx',idx);
           var stars=s.rating>0?'★'.repeat(Math.round(s.rating))+' '+s.rating.toFixed(1):'';
           div.innerHTML='<div class="s-name">'+escapeHtml(s.name)+'</div>'+
             '<div class="s-meta">'+escapeHtml(s.type)+' · '+stars+
             (s.ratingCount>0?' ('+s.ratingCount+')':'')+'</div>';
           div.addEventListener('click',function(){showStoreDetail(idx);});
+          div.addEventListener('mouseenter',function(){setStoreSel(idx);});
           listEl.appendChild(div);
         });
       }
       modal.classList.remove('hidden');
+    }
+    function setStoreSel(idx){
+      if(idx<0||idx>=currentStores.length)return;
+      storeSelIdx=idx;
+      var items=document.querySelectorAll('#store-list .store-item');
+      items.forEach(function(el,i){
+        if(i===idx)el.classList.add('selected');
+        else el.classList.remove('selected');
+      });
     }
     function escapeHtml(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
     function showStoreDetail(idx){
@@ -3700,11 +3731,25 @@
             else if(action==='enter')enterStoreWebsite();
           });
         });
-        /* ESC closes modal */
+        /* ESC closes modal; arrows + Enter navigate list */
         document.addEventListener('keydown',function(e){
+          var m=document.getElementById('store-modal');
+          if(!m||m.classList.contains('hidden'))return;
+          var listView=document.getElementById('store-list-view');
+          var isList=!listView.classList.contains('hidden');
           if(e.key==='Escape'){
-            var m=document.getElementById('store-modal');
-            if(m&&!m.classList.contains('hidden'))m.classList.add('hidden');
+            m.classList.add('hidden');
+          }else if(isList&&currentStores.length>0){
+            if(e.key==='ArrowDown'){
+              e.preventDefault();
+              setStoreSel((storeSelIdx+1)%currentStores.length);
+            }else if(e.key==='ArrowUp'){
+              e.preventDefault();
+              setStoreSel((storeSelIdx-1+currentStores.length)%currentStores.length);
+            }else if(e.key==='Enter'){
+              e.preventDefault();
+              showStoreDetail(storeSelIdx);
+            }
           }
         });
       }
