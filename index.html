@@ -3607,6 +3607,9 @@
         });
       }
       modal.classList.remove('hidden');
+      /* Han: hide SPACE interact prompt while store modal is open */
+      var ip=document.getElementById('interact-prompt');
+      if(ip)ip.classList.add('hidden');
     }
     function setStoreSel(idx){
       if(idx<0||idx>=currentStores.length)return;
@@ -3706,6 +3709,9 @@
         var closeBtn=document.getElementById('store-modal-close');
         if(closeBtn)closeBtn.addEventListener('click',function(){
           document.getElementById('store-modal').classList.add('hidden');
+          /* Han: restore SPACE prompt if still near a building */
+          var ip=document.getElementById('interact-prompt');
+          if(ip&&typeof nearBldg!=='undefined'&&nearBldg)ip.classList.remove('hidden');
         });
         var backBtn=document.getElementById('store-back');
         if(backBtn)backBtn.addEventListener('click',function(){
@@ -3730,6 +3736,9 @@
           var isList=!listView.classList.contains('hidden');
           if(e.key==='Escape'){
             m.classList.add('hidden');
+            /* Han: restore SPACE prompt if still near a building */
+            var ip=document.getElementById('interact-prompt');
+            if(ip&&typeof nearBldg!=='undefined'&&nearBldg)ip.classList.remove('hidden');
           }else if(isList&&currentStores.length>0){
             if(e.key==='ArrowDown'){
               e.preventDefault();
