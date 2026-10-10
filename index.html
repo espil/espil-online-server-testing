@@ -2704,6 +2704,82 @@
                    (Math.abs(A.x1-B.x1)<.01&&Math.abs(A.z1-B.z1)<.01);
         if(touch){A.nb.push(tb);B.nb.push(ta);}
       }
+      /* Traffic lights (Han 2026-10-10): at each street intersection.
+         Cycle 30s: 12s NS-green, 3s yellow, 12s EW-green, 3s yellow.
+         Offset by index so adjacent lights desync. */
+      var trafficLights=[];
+      for(var tli=0;tli<streetC.length;tli++)for(var tlj=0;tlj<streetC.length;tlj++){
+        trafficLights.push({x:streetC[tli],z:streetC[tlj],offset:(tli*7+tlj*13)%30});
+      }
+      var LIGHT_CYCLE=30;
+      function lightStateAt(lx,lz,nowS){
+        for(var i=0;i<trafficLights.length;i++){
+          var L=trafficLights[i];
+          if(Math.abs(L.x-lx)<1&&Math.abs(L.z-lz)<1){
+            var t=(nowS+L.offset)%LIGHT_CYCLE;
+            if(t<12)return 'NS';
+            if(t<15)return 'Y';
+            if(t<27)return 'EW';
+            return 'Y';
+          }
+        }
+        return null;
+      }
+      /* Visual traffic lights: small pole + colored light at each intersection.
+         Updates color based on light cycle. */
+      var trafficLightMeshes=[];
+      function buildTrafficLightVisuals(){
+        for(var i=0;i<trafficLights.length;i++){
+          var L=trafficLights[i];
+          /* Only build for intersections near downtown (avoid 100+ poles) */
+          if(Math.abs(L.x)>150||Math.abs(L.z)>150)continue;
+          var grp=new THREE.Group();
+          /* Pole */
+          var pole=new THREE.Mesh(
+            new THREE.CylinderGeometry(0.12,0.12,4.5,8),
+            new THREE.MeshLambertMaterial({color:0x2b2f36})
+          );
+          pole.position.y=2.25;
+          grp.add(pole);
+          /* Light housing */
+          var housing=new THREE.Mesh(
+            new THREE.BoxGeometry(0.6,1.2,0.6),
+            new THREE.MeshLambertMaterial({color:0x1a1d22})
+          );
+          housing.position.y=4.8;
+          grp.add(housing);
+          /* Light bulb (color changes) */
+          var bulb=new THREE.Mesh(
+            new THREE.SphereGeometry(0.22,12,12),
+            new THREE.MeshBasicMaterial({color:0x00ff00})
+          );
+          bulb.position.set(0,4.8,0.32);
+          grp.add(bulb);
+          grp.position.set(L.x+3,0,L.z+3); /* offset to corner */
+          mapScene.add(grp);
+          trafficLightMeshes.push({grp:grp,bulb:bulb,light:L});
+        }
+      }
+      function updateTrafficLightVisuals(){
+        var nowS=Date.now()/1000;
+        for(var i=0;i<trafficLightMeshes.length;i++){
+          var tm=trafficLightMeshes[i];
+          var st=lightStateAt(tm.light.x,tm.light.z,nowS);
+          var col=0x00ff00; /* green */
+          if(st==='Y')col=0xffaa00; /* yellow */
+          else if(st==='NS'||st==='EW'){
+            /* Show red if this direction is stopped.
+               Simplified: alternate based on state */
+            col=(st==='NS')?0x00ff00:0xff0000;
+          }
+          /* Actually: green for the active direction, red for the other.
+             We show the NS light; EW would be opposite. */
+          if(st==='EW')col=0xff0000;
+          else if(st==='NS')col=0x00ff00;
+          else col=0xffaa00;
+          tm.bulb.material.color.setHex(col);
+        }
+      }
       /* 2D traffic cars — Han 2026-10-07: placeholder 2D car sprites visualizing
          live traffic level per segment. Jammed = many slow cars; clear = few fast
          cars. Camera-facing billboards like other props (no 3D models). Random
@@ -2879,8 +2955,53 @@
         var camUp=updateTrafficCars._cu.set(0,1,0).applyQuaternion(mapCamera.quaternion);
         for(var i=0;i<trafficCars.length;i++){
           var m=trafficCars[i],u=m.userData.car,seg=trafficSegs[u.si];
-          var speed=1.5+seg.flow*16; /* jammed crawls, clear flies */
-          u.t+=u.dir*speed*dt/u.len;
+          /* Han 2026-10-10: traffic realism.
+             - Jam: flow<0.25 → stopped; 0.25-0.5 → crawl; else normal.
+             - Red light: stop before intersection. */
+          var nowS=Date.now()/1000;
+          var baseSpeed;
+          if(seg.flow<0.25)baseSpeed=0; /* jammed: stopped */
+          else if(seg.flow<0.5)baseSpeed=1.0+seg.flow*4; /* heavy: crawl */
+          else baseSpeed=1.5+seg.flow*16; /* normal */
+          /* Traffic light check: approaching intersection? */
+          var dx0=seg.x2-seg.x1,dz0=seg.z2-seg.z1;
+          var segLen=u.len;
+          /* Position along segment (0-1). Intersections at t=0 and t=1. */
+          var distToEnd=u.dir>0?(1-u.t)*segLen:u.t*segLen;
+          var speed=baseSpeed;
+          if(distToEnd<14&&distToEnd>2){
+            /* Near intersection — check light */
+            var ix=u.dir>0?seg.x2:seg.x1, iz=u.dir>0?seg.z2:seg.z1;
+            var ls=lightStateAt(ix,iz,nowS);
+            if(ls){
+              var isHoriz=Math.abs(dz0)<.01;
+              var myDir=isHoriz?'EW':'NS';
+              /* Yellow: stop if far, go if very close (can't stop safely) */
+              if(ls==='Y'){
+                if(distToEnd>6)speed=0;
+              }else if(ls!==myDir){
+                speed=0; /* red: stop */
+              }
+            }
+          }
+          /* Car queuing: don't drive through stopped car ahead */
+          if(speed>0){
+            for(var q=0;q<trafficCars.length;q++){
+              if(q===i)continue;
+              var ou=trafficCars[q].userData.car;
+              if(ou.si!==u.si||ou.lane!==u.lane)continue;
+              /* Same segment+lane: check distance ahead */
+              var ahead=(ou.t-u.t)*u.dir; /* >0 means ou is ahead in travel dir */
+              if(ahead>0&&ahead*segLen<9){
+                /* Car ahead within 9m — match its speed (stop if stopped) */
+                var ouSpeed=(ou._speed!==undefined)?ou._speed:0;
+                if(ouSpeed<0.5){speed=0;break;}
+                speed=Math.min(speed,ouSpeed);
+              }
+            }
+          }
+          u._speed=speed; /* store for queuing */
+          u.t+=u.dir*speed*dt/segLen;
           if(u.t>1)u.t-=1;else if(u.t<0)u.t+=1;
           var dx=seg.x2-seg.x1,dz=seg.z2-seg.z1;
           var px=-dz/u.len,pz=dx/u.len,off=1.4*u.lane;
@@ -2940,6 +3061,7 @@
         for(var i=0;i<trafficCars.length;i++){trafficCars[i].material.map=tex;trafficCars[i].material.needsUpdate=true;}
       }
       initCarTextures();initCarTopTextures();syncTrafficCars();
+      buildTrafficLightVisuals();
       /* Real TransLink buses — Han 2026-10-08: GTFS-RT vehicle positions via the
          local poller (tools/translink_poller.py -> assets/transit/buses.json).
          Buses within BUS_RADIUS of the player appear as camera-facing billboards
@@ -5448,6 +5570,7 @@
         updateTraffic(dt);
         updateTrafficCars(dt);
         updateTransitBuses();
+        if(typeof updateTrafficLightVisuals==='function')updateTrafficLightVisuals();
         updateLeafletMap();
         renderer.render(mapScene,mapCamera);
         return;
