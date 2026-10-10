@@ -2495,24 +2495,22 @@
       (function loadSatellite(){
         var url='assets/ground/satellite_z15.jpg';
         var w=satBounds.x1-satBounds.x0,h=satBounds.z1-satBounds.z0;
-        /* Create mesh with placeholder material first */
-        var smat=new THREE.MeshLambertMaterial({color:0x6a7a5a});
-        var smesh=new THREE.Mesh(new THREE.PlaneGeometry(w,h),smat);
-        smesh.rotation.x=-Math.PI/2;
-        smesh.position.set((satBounds.x0+satBounds.x1)/2,0.035,(satBounds.z0+satBounds.z1)/2);
-        smesh.receiveShadow=true;
-        smesh.frustumCulled=false;
-        mapScene.add(smesh);
-        /* Load texture directly with progress */
+        /* Load texture FIRST, then create mesh with it (avoids material update issues) */
         new THREE.TextureLoader().load(url,
           function(tex){
             /* onLoad */
+            console.log('[Satellite] Texture loaded: '+tex.image.width+'x'+tex.image.height);
             tex.anisotropy=4;
             tex.colorSpace=THREE.SRGBColorSpace;
-            smat.map=tex;
-            smat.color.set(0xffffff);
-            smat.needsUpdate=true;
+            var smat=new THREE.MeshLambertMaterial({map:tex});
+            var smesh=new THREE.Mesh(new THREE.PlaneGeometry(w,h),smat);
+            smesh.rotation.x=-Math.PI/2;
+            smesh.position.set((satBounds.x0+satBounds.x1)/2,0.035,(satBounds.z0+satBounds.z1)/2);
+            smesh.receiveShadow=true;
+            smesh.frustumCulled=false;
+            mapScene.add(smesh);
             window.__satelliteReady=true;
+            window.__satTexSize=tex.image.width+'x'+tex.image.height;
             if(window.__satelliteProgress)window.__satelliteProgress(100);
             console.log('[Satellite] Loaded');
           },
