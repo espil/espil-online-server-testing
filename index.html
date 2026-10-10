@@ -1938,7 +1938,7 @@
     }
     var walkPlayer=null,walkColliders=[];
     var walkKeys={};
-    var walkCamYaw=0,walkCamPitch=.42,walkCamDist=14;
+    var walkCamYaw=0,walkCamPitch=.84,walkCamDist=14; /* Cauldron style: 48° pitch */
     /* QA #15 (2026-10-06): sprint is a Ctrl toggle, not hold-Shift. */
     var sprintOn=false;
     function updateSprintUI(){
@@ -3445,7 +3445,8 @@
         return;
       }
       console.log('[OSM City] Building from real OSM data…');
-      var palette=[0x8fa3b8,0x9aa5a8,0xb0a897,0x7d8b99,0xa89a8c,0x6f7f8e,0x93a7bb,0x8794a0];
+      /* Cauldron style (Han 2026-10-10): warm sandy buildings */
+      var palette=[0xd9b678,0xd4b183,0xcf9f6b,0xdbbd8a,0xd6a86f];
       var items=[]; /* {x,z,w,d,h,color} */
       var RADIUS=2000; /* 2km radius for 3D buildings */
 
@@ -3724,7 +3725,7 @@
       }
       walkPlayer.velY=0;walkPlayer.onGround=true;
       walkPlayer.jumps=0;walkPlayer.faceY=.5;walkPlayer.bobT=0;
-      walkCamPitch=.42;walkCamDist=14;
+      walkCamPitch=.84;walkCamDist=14; /* Cauldron 48° */
       walkPlayer.av.group.position.copy(walkPlayer.pos);
       walkPlayer.av.group.rotation.y=.5;
       /* Snap the follow camera behind the player on entry. */
