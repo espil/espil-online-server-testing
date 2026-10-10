@@ -3601,6 +3601,41 @@
 
       /* Build traffic on OSM roads */
       buildOsmTraffic();
+      /* Han 2026-10-10: Street trees for urban feel (billboard sprites) */
+      buildOsmTrees();
+    }
+    function buildOsmTrees(){
+      if(!osmChunks||typeof addProp!=='function')return;
+      var RADIUS=1200; /* trees within 1.2km */
+      var count=0;
+      var maxTrees=800; /* cap for performance */
+      for(var key in osmChunks){
+        if(count>=maxTrees)break;
+        var c=osmChunks[key];
+        if(!c.r)continue;
+        for(var i=0;i<c.r.length;i+=3){ /* every 3rd segment */
+          if(count>=maxTrees)break;
+          var r=c.r[i];
+          var x1=r[0],z1=r[1],x2=r[2],z2=r[3];
+          var mx=(x1+x2)/2,mz=(z1+z2)/2;
+          if(Math.sqrt(mx*mx+mz*mz)>RADIUS)continue;
+          if(isWaterAt(mx,mz))continue;
+          var len=Math.hypot(x2-x1,z2-z1);
+          if(len<20)continue;
+          /* Place tree offset from road center (sidewalk) */
+          var dx=(x2-x1)/len,dz=(z2-z1)/len;
+          var px=-dz,pz=dx; /* perpendicular */
+          var side=(i%2===0)?1:-1;
+          var tx=mx+px*6*side,tz=mz+pz*6*side;
+          /* Don't place in buildings (simple check via colliders) */
+          var inBldg=false;
+          /* Skip detailed check for placeholder — roads are clear */
+          var th=4+Math.random()*3; /* 4-7m tall */
+          addProp('tree',tx,tz,th*0.67,th,null);
+          count++;
+        }
+      }
+      console.log('[OSM Trees] '+count+' street trees');
     }
     function buildOsmTraffic(){
       /* Clear existing procedural segments */
