@@ -223,7 +223,7 @@
     /* Building name pill — appears at top when near a building (Han 2026-10-05). */
     .building-name {
       position:fixed;
-      top:18px;
+      top:8px; /* Han: clearly at top, above modal */
       left:50%;
       transform:translateX(-50%) translateY(0);
       z-index:200; /* Han: above store modal, always at top */
@@ -252,7 +252,8 @@
     .building-name .loc-dot {
       display:inline-block;
     /* #12 (Han 2nd QA): Store interaction modal */
-    #store-modal { position:fixed; inset:0; z-index:100; display:flex; align-items:center; justify-content:center;
+    #store-modal { position:fixed; inset:0; z-index:100; display:flex; align-items:flex-start; justify-content:center;
+      padding-top:70px; /* Han: below the location pill, no overlap */
       background:rgba(0,0,0,.55); backdrop-filter:blur(4px); }
     #store-modal.hidden { display:none; }
     .store-modal-panel { background:rgba(12,20,32,.96); border:1px solid rgba(140,220,255,.3); border-radius:16px;
