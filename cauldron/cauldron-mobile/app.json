@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Cauldron",
+    "slug": "cauldron",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "cauldron",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.espil.cauldron",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Cauldron uses your live location to anchor the RPG character to the real world."
+      }
+    },
+    "android": {
+      "package": "com.espil.cauldron",
+      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"]
+    },
+    "plugins": ["expo-location"],
+    "extra": {
+      "webPrototypeUrl": "http://127.0.0.1:8787/"
+    }
+  }
+}

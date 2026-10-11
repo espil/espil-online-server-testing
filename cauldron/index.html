@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#050914">
+  <meta name="robots" content="noai, noimageai">
+  <title>ESPIL Online | The Cauldron</title>
+  <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.css">
+  <link rel="stylesheet" href="./styles.css?v=cauldron-v0.3.4-kenney-assets">
+</head>
+<body>
+  <main id="cauldron-app" class="is-booting">
+    <section id="boot-loader" aria-label="UseDesign loading animation">
+      <div class="boot-logo" aria-hidden="true">
+        <span style="--i:0">U</span>
+        <span style="--i:1">S</span>
+        <span style="--i:2">E</span>
+        <span style="--i:3">D</span>
+        <span style="--i:4">E</span>
+        <span style="--i:5">S</span>
+        <span style="--i:6">I</span>
+        <span style="--i:7">G</span>
+        <span style="--i:8">N</span>
+      </div>
+      <p id="boot-status">Preparing character registry...</p>
+    </section>
+
+    <div id="map" aria-label="Cauldron world map"></div>
+    <canvas id="cauldron-runtime-canvas" aria-label="Cauldron verticalData runtime canvas"></canvas>
+    <div id="cauldron-runtime-debug" aria-live="polite" hidden></div>
+    <div id="cauldron-runtime-error" role="alert" hidden></div>
+    <div id="everplanet-curve" aria-hidden="true">
+      <div id="world-atmosphere"></div>
+      <div class="curve-horizon"></div>
+      <div class="curve-grid curve-grid-x"></div>
+      <div class="curve-grid curve-grid-y"></div>
+      <div id="weather-status">Local sky initializing...</div>
+    </div>
+    <div id="edge-fade" aria-hidden="true"></div>
+
+    <section id="creator" class="rpg-window" aria-label="Create character">
+      <header>
+        <small>ESPIL ONLINE / THE CAULDRON</small>
+        <h1>Create Character</h1>
+      </header>
+      <form id="creator-form">
+        <div class="login-provider-grid" aria-label="Account sign-in providers">
+          <button type="button" data-auth-provider="google">Google</button>
+          <button type="button" data-auth-provider="facebook">Facebook</button>
+          <button type="button" data-auth-provider="phone">Phone</button>
+          <button type="button" data-auth-provider="x">X</button>
+        </div>
+        <label>
+          <span>Gender</span>
+          <select id="gender" required>
+            <option value="female" selected>MJE</option>
+            <option value="male">Male</option>
+          </select>
+        </label>
+        <label>
+          <span>Character ID</span>
+          <input id="character-id" autocomplete="username" placeholder="your_id">
+        </label>
+        <label>
+          <span>Home Address</span>
+          <input id="home-address" autocomplete="street-address" placeholder="Your real home address">
+        </label>
+        <label>
+          <span>Start Region</span>
+          <select id="spawn-region" required>
+            <option value="tokyo">Tokyo ??Disneyland Entrance</option>
+            <option value="seoul">Seoul ??Han River</option>
+            <option value="vancouver" selected>Vancouver ??Downtown Burrard</option>
+            <option value="la">LA ??Fairfax St Canteen</option>
+            <option value="newyork">New York ??Bryant Park</option>
+          </select>
+        </label>
+        <button type="submit">Enter Cauldron</button>
+      </form>
+      <p class="notice">Publishment: copying, scraping, resale, or unauthorized redistribution is strictly prohibited.</p>
+    </section>
+
+    <canvas id="sprite-character" aria-label="Player character"></canvas>
+    <div id="avatar-nameplate" aria-label="Player name">guest</div>
+    <div id="action-flash" aria-hidden="true"></div>
+    <div id="portal-layer" aria-label="Cauldron portals"></div>
+    <div id="kenney-building-layer" aria-label="Reconstructed city buildings"></div>
+
+    
+
+    <section id="hud" aria-label="Cauldron controls">
+      <button id="espil-toggle" class="hud-icon" title="Espil AI" type="button"><span>Espil</span></button>
+      <button id="party-toggle" class="hud-icon" title="Profile" type="button"><span>Profile</span></button>
+      <button id="inventory-toggle" class="hud-icon" title="Bag" type="button"><span>Bag</span></button>
+      <button id="home-toggle" class="hud-icon" title="Home" type="button"><span>Home</span></button>
+      <button id="map-file-download" class="hud-icon" title="Navigation Map" type="button"><span>Map</span></button>
+      <button id="avatar-camera-toggle" class="hud-icon" title="Camera Expression" type="button"><span>Cam</span></button>
+      <button id="chat-toggle" class="hud-icon" title="Chat" type="button"><span>Chat</span></button>
+      <button id="server-toggle" class="hud-icon" title="Server" type="button"><span>Server</span></button>
+      <button id="skill-toggle" class="hud-icon" title="Skill Tree" type="button"><span>Skill</span></button>
+      <button id="attack-toggle" class="hud-icon" title="Attack" type="button"><span>Attack</span></button>
+    </section>
+
+    <aside id="party-panel" class="party-panel">
+      <header>
+        <small>PARTY</small>
+        <h2>Friends</h2>
+      </header>
+            <div id="party-members" class="party-members"></div>
+      <div class="party-actions">
+        <button id="party-invite" type="button">Invite Nearby</button>
+        <button id="party-follow" type="button">Follow</button>
+        <button id="party-chat" type="button">Party Chat</button>
+      </div>
+    </aside>
+
+    <aside id="inventory-panel" class="rpg-window side-panel" hidden>
+      <header>
+        <small>INVENTORY</small>
+        <h2>Inventory</h2>
+      </header>
+      <p>Nothing here yet.</p>
+      <button data-close="inventory-panel" type="button">Back</button>
+    </aside>
+
+    <aside id="dialogue-panel" class="rpg-window side-panel" hidden>
+      <header>
+        <small id="dialogue-type">LOCAL</small>
+        <h2 id="dialogue-title">Attraction</h2>
+      </header>
+      <p id="dialogue-body">This place is ready to talk.</p>
+      <div id="dialogue-actions" class="dialogue-actions"></div>
+      <button data-close="dialogue-panel" type="button">Back</button>
+    </aside>
+
+    <aside id="espil-panel" class="rpg-window side-panel" hidden>
+      <header>
+        <small>ESPIL AI</small>
+        <h2>quadclipse/espil</h2>
+      </header>
+      <p>Ollama Qwen3 기반 로컬 인공지능. 현재는 UI 게이트이며, 로컬 서버 연결 후 대화가 활성화됩니다.</p>
+      <div class="dialogue-actions">
+        <button type="button" id="espil-ping">상태 확인</button>
+        <button type="button" data-close="espil-panel">나가기</button>
+      </div>
+    </aside>
+
+    <div id="minimap-shell" aria-label="Mini map controls">
+      <div id="minimap" aria-label="Mini map"></div>
+      <button type="button" id="minimap-expand" aria-label="Expand minimap" onclick="document.getElementById('minimap-shell').classList.toggle('is-expanded'); setTimeout(() => window.cauldronPublish?.minimap?.resize?.(), 80)">+</button>
+      <button type="button" id="zoom-in" aria-label="Zoom in minimap">+</button>
+      <button type="button" id="zoom-out" aria-label="Zoom out minimap">-</button>
+      <strong id="zoom-readout">100m</strong>
+    </div>
+    
+    <section id="book-menu" class="book-menu" aria-label="Cauldron book menu" hidden>
+      <div class="book-pages">
+        <button id="book-close" class="book-close" type="button">&times;</button>
+        <nav class="book-tabs" aria-label="Book tabs">
+          <button type="button" data-book-tab="profile">Profile</button>
+          <button type="button" data-book-tab="bag">Bag</button>
+          <button type="button" data-book-tab="skills">Skills</button>
+          <button type="button" data-book-tab="server">Server</button>
+        </nav>
+        <article id="book-left" class="book-page book-left"></article>
+        <article id="book-right" class="book-page book-right"></article>
+      </div>
+    </section>
+
+    <section id="chat-box" class="always-chat is-visible" aria-label="Chat">
+      <header>
+        <button type="button" class="chat-channel is-active" data-chat-channel="channel">&#52292;&#45328;</button>
+        <button type="button" class="chat-channel" data-chat-channel="local">&#46041;&#45348;</button>
+        <button type="button" class="chat-channel" data-chat-channel="party">&#54028;&#54000;</button>
+        <button type="button" id="chat-expand" class="chat-expand" aria-label="Expand chat">+</button>
+      </header>
+      <div id="chat-log">[&#52292;&#45328;] Welcome to Cauldron.</div>
+      <input id="chat-input" placeholder="Chat + Enter" autocomplete="off">
+    </section>
+
+    <section id="quickbar" class="quickbar" aria-label="Quick slots">
+      <button class="quick-slot item-slot" data-slot="0" data-key="1" title="Food / Tool slot">1</button>
+      <button class="quick-slot item-slot" data-slot="1" data-key="2" title="Food / Tool slot">2</button>
+      <button class="quick-slot item-slot" data-slot="2" data-key="3" title="Food / Tool slot">3</button>
+      <button class="quick-slot item-slot" data-slot="3" data-key="4" title="Food / Tool slot">4</button>
+      <button class="quick-slot item-slot" data-slot="4" data-key="5" title="Food / Tool slot">5</button>
+      <button class="quick-slot move-slot" data-slot="5" data-key="Q" title="Minimap teleport">Q</button>
+      <button class="quick-slot move-slot" data-slot="6" data-key="W" title="Summon field / friend summon">W</button>
+      <button class="quick-slot move-slot" data-slot="7" data-key="E" title="Teleport to friend">E</button>
+      <button class="quick-slot move-slot" data-slot="8" data-key="R" title="Data mode">R</button>
+      <button class="quick-slot move-slot" data-slot="9" data-key="T" title="Table reservation">T</button>
+      <button class="quick-slot life-slot" data-slot="10" data-key="A" title="Normal attack">A</button>
+      <button class="quick-slot life-slot" data-slot="11" data-key="S" title="Combo attack">S</button>
+      <button class="quick-slot life-slot" data-slot="12" data-key="D" title="Heavy attack">D</button>
+      <button class="quick-slot life-slot" data-slot="13" data-key="F" title="Move attack">F</button>
+      <button class="quick-slot life-slot" data-slot="14" data-key="G" title="Ultimate">G</button>
+    </section>
+    <section id="hotkey-strip" class="hotkey-strip" aria-label="Hotkeys">
+      ESC / Map: Book | Arrow Keys: Move | QWERT/ASDFG: Skills | Shift: Jump | Space: Interact
+    </section>
+    <section id="interaction-hint" class="interaction-hint" hidden>
+      <strong>SPACE</strong><span id="interaction-name">Interact</span>
+    </section>
+    <button type="button" id="espil-fab" class="espil-fab">ESPIL</button>
+    <section id="mobile-controls" class="mobile-controls" aria-label="Mobile play controls">
+      <div id="mobile-shortcuts" class="mobile-zone mobile-shortcuts" aria-label="Mobile shortcuts">
+        <button type="button" data-mobile-action="interact">Talk</button>
+        <button type="button" data-mobile-action="locate">LOC</button>
+        <button type="button" data-mobile-slot="5">Q</button>
+        <button type="button" data-mobile-slot="6">W</button>
+        <button type="button" data-mobile-slot="7">E</button>
+        <button type="button" data-mobile-slot="8">R</button>
+        <button type="button" data-mobile-slot="9">T</button>
+        <button type="button" data-mobile-slot="10">A</button>
+        <button type="button" data-mobile-slot="11">S</button>
+        <button type="button" data-mobile-slot="12">D</button>
+        <button type="button" data-mobile-slot="13">F</button>
+        <button type="button" data-mobile-slot="14">G</button>
+      </div>
+      <div id="mobile-dpad" class="mobile-zone mobile-dpad" aria-label="Mobile movement pad">
+        <button type="button" data-mobile-dir="ArrowUp">▲</button>
+        <button type="button" data-mobile-dir="ArrowLeft">◀</button>
+        <button type="button" data-mobile-dir="ArrowDown">▼</button>
+        <button type="button" data-mobile-dir="ArrowRight">▶</button>
+      </div>
+    </section>
+    <div id="mobile-landscape">
+      <strong>Landscape required</strong>
+      <span>Rotate your device to play Cauldron.</span>
+    </div>
+  </main>
+
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.js"></script>
+  <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+  <script src="./static-config.js?v=cauldron-lite-20260605a"></script>
+  <script src="./cauldron-vancouver/runtime/productionRuntime.browser.js?v=cauldron-v0.3.4-kenney-assets"></script>
+  <script src="./app.js?v=cauldron-v0.3.4-kenney-assets"></script>
+</body>
+</html>
