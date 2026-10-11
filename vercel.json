@@ -1,1 +1,1 @@
-{"buildCommand":"python3 build_inject_tokens.py","outputDirectory":".","rewrites":[{"destination":"/cauldron/index.html","source":"/vancouver"},{"destination":"/cauldron/index.html","source":"/vancouver/store/:placeId"},{"destination":"/cctest/index.html","source":"/cctest"},{"destination":"/test/index.html","source":"/test"}]}
+{"rewrites":[{"destination":"/vancouver.html","source":"/vancouver"},{"destination":"/vancouver.html","source":"/vancouver/store/:placeId"},{"destination":"/cctest/index.html","source":"/cctest"},{"destination":"/test/index.html","source":"/test"}]}

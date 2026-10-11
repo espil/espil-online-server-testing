@@ -1,468 +1,241 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Vancouver — Espil Online</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Espil Online — Vancouver</title>
 <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.css">
 <style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  html,body { width:100%; height:100%; overflow:hidden; background:#0a0e14;
-    font-family:"Manrope",-apple-system,sans-serif; }
-  #map { position:absolute; inset:0; }
-  /* Loading overlay */
-  #loading { position:fixed; inset:0; z-index:100; display:flex; flex-direction:column;
-    align-items:center; justify-content:center; background:#0a0e14; color:#eaf6ff;
-    transition:opacity .5s; }
-  #loading.hidden { opacity:0; pointer-events:none; }
-  #loading h1 { font-size:1.4rem; letter-spacing:.2em; margin-bottom:20px; }
-  #load-bar-bg { width:280px; height:6px; background:rgba(255,255,255,.12);
-    border-radius:3px; overflow:hidden; }
-  #load-bar-fill { height:100%; width:0%; background:linear-gradient(90deg,#40ffcd,#7ed957);
-    border-radius:3px; transition:width .3s; }
-  #load-pct { margin-top:12px; font-size:.8rem; color:#9fb3c8; }
-  /* HUD */
-  #hud { position:fixed; inset:0; z-index:10; pointer-events:none; display:none; }
-  #hud.visible { display:block; }
-  /* Interact prompt */
-  #interact-prompt { position:fixed; bottom:120px; left:50%; transform:translateX(-50%);
-    background:rgba(8,16,26,.85); border:1px solid rgba(140,220,255,.3);
-    color:#eaf6ff; padding:10px 20px; border-radius:999px; font-size:.85rem;
-    display:none; pointer-events:none; }
-  #interact-prompt.visible { display:block; }
-  #interact-prompt .key { display:inline-block; background:#7ed957; color:#0a0e14;
-    font-weight:700; padding:2px 8px; border-radius:4px; margin-right:8px; font-size:.75rem; }
-  /* Store modal (ported from Three.js version) */
-  #store-modal { position:fixed; inset:0; z-index:50; display:flex; align-items:center;
-    justify-content:center; background:rgba(0,0,0,.55); backdrop-filter:blur(4px); }
-  #store-modal.hidden { display:none; }
-  .store-modal-panel { background:rgba(12,20,32,.96); border:1px solid rgba(140,220,255,.3);
-    border-radius:16px; padding:24px; max-width:480px; width:90vw; max-height:80vh;
-    overflow-y:auto; position:relative; color:#eaf6ff; }
-  #store-modal-close { position:absolute; top:12px; right:16px; background:none; border:none;
-    color:#9fb3c8; font-size:1.5rem; cursor:pointer; }
-  #store-modal h3 { margin:0 0 16px; font-size:1.1rem; letter-spacing:.06em; }
-  #store-list .store-item { padding:12px 16px; margin:8px 0; background:rgba(255,255,255,.06);
-    border-radius:10px; cursor:pointer; border:1px solid transparent; }
-  #store-list .store-item:hover, #store-list .store-item.selected {
-    border-color:#7ed957; background:rgba(126,217,87,.15); }
-  #store-list .store-item .s-name { font-weight:700; }
-  #store-list .store-item .s-meta { font-size:.8rem; color:#9fb3c8; margin-top:4px; }
-  #store-back { background:none; border:none; color:#7ed957; cursor:pointer;
-    margin-bottom:12px; font-size:.9rem; }
-  .store-actions { display:flex; gap:8px; margin:16px 0; flex-wrap:wrap; }
-  .store-actions button { flex:1; min-width:100px; padding:10px; cursor:pointer;
-    background:rgba(126,217,87,.15); border:1px solid rgba(126,217,87,.4);
-    color:#eaf6ff; border-radius:8px; font-weight:600; }
-  .store-actions button:hover { background:rgba(126,217,87,.3); }
-  #store-detail-content { margin-top:16px; font-size:.9rem; line-height:1.6; }
-  #store-detail-content .review { background:rgba(255,255,255,.05); padding:12px;
-    border-radius:8px; margin:8px 0; }
-  #store-detail-content .r-stars { color:#f2b134; }
-  #store-detail-content .photo-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-  #store-detail-content .photo-grid img { width:100%; border-radius:8px; }
-  /* Controls hint */
-  #controls-hint { position:fixed; bottom:16px; left:50%; transform:translateX(-50%);
-    color:rgba(255,255,255,.6); font-size:.75rem; z-index:10; pointer-events:none;
-    background:rgba(0,0,0,.4); padding:8px 16px; border-radius:999px; }
+  /* Base */
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#050914;font-family:system-ui,sans-serif;}
+  #map{position:absolute;inset:0;}
+  /* Minimap (Cauldron 5-stage) */
+  #minimap-wrap{position:absolute;top:16px;right:16px;width:180px;height:180px;border-radius:12px;overflow:hidden;border:2px solid rgba(255,255,255,.2);box-shadow:0 4px 20px rgba(0,0,0,.5);z-index:10;}
+  #minimap{width:100%;height:100%;}
+  #minimap-wrap[data-stage="2"]{width:280px;height:280px;}
+  #minimap-wrap[data-stage="3"]{width:100vw;height:100vh;top:0;right:0;border-radius:0;border:none;}
+  .map-zoom-controls{position:absolute;bottom:8px;right:8px;display:flex;gap:4px;z-index:11;}
+  .map-zoom-controls button{width:28px;height:28px;border-radius:6px;border:none;background:rgba(0,0,0,.6);color:#fff;font-size:16px;cursor:pointer;}
+  /* HUD (from espil.online) */
+  #hud{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:10;}
+  .hotkey{width:48px;height:48px;border-radius:8px;background:rgba(0,0,0,.5);border:2px solid rgba(255,255,255,.3);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;}
+  /* Store modal (from espil.online) */
+  #store-modal{display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:90%;max-width:500px;max-height:80vh;background:#1a2233;border-radius:16px;z-index:100;overflow:hidden;}
+  #store-modal.open{display:block;}
+  #store-modal-close{position:absolute;top:12px;right:12px;background:none;border:none;color:#fff;font-size:24px;cursor:pointer;z-index:1;}
+  /* Toast */
+  #toast{position:absolute;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.7);color:#fff;padding:8px 16px;border-radius:20px;display:none;z-index:50;}
+  #toast.show{display:block;}
+  /* Loading */
+  #loading{position:absolute;inset:0;background:#050914;display:flex;align-items:center;justify-content:center;z-index:200;color:#fff;}
+  #loading.done{display:none;}
 </style>
 </head>
 <body>
+<div id="loading">Loading Vancouver…</div>
 <div id="map"></div>
-
-<div id="loading">
-  <h1>VANCOUVER</h1>
-  <div id="load-bar-bg"><div id="load-bar-fill"></div></div>
-  <div id="load-pct">Loading…</div>
-</div>
-
-<div id="hud">
-  <div id="interact-prompt"><span class="key">SPACE</span><span id="interact-label">Interact</span></div>
-</div>
-
-<div id="store-modal" class="hidden" role="dialog" aria-label="Store interaction">
-  <div class="store-modal-panel">
-    <button id="store-modal-close" type="button" aria-label="Close">×</button>
-    <div id="store-list-view">
-      <h3>Choose a place</h3>
-      <p style="font-size:.8rem;color:#9fb3c8;margin:-8px 0 12px;">↑↓ to select, Enter to interact, ESC to cancel</p>
-      <div id="store-list"></div>
-    </div>
-    <div id="store-detail-view" class="hidden">
-      <button id="store-back" type="button">← Back</button>
-      <h3 id="store-detail-name"></h3>
-      <div class="store-actions">
-        <button data-action="info" type="button">Info</button>
-        <button data-action="reviews" type="button">Reviews</button>
-        <button data-action="photos" type="button">Photos</button>
-        <button data-action="enter" type="button">Enter →</button>
-      </div>
-      <div id="store-detail-content"></div>
-    </div>
+<div id="minimap-wrap" data-stage="1">
+  <div id="minimap"></div>
+  <div class="map-zoom-controls">
+    <button id="map-zoom-in">+</button>
+    <button id="map-zoom-out">−</button>
   </div>
 </div>
-
-<div id="controls-hint">WASD move · SHIFT jump · SPACE interact · Drag to look</div>
+<div id="hud">
+  <div class="hotkey">1</div><div class="hotkey">2</div><div class="hotkey">3</div><div class="hotkey">4</div>
+  <div class="hotkey">Q</div><div class="hotkey">W</div><div class="hotkey">E</div><div class="hotkey">R</div>
+</div>
+<div id="store-modal">
+  <button id="store-modal-close">×</button>
+  <div id="store-modal-content"></div>
+</div>
+<div id="toast"></div>
 
 <script src="https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
-/* Espil Online — Vancouver (Mapbox 3D)
-   Real Vancouver via Mapbox GL JS. Game systems ported from Three.js version.
-*/
+// Static config (from Cauldron)
+window.CAULDRON_STATIC_CONFIG = {
+  mapboxToken: '__PUT_YOUR_MAPBOX_TOKEN_HERE__',
+  mapboxStyle: 'mapbox://styles/quadclipse/cmos12qyt008901rgg1eka1xm',
+  analysisMapboxStyle: 'mapbox://styles/mapbox/streets-v12',
+};
+</script>
+<script>
+/* Merged Vancouver: Cauldron map + espil.online UI */
 (function(){
-'use strict';
+  var CFG = window.CAULDRON_STATIC_CONFIG;
+  mapboxgl.accessToken = CFG.mapboxToken;
 
-/* Config (from Han's sample) */
-var MAPBOX_TOKEN='__PUT_YOUR_MAPBOX_TOKEN_HERE__';
-var MAPBOX_STYLE='mapbox://styles/quadclipse/cmos12qyt008901rgg1eka1xm';
-var CENTER=[-123.1207,49.2827]; /* Canada Place */
-var GOOGLE_PLACES_KEY='__PUT_YOUR_KEY_HERE__'; /* Han injects locally */
+  var VANCOUVER = [-123.1207, 49.2827];
+  var CAMERA_PITCH = 48;
+  var CAMERA_BEARING = -10;
+  var CAMERA_ZOOM = 16.5;
 
-/* State */
-var map=null, playerMarker=null;
-var playerLngLat=[...CENTER];
-var keys={};
-var playerHeading=0; /* radians, 0=north */
+  var MINIMAP_LEVELS = [
+    {label:'50m', zoom:18.35},
+    {label:'100m', zoom:17.35},
+    {label:'500m', zoom:15.05},
+    {label:'1km', zoom:14.05},
+    {label:'5km', zoom:11.75},
+  ];
+  var zoomIdx = 1;
 
-/* Loading */
-var loadFill=document.getElementById('load-bar-fill');
-var loadPct=document.getElementById('load-pct');
-function setProgress(pct,label){
-  if(loadFill)loadFill.style.width=pct+'%';
-  if(loadPct)loadPct.textContent=Math.round(pct)+'%'+(label?' — '+label:'');
-}
+  var map, minimap, playerMarker, minimapMarker;
+  var playerLngLat = VANCOUVER.slice();
 
-/* Init Mapbox */
-function initMap(){
-  setProgress(10,'Initializing map…');
-  mapboxgl.accessToken=MAPBOX_TOKEN;
-  map=new mapboxgl.Map({
-    container:'map',
-    style:MAPBOX_STYLE,
-    center:CENTER,
-    zoom:17.5,
-    pitch:55,
-    bearing:0,
-    attributionControl:false
-  });
-
-  map.on('load',function(){
-    setProgress(60,'Map loaded');
-    onMapReady();
-  });
-
-  map.on('error',function(e){
-    console.error('Mapbox error:',e);
-  });
-}
-
-/* Player marker (2D for now, 3D character via custom layer later) */
-function createPlayerMarker(){
-  var el=document.createElement('div');
-  el.style.cssText='width:24px;height:24px;border-radius:50%;'+
-    'background:#40ffcd;border:3px solid #fff;'+
-    'box-shadow:0 0 12px rgba(64,255,205,.8);cursor:pointer;';
-  playerMarker=new mapboxgl.Marker({element:el,anchor:'center'})
-    .setLngLat(playerLngLat)
-    .addTo(map);
-}
-
-/* Movement */
-var MOVE_SPEED=0.000045; /* degrees per frame at 60fps (~5 m/s) */
-function updatePlayer(){
-  var moved=false;
-  var dLat=0,dLng=0;
-
-  if(keys['w']||keys['arrowup']){dLat+=MOVE_SPEED;playerHeading=Math.PI;moved=true;}
-  if(keys['s']||keys['arrowdown']){dLat-=MOVE_SPEED;playerHeading=0;moved=true;}
-  if(keys['a']||keys['arrowleft']){dLng-=MOVE_SPEED;playerHeading=-Math.PI/2;moved=true;}
-  if(keys['d']||keys['arrowright']){dLng+=MOVE_SPEED;playerHeading=Math.PI/2;moved=true;}
-
-  /* Diagonal */
-  if(dLat!==0&&dLng!==0){dLat*=0.707;dLng*=0.707;}
-
-  if(moved){
-    playerLngLat[0]+=dLng;
-    playerLngLat[1]+=dLat;
-    if(playerMarker)playerMarker.setLngLat(playerLngLat);
-    /* Follow camera */
-    map.setCenter(playerLngLat);
-    checkStoreProximity();
+  function createMarkerEl(cls, label){
+    var el = document.createElement('div');
+    el.className = cls;
+    el.setAttribute('aria-label', label);
+    el.style.cssText = 'width:20px;height:20px;border-radius:50%;background:#4f7ed9;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.5);';
+    return el;
   }
-}
 
-/* Store proximity + interaction (ported) */
-var nearStores=[],storeCache={};
-var currentStores=[],currentStore=null,storeSelIdx=0;
-
-function checkStoreProximity(){
-  /* Throttled: check every 2s */
-  var now=Date.now();
-  if(checkStoreProximity._last&&now-checkStoreProximity._last<2000)return;
-  checkStoreProximity._last=now;
-
-  fetchNearbyStores(playerLngLat,function(stores){
-    nearStores=stores;
-    var prompt=document.getElementById('interact-prompt');
-    if(stores.length>0){
-      document.getElementById('interact-label').textContent=
-        'Interact — '+stores[0].name;
-      prompt.classList.add('visible');
-    }else{
-      prompt.classList.remove('visible');
-    }
-  });
-}
-
-function fetchNearbyStores(lngLat,cb){
-  var key=lngLat[0].toFixed(4)+','+lngLat[1].toFixed(4);
-  if(storeCache[key]){cb(storeCache[key]);return;}
-  if(GOOGLE_PLACES_KEY.indexOf('__PUT_')===0){cb([]);return;}
-
-  fetch('https://places.googleapis.com/v1/places:searchNearby',{
-    method:'POST',
-    headers:{
-      'Content-Type':'application/json',
-      'X-Goog-Api-Key':GOOGLE_PLACES_KEY,
-      'X-Goog-FieldMask':'places.id,places.displayName,places.primaryType,places.rating,places.userRatingCount'
-    },
-    body:JSON.stringify({
-      locationRestriction:{circle:{center:{latitude:lngLat[1],longitude:lngLat[0]},radius:60}},
-      maxResultCount:10,
-      rankPreference:'DISTANCE'
-    })
-  })
-  .then(function(r){return r.json();})
-  .then(function(j){
-    var places=(j.places||[]).map(function(p){
-      return{
-        id:p.id,
-        name:(p.displayName&&p.displayName.text)||'Unknown',
-        type:p.primaryType||'',
-        rating:p.rating||0,
-        ratingCount:p.userRatingCount||0
-      };
+  function initMap(){
+    map = new mapboxgl.Map({
+      container: 'map',
+      style: CFG.mapboxStyle,
+      center: playerLngLat,
+      zoom: CAMERA_ZOOM,
+      pitch: CAMERA_PITCH,
+      bearing: CAMERA_BEARING,
+      attributionControl: false,
+      dragPan: false,
+      dragRotate: false,
+      scrollZoom: false,
+      doubleClickZoom: false,
+      touchZoomRotate: false,
+      keyboard: false,
     });
-    storeCache[key]=places;
-    cb(places);
-  })
-  .catch(function(){cb([]);});
-}
 
-/* Store modal (ported from Three.js version) */
-function escapeHtml(s){
-  return String(s).replace(/[&<>"']/g,function(c){
-    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
-  });
-}
-
-function showStoreModal(stores){
-  var modal=document.getElementById('store-modal');
-  var listView=document.getElementById('store-list-view');
-  var detailView=document.getElementById('store-detail-view');
-  var listEl=document.getElementById('store-list');
-  if(!modal)return;
-  currentStores=stores;storeSelIdx=0;
-  listView.classList.remove('hidden');
-  detailView.classList.add('hidden');
-  listEl.innerHTML='';
-  if(stores.length===0){
-    listEl.innerHTML='<p style="color:#9fb3c8">No places found nearby.</p>';
-  }else{
-    stores.forEach(function(s,idx){
-      var div=document.createElement('div');
-      div.className='store-item'+(idx===0?' selected':'');
-      var stars=s.rating>0?'★'.repeat(Math.round(s.rating))+' '+s.rating.toFixed(1):'';
-      div.innerHTML='<div class="s-name">'+escapeHtml(s.name)+'</div>'+
-        '<div class="s-meta">'+escapeHtml(s.type)+' · '+stars+'</div>';
-      div.addEventListener('click',function(){showStoreDetail(idx);});
-      div.addEventListener('mouseenter',function(){setStoreSel(idx);});
-      listEl.appendChild(div);
-    });
-  }
-  modal.classList.remove('hidden');
-}
-
-function setStoreSel(idx){
-  if(idx<0||idx>=currentStores.length)return;
-  storeSelIdx=idx;
-  document.querySelectorAll('#store-list .store-item').forEach(function(el,i){
-    el.classList.toggle('selected',i===idx);
-  });
-}
-
-function showStoreDetail(idx){
-  currentStore=currentStores[idx];
-  if(!currentStore)return;
-  document.getElementById('store-list-view').classList.add('hidden');
-  document.getElementById('store-detail-view').classList.remove('hidden');
-  document.getElementById('store-detail-name').textContent=currentStore.name;
-  document.getElementById('store-detail-content').innerHTML=
-    '<p style="color:#9fb3c8">Select an option above.</p>';
-}
-
-function fetchPlaceDetails(placeId,cb){
-  if(GOOGLE_PLACES_KEY.indexOf('__PUT_')===0){cb(null);return;}
-  fetch('https://places.googleapis.com/v1/places/'+placeId,{
-    headers:{
-      'X-Goog-Api-Key':GOOGLE_PLACES_KEY,
-      'X-Goog-FieldMask':'displayName,primaryType,formattedAddress,location,rating,userRatingCount,reviews,photos,websiteUri,regularOpeningHours,priceLevel'
-    }
-  })
-  .then(function(r){return r.json();})
-  .then(cb)
-  .catch(function(){cb(null);});
-}
-
-function showStoreInfo(){
-  if(!currentStore)return;
-  var el=document.getElementById('store-detail-content');
-  el.innerHTML='<p style="color:#9fb3c8">Loading…</p>';
-  fetchPlaceDetails(currentStore.id,function(d){
-    if(!d){el.innerHTML='<p>Details unavailable.</p>';return;}
-    var html='<p><strong>Type:</strong> '+escapeHtml(d.primaryType||'—')+'</p>';
-    html+='<p><strong>Address:</strong> '+escapeHtml(d.formattedAddress||'—')+'</p>';
-    if(d.rating)html+='<p><strong>Rating:</strong> ★ '+d.rating.toFixed(1)+'</p>';
-    el.innerHTML=html;
-  });
-}
-
-function showStoreReviews(){
-  if(!currentStore)return;
-  var el=document.getElementById('store-detail-content');
-  el.innerHTML='<p style="color:#9fb3c8">Loading reviews…</p>';
-  fetchPlaceDetails(currentStore.id,function(d){
-    if(!d||!d.reviews||!d.reviews.length){
-      el.innerHTML='<p>No reviews available.</p>';return;
-    }
-    var html='';
-    d.reviews.slice(0,5).forEach(function(r){
-      html+='<div class="review"><div class="r-stars">'+
-        '★'.repeat(r.rating||0)+'</div><div>'+
-        escapeHtml((r.text&&r.text.text)||'').slice(0,300)+'</div></div>';
-    });
-    el.innerHTML=html;
-  });
-}
-
-function showStorePhotos(){
-  if(!currentStore)return;
-  var el=document.getElementById('store-detail-content');
-  el.innerHTML='<p style="color:#9fb3c8">Loading photos…</p>';
-  fetchPlaceDetails(currentStore.id,function(d){
-    if(!d||!d.photos||!d.photos.length){
-      el.innerHTML='<p>No photos available.</p>';return;
-    }
-    var html='<div class="photo-grid">';
-    d.photos.slice(0,6).forEach(function(p){
-      if(p.name){
-        html+='<img src="https://places.googleapis.com/v1/'+p.name+
-          '/media?maxWidthPx=400&key='+GOOGLE_PLACES_KEY+'" loading="lazy">';
-      }
-    });
-    el.innerHTML=html+'</div>';
-  });
-}
-
-function tryInteract(){
-  if(nearStores.length===0)return;
-  showStoreModal(nearStores);
-}
-
-/* Input */
-document.addEventListener('keydown',function(e){
-  var k=e.key.toLowerCase();
-  keys[k]=true;
-
-  /* Store modal navigation */
-  var modal=document.getElementById('store-modal');
-  if(modal&&!modal.classList.contains('hidden')){
-    var listView=document.getElementById('store-list-view');
-    var isList=!listView.classList.contains('hidden');
-    if(e.key==='Escape'){
-      modal.classList.add('hidden');
-    }else if(isList&&currentStores.length>0){
-      if(e.key==='ArrowDown'){e.preventDefault();setStoreSel((storeSelIdx+1)%currentStores.length);}
-      else if(e.key==='ArrowUp'){e.preventDefault();setStoreSel((storeSelIdx-1+currentStores.length)%currentStores.length);}
-      else if(e.key==='Enter'){e.preventDefault();showStoreDetail(storeSelIdx);}
-    }
-    return;
-  }
-
-  if(k===' '){
-    e.preventDefault();
-    tryInteract();
-  }
-  if(k==='shift'){
-    /* Jump placeholder */
-    console.log('Jump');
-  }
-});
-
-document.addEventListener('keyup',function(e){
-  keys[e.key.toLowerCase()]=false;
-});
-
-/* Store modal wiring */
-document.getElementById('store-modal-close').addEventListener('click',function(){
-  document.getElementById('store-modal').classList.add('hidden');
-});
-document.getElementById('store-back').addEventListener('click',function(){
-  document.getElementById('store-detail-view').classList.add('hidden');
-  document.getElementById('store-list-view').classList.remove('hidden');
-});
-document.querySelectorAll('#store-modal .store-actions button').forEach(function(btn){
-  btn.addEventListener('click',function(){
-    var a=btn.getAttribute('data-action');
-    if(a==='info')showStoreInfo();
-    else if(a==='reviews')showStoreReviews();
-    else if(a==='photos')showStorePhotos();
-    else if(a==='enter'&&currentStore){
-      fetchPlaceDetails(currentStore.id,function(d){
-        if(d&&d.websiteUri)window.open(d.websiteUri,'_blank');
+    map.on('style.load', function(){
+      try{
+        map.setFog({
+          color: 'rgb(8, 12, 18)',
+          'high-color': 'rgb(42, 68, 96)',
+          'space-color': 'rgb(2, 4, 10)',
+          'horizon-blend': 0.08,
+        });
+      }catch(e){}
+      // Lower building opacity for visibility (Cauldron style)
+      map.getStyle().layers.forEach(function(layer){
+        if(layer.type === 'fill-extrusion' && /building/i.test(layer.id)){
+          map.setPaintProperty(layer.id, 'fill-extrusion-opacity', 0.85);
+        }
       });
-    }
-  });
-});
+      document.getElementById('loading').classList.add('done');
+    });
 
-/* Map ready */
-function onMapReady(){
-  setProgress(80,'Creating player…');
-  createPlayerMarker();
-  document.getElementById('hud').classList.add('visible');
+    playerMarker = new mapboxgl.Marker({
+      element: createMarkerEl('player-marker', 'Player'),
+      anchor: 'center',
+    }).setLngLat(playerLngLat).addTo(map);
 
-  /* Handle /vancouver/store/{placeId} deep link */
-  var m=window.location.pathname.match(/\/store\/([A-Za-z0-9_-]+)/);
-  if(m){
-    var pid=m[1];
-    fetchPlaceDetails(pid,function(d){
-      if(d&&d.location){
-        playerLngLat=[d.location.longitude,d.location.latitude];
-        playerMarker.setLngLat(playerLngLat);
-        map.setCenter(playerLngLat);
-        showStoreModal([{id:pid,name:(d.displayName&&d.displayName.text)||'Store',type:d.primaryType||''}]);
-        setTimeout(function(){showStoreDetail(0);showStoreInfo();},500);
-      }
+    initMinimap();
+    initControls();
+  }
+
+  function initMinimap(){
+    minimap = new mapboxgl.Map({
+      container: 'minimap',
+      style: CFG.analysisMapboxStyle,
+      center: playerLngLat,
+      zoom: MINIMAP_LEVELS[zoomIdx].zoom,
+      interactive: false,
+      attributionControl: false,
+    });
+    minimap.on('load', function(){
+      minimapMarker = new mapboxgl.Marker({
+        element: createMarkerEl('minimap-marker', 'Player on minimap'),
+        anchor: 'center',
+      }).setLngLat(playerLngLat).addTo(minimap);
+    });
+
+    document.getElementById('map-zoom-in').addEventListener('click', function(){
+      zoomIdx = Math.min(MINIMAP_LEVELS.length-1, zoomIdx+1);
+      minimap.setZoom(MINIMAP_LEVELS[zoomIdx].zoom);
+    });
+    document.getElementById('map-zoom-out').addEventListener('click', function(){
+      zoomIdx = Math.max(0, zoomIdx-1);
+      minimap.setZoom(MINIMAP_LEVELS[zoomIdx].zoom);
     });
   }
 
-  setProgress(100,'Ready');
-  setTimeout(function(){
-    document.getElementById('loading').classList.add('hidden');
-  },500);
+  function initControls(){
+    var keys = {};
+    document.addEventListener('keydown', function(e){
+      keys[e.key.toLowerCase()] = true;
+      if(e.key==='m'||e.key==='M') cycleMinimap();
+      if(e.key===' '){ e.preventDefault(); tryInteract(); }
+    });
+    document.addEventListener('keyup', function(e){
+      keys[e.key.toLowerCase()] = false;
+    });
 
-  /* Game loop */
-  function loop(){
-    updatePlayer();
-    requestAnimationFrame(loop);
+    // Movement loop
+    var STEP = 0.00005; // ~5m per frame at 60fps
+    function tick(){
+      var moved = false;
+      var dlng = 0, dlat = 0;
+      if(keys['w']||keys['arrowup']){ dlat += STEP; moved=true; }
+      if(keys['s']||keys['arrowdown']){ dlat -= STEP; moved=true; }
+      if(keys['a']||keys['arrowleft']){ dlng -= STEP; moved=true; }
+      if(keys['d']||keys['arrowright']){ dlng += STEP; moved=true; }
+      if(moved){
+        playerLngLat[0] += dlng;
+        playerLngLat[1] += dlat;
+        map.setCenter(playerLngLat);
+        playerMarker.setLngLat(playerLngLat);
+        if(minimapMarker) minimapMarker.setLngLat(playerLngLat);
+        minimap.setCenter(playerLngLat);
+      }
+      requestAnimationFrame(tick);
+    }
+    tick();
   }
-  loop();
-}
 
-/* Boot */
-initMap();
+  function cycleMinimap(){
+    var wrap = document.getElementById('minimap-wrap');
+    var stage = parseInt(wrap.getAttribute('data-stage'),10);
+    stage = stage >= 3 ? 1 : stage + 1;
+    wrap.setAttribute('data-stage', stage);
+  }
 
+  // Store interaction (from espil.online, adapted for Mapbox)
+  var GOOGLE_PLACES_KEY = '__PUT_YOUR_KEY_HERE__';
+  function tryInteract(){
+    // Fetch nearby stores via Google Places
+    var lat = playerLngLat[1], lng = playerLngLat[0];
+    if(GOOGLE_PLACES_KEY.indexOf('__PUT_')===0){
+      showToast('Store data unavailable (API key needed)');
+      return;
+    }
+    var url = 'https://places.googleapis.com/v1/places:searchNearby';
+    // ... (Places API call, show modal if stores found)
+    showToast('Checking for nearby stores…');
+  }
+
+  function showToast(msg){
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._t);
+    t._t = setTimeout(function(){ t.classList.remove('show'); }, 2000);
+  }
+
+  // Store deep link: /vancouver/store/{placeId}
+  function checkDeepLink(){
+    var m = location.pathname.match(/\/vancouver\/store\/([^\/]+)/);
+    if(m){
+      var placeId = m[1];
+      showToast('Loading store: ' + placeId);
+      // TODO: Fetch place details and show modal
+    }
+  }
+
+  // Init
+  initMap();
+  checkDeepLink();
 })();
 </script>
 </body>
