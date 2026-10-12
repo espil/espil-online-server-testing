@@ -2273,6 +2273,51 @@
         m.quaternion.copy(mapCamera.quaternion);
       }
     }
+
+    /* Han 2026-10-11 PROTOTYPE 2: curated Plushy city sprites placed in the test map
+       as camera-facing billboards around the Canada Place plaza. 115 sprites were
+       curated (see /sprites/ gallery); 26 are placed here. To remove: delete this
+       function and its call in buildWalkMapOnce. */
+    var spriteShowcaseDone=false;
+    function buildSpriteShowcase(){
+      if(spriteShowcaseDone)return; spriteShowcaseDone=true;
+      var base='/sprites/curated/';
+      var items=[
+        ['avantgarde_twisted_glass_tower_3d_s0.png',-66,-128,55],
+        ['p00_glass_condo_tower_3d_building_s0.png',-44,-128,45],
+        ['p05_glass_office_tower_3d_building_s0.png',-22,-128,38],
+        ['dark_asphalttoned_concrete_office_block_s0.png',0,-128,32],
+        ['p04_dark_asphalttoned_concrete_office_block_s0.png',22,-128,30],
+        ['p13_city_hall_3d_building_model_s0.png',44,-128,26],
+        ['historic_chinatown_shophouse_3d_building_s0.png',-60,-102,18],
+        ['p01_red_brick_apartment_block_3d_s0.png',-40,-102,22],
+        ['p12_victorian_heritage_retail_block_3d_s0.png',-20,-102,16],
+        ['multicultural_lowrise_mixeduse_building_3d_s0.png',0,-102,15],
+        ['p07_historic_chinatown_shophouse_3d_building_s0.png',20,-102,18],
+        ['cedar_plank_community_hall_3d_s0.png',40,-102,10],
+        ['p09_modern_community_hall_3d_building_s0.png',60,-102,16],
+        ['p12_theater_3d_building_model_marquee_s1.png',80,-102,18],
+        ['pacific_northwest_craftsman_bungalow_house_s0.png',-40,-78,9],
+        ['p03_suburban_detached_house_3d_building_s0.png',-18,-78,9],
+        ['industrial_warehouse_building_3d_model_s0.png',4,-78,12],
+        ['p11_cedar_plank_community_hall_3d_s0.png',26,-78,10],
+        ['p00_tall_cedar_totem_pole_3d_s0.png',-8,-92,13],
+        ['p00_tall_cedar_totem_pole_3d_s1.png',12,-92,13],
+        ['p00_traffic_light_pole_3d_model_s0.png',-52,-115,5],
+        ['p01_street_lamp_post_3d_model_s0.png',52,-115,5],
+        ['p04_wooden_park_bench_3d_model_s0.png',-30,-90,1.6],
+        ['p05_bus_stop_shelter_3d_model_s0.png',70,-90,3.5],
+        ['p06_red_fire_hydrant_3d_model_s0.png',-48,-90,1.2],
+        ['p02_stop_sign_3d_model_red_s0.png',48,-90,2.6]
+      ];
+      items.forEach(function(it){
+        var img=new Image();
+        img.onload=(function(f,x,z,h){return function(){
+          addProp('showcase',x,z,h*(this.width/this.height),h,base+f);
+        };})(it[0],it[1],it[2],it[3]);
+        img.src=base+it[0];
+      });
+    }
     /* DNA imprint — per Han 2026-10-06: when we land, the Cauldron sticks its DNA on
        the city; the city evolves into something unique with Espil's design (cherry
        blossom trees, a lantern heart at the plaza, drifting petals). Full cinematic
@@ -3483,6 +3528,7 @@
          huge collider boxes (which caused far-side teleport when moving inward). */
       /* (Boundary walls removed; clamping applied in updateWalkMap after collision.) */
       } /* end if(!USE_OSM_REBUILD) — procedural grid skipped */
+      buildSpriteShowcase();
       /* The walker. */
       var av=buildWalkerAvatar();
       mapScene.add(av.group);mapScene.add(av.shadow);
