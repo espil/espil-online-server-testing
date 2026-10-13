@@ -2278,6 +2278,47 @@
        as camera-facing billboards around the Canada Place plaza. 115 sprites were
        curated (see /sprites/ gallery); 26 are placed here. To remove: delete this
        function and its call in buildWalkMapOnce. */
+    var spriteShowcaseExtDone=false;
+    function buildSpriteShowcaseExt(){
+      if(spriteShowcaseExtDone)return; spriteShowcaseExtDone=true;
+      var base='/sprites/curated/';
+      var items=[
+        ['monolithic_black_steel_commercial_building_s0.png',-168,-128,30],
+        ['p00_twisted_glass_tower_3d_building_s0.png',-146,-128,37],
+        ['p04_highrise_residential_tower_3d_building_s0.png',-124,-128,44],
+        ['p09_hotel_tower_3d_building_model_s0.png',-102,-128,51],
+        ['cantilevered_art_gallery_3d_building_s0.png',-140,-114,15],
+        ['p01_parametric_cultural_center_3d_building_s0.png',-112,-114,18],
+        ['p03_sailshaped_waterfront_pavilion_3d_model_s0.png',-84,-114,21],
+        ['p06_shopping_mall_3d_building_model_s0.png',-56,-114,17],
+        ['p08_bank_building_3d_model_stone_s0.png',-28,-114,20],
+        ['p08_punjabi_market_hall_3d_building_s0.png',0,-114,16],
+        ['p10_modern_museum_3d_building_model_s0.png',28,-114,19],
+        ['p11_public_library_3d_building_model_s0.png',56,-114,15],
+        ['p14_school_building_3d_building_model_s0.png',84,-114,18],
+        ['p15_hospital_building_3d_building_model_s0.png',112,-114,21],
+        ['p17_train_station_3d_building_model_s0.png',140,-114,17],
+        ['long_rectangular_cedar_longhouse_3d_s1.png',-156,-102,12],
+        ['luxury_shopping_street_building_3d_s0.png',-134,-102,16],
+        ['modern_asphalttoned_concrete_midrise_apartment_s0.png',-112,-102,20],
+        ['p07_restaurant_building_3d_model_cozy_s0.png',-90,-102,15],
+        ['p16_parking_garage_3d_building_model_s0.png',-68,-102,19],
+        ['p01_tall_cedar_totem_pole_3d_s0.png',-40,-68,9],
+        ['p01_tall_cedar_totem_pole_3d_s1.png',-24,-68,9],
+        ['p02_tall_welcome_totem_pole_3d_s0.png',24,-68,9],
+        ['p02_tall_welcome_totem_pole_3d_s1.png',40,-68,9],
+        ['p03_street_name_sign_pole_3d_s0.png',-8,-64,4.5],
+        ['p07_public_trash_bin_3d_model_s0.png',30,-66,4.5],
+        ['p09_planter_box_with_colorful_flowers_s0.png',-34,-70,4.5],
+      ];
+      items.forEach(function(it){
+        var img=new Image();
+        img.onload=(function(f,x,z,h){return function(){
+          addProp('showcase',x,z,h*(this.width/this.height),h,base+f);
+        };})(it[0],it[1],it[2],it[3]);
+        img.src=base+it[0];
+      });
+    }
     var spriteShowcaseDone=false;
     function buildSpriteShowcase(){
       if(spriteShowcaseDone)return; spriteShowcaseDone=true;
@@ -3529,6 +3570,7 @@
       /* (Boundary walls removed; clamping applied in updateWalkMap after collision.) */
       } /* end if(!USE_OSM_REBUILD) — procedural grid skipped */
       buildSpriteShowcase();
+      buildSpriteShowcaseExt();
       /* The walker. */
       var av=buildWalkerAvatar();
       mapScene.add(av.group);mapScene.add(av.shadow);
