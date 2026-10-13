@@ -336,7 +336,8 @@
       border-color:#7fe3ff;
       box-shadow:0 0 14px rgba(127,227,255,.5);
     }
-    body.touch #sprint-toggle { display:block; }
+    /* 2026-10-12 (Han): sprint UI retired — one run mode. */
+    #sprint-toggle, #sprint-indicator { display:none !important; }
     #sprint-indicator {
       position:fixed;
       top:64px;
@@ -454,7 +455,7 @@
     .kb-menu .move-slot { border-radius:12px; }
     /* Mobile: keep pre-hotbar layout (not keyboard, not single-row hotbar). */
     @media (pointer:coarse) {
-      .skill-bar { display:block; left:50%; right:auto; transform:translateX(-50%); bottom:calc(86px + env(safe-area-inset-bottom)); padding:0; }
+      .skill-bar { display:block; left:12px; right:auto; transform:none; bottom:calc(12px + env(safe-area-inset-bottom)); padding:0; }
       #move-row { display:grid; grid-template-columns:repeat(4, 44px); gap:5px; }
       #item-row { display:flex; gap:5px; margin-top:5px; }
       .kb-menu { display:none; }
@@ -496,7 +497,11 @@
     @media (pointer:coarse) {
       body.in-map .map-attack { display:block; }
       .map-status { width:172px; }
-      .skill-bar { bottom:calc(86px + env(safe-area-inset-bottom)); }
+      .skill-bar { bottom:calc(12px + env(safe-area-inset-bottom)); }
+      /* 2026-10-12 (Han): mobile — joystick RIGHT, keyboard/buttons LEFT. */
+      .map-attack { left:204px; right:auto; bottom:24px; }
+      .map-jump { left:296px; right:auto; bottom:24px; }
+      .joystick { right:20px; left:auto; bottom:110px; }
     }
     /* ---- Skill tree panel ---- */
     /* QA skill theme (2026-10-08, Han): skill tree — dark forest, round nodes, no angular boxes. */
@@ -769,7 +774,7 @@
     @media (prefers-reduced-motion:reduce) { .intro-logo .caret { animation:none; } .intro-continue { animation:none; opacity:1; } }
     /* Virtual joystick for city stepping on touch devices. */
     .joystick {
-      position:absolute; z-index:20; left:18px; bottom:132px; width:104px; height:104px;
+      position:absolute; z-index:20; left:auto; right:18px; bottom:132px; width:104px; height:104px;
       border-radius:50%; border:1px solid rgba(134,238,228,.4);
       background:radial-gradient(circle,rgba(3,16,20,.55),rgba(3,16,20,.85));
       box-shadow:0 0 24px rgba(64,255,205,.18);
@@ -781,6 +786,18 @@
       box-shadow:0 0 18px rgba(64,255,205,.5); pointer-events:none;
     }
     @media (pointer:coarse) { .joystick { display:block; } }
+    /* 2026-10-12 (Han): landscape-first on mobile — rotate prompt in portrait. */
+    #rotate-overlay { display:none; }
+    @media (pointer:coarse) and (orientation:portrait) {
+      body.in-map #rotate-overlay {
+        display:flex; position:fixed; inset:0; z-index:90;
+        background:rgba(2,10,13,.88); color:#eafffd;
+        flex-direction:column; align-items:center; justify-content:center; gap:14px;
+        font:700 1rem/1.4 "Manrope",sans-serif; letter-spacing:.04em; text-align:center; padding:24px;
+      }
+      .rotate-phone { font-size:3rem; animation:rotateHint 1.6s ease-in-out infinite; }
+    }
+    @keyframes rotateHint { 0%,20% { transform:rotate(0deg); } 60%,100% { transform:rotate(90deg); } }
     /* City info panel: details before entering. Centered on screen (2026-10-06 QA). */
     .city-info {
       position:absolute; z-index:28; top:50%; right:28px; left:auto; transform:translateY(-50%);
@@ -1073,6 +1090,7 @@
     <div class="joystick" id="joystick" aria-hidden="true">
       <div class="joy-knob" id="joy-knob"></div>
     </div>
+    <div id="rotate-overlay" aria-hidden="true"><div class="rotate-phone">&#128241;</div><div>화면을 가로로 돌려주세요</div></div>
     <button class="map-jump" id="map-jump" type="button" aria-label="Jump">JUMP</button>
     <button class="map-attack" id="map-attack" type="button" aria-label="Attack">&#9876;&#65039;</button>
     <div class="map-status" id="map-status" aria-hidden="true">
@@ -3735,6 +3753,55 @@
     /* Han 2026-10-10 rebuild: Build entire OSM city at once (no procedural grid).
        Real buildings, real positions, real heights. 2km radius for 3D. */
     var osmCityBuilt=false;
+    /* Canvas facade textures per archetype (2026-10-12, Han: OSM buildings
+       were plain white/gray and unreadable). Drawn once, no asset files. */
+    var facadeTexCache={};
+    function facadeTexture(kind){
+      if(facadeTexCache[kind])return facadeTexCache[kind];
+      var c=document.createElement('canvas');c.width=256;c.height=512;
+      var g=c.getContext('2d');
+      var conf={
+        tower:{base:'#5d748c',win:'#d7ecfa',lit:'#ffd98a',cols:8,rows:24,floor:0},
+        midrise:{base:'#a26a44',win:'#e9f2f4',lit:'#ffe1a0',cols:6,rows:14,floor:0},
+        lowrise:{base:'#d9c69c',win:'#5b6670',lit:'#ffdf9e',cols:5,rows:6,floor:64},
+        warehouse:{base:'#767c6a',win:'#cfd8ce',lit:'#ffe1a0',cols:4,rows:3,floor:0},
+        house:{base:'#e7dfd2',win:'#7d8ea0',lit:'#ffd98a',cols:3,rows:4,floor:0}
+      }[kind]||{base:'#b9bec4',win:'#eef4f8',lit:'#ffd98a',cols:5,rows:8,floor:0};
+      g.fillStyle=conf.base;g.fillRect(0,0,256,512);
+      g.fillStyle='rgba(0,0,0,.28)';g.fillRect(0,0,256,14);
+      var top=30,bottom=512-(conf.floor||0)-10;
+      var ww=256/conf.cols,wh=(bottom-top)/conf.rows;
+      for(var r=0;r<conf.rows;r++){
+        for(var ci=0;ci<conf.cols;ci++){
+          var lit=((r*7+ci*13)%9)<2;
+          g.fillStyle=lit?conf.lit:conf.win;
+          g.globalAlpha=lit?.95:.8;
+          g.fillRect(ci*ww+ww*.22,top+r*wh+wh*.2,ww*.56,wh*.55);
+        }
+      }
+      g.globalAlpha=1;
+      if(conf.floor){
+        g.fillStyle='#454c54';g.fillRect(0,512-conf.floor,256,conf.floor);
+        g.fillStyle='#b5432f';g.fillRect(0,512-conf.floor,256,10);
+        g.fillStyle='#9fd8e8';
+        g.fillRect(14,512-conf.floor+20,64,conf.floor-26);
+        g.fillRect(96,512-conf.floor+20,64,conf.floor-26);
+        g.fillRect(178,512-conf.floor+20,64,conf.floor-26);
+      }
+      if(kind==='house'){
+        g.fillStyle='#6e4f35';g.fillRect(108,512-92,40,92);
+        g.fillStyle='#3c4653';g.fillRect(0,0,256,26);
+      }
+      if(kind==='warehouse'){
+        g.fillStyle='rgba(0,0,0,.25)';g.fillRect(78,512-150,100,150);
+        g.fillStyle='rgba(255,255,255,.12)';
+        for(var sx=64;sx<256;sx+=64)g.fillRect(sx,0,2,512);
+      }
+      var tex=new THREE.CanvasTexture(c);
+      tex.anisotropy=4;
+      facadeTexCache[kind]=tex;
+      return tex;
+    }
     function buildOsmCity(){
       if(osmCityBuilt)return;
       osmCityBuilt=true;
@@ -3773,31 +3840,43 @@
 
       console.log('[OSM City] '+items.length+' buildings within 2km');
 
-      /* InstancedMesh: one draw call for all buildings */
+      /* InstancedMesh per archetype (2026-10-12, Han): buildings were plain
+         white/gray and confusing — each archetype gets its own facade
+         texture + color identity, one draw call per archetype. */
       if(items.length>0){
         var bgeo=new THREE.BoxGeometry(1,1,1);
-        /* Translate so base is at y=0 (not centered) */
         bgeo.translate(0,0.5,0);
-        var bmat=new THREE.MeshLambertMaterial({color:0xffffff});
-        /* Apply globe curve (Han 2026-10-10 #3) */
-        if(typeof curvePatch==='function')curvePatch(bmat);
-        var inst=new THREE.InstancedMesh(bgeo,bmat,items.length);
-        var m4=new THREE.Matrix4(),q=new THREE.Quaternion(),sv=new THREE.Vector3(),pv=new THREE.Vector3();
-        var cc=new THREE.Color();
-        for(var j=0;j<items.length;j++){
-          var it=items[j];
-          pv.set(it.x,0,it.z);
-          sv.set(it.w,it.h,it.d);
-          q.identity();
-          m4.compose(pv,q,sv);
-          inst.setMatrixAt(j,m4);
-          inst.setColorAt(j,cc.setHex(it.color));
+        var groups={tower:[],midrise:[],lowrise:[],warehouse:[],house:[]};
+        for(var gi=0;gi<items.length;gi++){
+          var git=items[gi],garea=git.w*git.d;
+          var gk=git.h>=60?'tower':(git.h>=25?'midrise':(git.h>=12?'lowrise':(garea>=300?'warehouse':'house')));
+          groups[gk].push(git);
         }
-        inst.instanceMatrix.needsUpdate=true;
-        if(inst.instanceColor)inst.instanceColor.needsUpdate=true;
-        inst.castShadow=true;
-        inst.receiveShadow=true;
-        mapScene.add(inst);
+        for(var gname in groups){
+          var gitems=groups[gname];
+          if(!gitems.length)continue;
+          var gmat=new THREE.MeshLambertMaterial({map:facadeTexture(gname)});
+          if(typeof curvePatch==='function')curvePatch(gmat);
+          var ginst=new THREE.InstancedMesh(bgeo,gmat,gitems.length);
+          var gm4=new THREE.Matrix4(),gq=new THREE.Quaternion(),gsv=new THREE.Vector3(),gpv=new THREE.Vector3();
+          var gcc=new THREE.Color();
+          for(var gj=0;gj<gitems.length;gj++){
+            var git2=gitems[gj];
+            gpv.set(git2.x,0,git2.z);
+            gsv.set(git2.w,git2.h,git2.d);
+            gq.identity();
+            gm4.compose(gpv,gq,gsv);
+            ginst.setMatrixAt(gj,gm4);
+            var tv=.82+((gj*37)%20)/100;
+            gcc.setRGB(tv,tv*.98,tv*.95);
+            ginst.setColorAt(gj,gcc);
+          }
+          ginst.instanceMatrix.needsUpdate=true;
+          if(ginst.instanceColor)ginst.instanceColor.needsUpdate=true;
+          ginst.castShadow=true;
+          ginst.receiveShadow=true;
+          mapScene.add(ginst);
+        }
       }
 
       /* Build traffic on OSM roads */
@@ -3983,7 +4062,7 @@
           var bgeo=new THREE.BoxGeometry(1,1,1);
           bgeo.translate(0,.5,0); /* pivot at base */
           /* Han 2026-10-10: MeshBasicMaterial (unlit) — always visible */
-          var bmat=new THREE.MeshBasicMaterial({color:0xffffff});
+          var bmat=new THREE.MeshBasicMaterial({map:facadeTexture('midrise')});
           var inst=new THREE.InstancedMesh(bgeo,bmat,items.length);
           var m4=new THREE.Matrix4(),q=new THREE.Quaternion(),sv=new THREE.Vector3(),pv=new THREE.Vector3();
           var cc=new THREE.Color();
@@ -4090,7 +4169,7 @@
       var coarse=window.matchMedia&&window.matchMedia('(pointer:coarse)').matches;
       if(hint)hint.textContent=coarse?
         'Left stick walks (full tilt = run) \u00B7 drag to look around \u00B7 JUMP to hop (twice = double jump)':
-        'Arrow keys walk \u00B7 SHIFT jump (twice = double jump) \u00B7 SPACE interact \u00B7 CTRL sprint toggle \u00B7 Q punch \u00B7 W kick \u00B7 E 도구 인용 \u00B7 R defense \u00B7 K skills \u00B7 drag to look \u00B7 ESC to leave';
+        'Arrow keys walk \u00B7 SHIFT jump (twice = double jump) \u00B7 SPACE interact \u00B7 Q punch \u00B7 W kick \u00B7 E 도구 인용 \u00B7 R defense \u00B7 K skills \u00B7 drag to look \u00B7 ESC to leave';
       cityPhasePanel.setAttribute('aria-hidden','false');
       document.getElementById('city-status').classList.add('is-city');
       document.body.classList.add('in-map');
@@ -5158,8 +5237,6 @@
       /* QA #8 (2026-10-06): Shift=jump, Space=interact. Shift-run deprecated. */
       if((k==='Shift')&&!e.repeat)tryJump();
       if(k===' '&&!e.repeat)tryInteract();
-      /* QA #15 (2026-10-06): Ctrl toggles sprint on/off. */
-      if(k==='Control'&&!e.repeat){sprintOn=!sprintOn;updateSprintUI();}
       /* Han 2026-10-10 #8: B summons/dismounts fly vehicle */
       if(k.toLowerCase()==='b'&&!e.repeat){
         if(typeof summonVehicle==='function')summonVehicle();
@@ -5200,9 +5277,6 @@
     });
     var jumpBtn=document.getElementById('map-jump');
     if(jumpBtn)jumpBtn.addEventListener('pointerdown',function(e){e.preventDefault();tryJump();});
-    /* QA #15: touch sprint toggle button. */
-    var sprintBtn=document.getElementById('sprint-toggle');
-    if(sprintBtn)sprintBtn.addEventListener('pointerdown',function(e){e.preventDefault();sprintOn=!sprintOn;updateSprintUI();});
     function collideCircleAxis(p,axis){
       var r=PLAYER_R;
       /* Check downtown colliders + nearby chunk colliders (spatial hash) + cars. */
@@ -5257,8 +5331,8 @@
       var rx=-fz,rz=fx;
       var mx=fx*(-iz)+rx*ix,mz=fz*(-iz)+rz*ix;
       var joyMag=window.__joyVec?Math.sqrt(window.__joyVec.x*window.__joyVec.x+window.__joyVec.y*window.__joyVec.y):0;
-      /* QA #15: sprintOn (Ctrl toggle) or full-tilt stick = run. Shift is jump now. */
-      p.running=p.moving&&(sprintOn||joyMag>.88);
+      /* 2026-10-12 (Han): one run mode — moving always runs. Sprint toggle removed. */
+      p.running=p.moving;
       /* QA #17: swimming mode when in water. */
       p.swimming=isWaterAt(p.pos.x,p.pos.z)&&p.pos.y<1.5;
       var _ms=moveSpeeds();
@@ -6033,49 +6107,57 @@
       return [lat,lng];
     }
     function initLeafletMap(){
-      /* Han 2026-10-10: Use Cauldron Mapbox minimap instead of Leaflet */
-      if(mapboxMinimap||typeof mapboxgl==='undefined')return;
+      /* 2026-10-12 fix (Han): the Mapbox minimap never rendered — the access
+         token in code was the '__PUT_YOUR_MAPBOX_TOKEN_HERE__' placeholder
+         (build_inject_tokens.py only patches cauldron/static-config.js, not
+         this file), so the style request failed and the box stayed blank.
+         The minimap now uses Leaflet + OpenStreetMap tiles: free, no token. */
+      if(leafletMap||typeof L==='undefined')return;
       var el=document.getElementById('minimap');
       if(!el)return;
-      mapboxgl.accessToken='__PUT_YOUR_MAPBOX_TOKEN_HERE__';
-      mapboxMinimap=new mapboxgl.Map({
-        container:'minimap',
-        style:'mapbox://styles/mapbox/streets-v12',
-        center:[MAP_CENTER_LNG,MAP_CENTER_LAT],
-        zoom:CAULDRON_MINIMAP_LEVELS[minimapLevelIdx].zoom,
-        interactive:false,
-        attributionControl:false,
-      });
-      mapboxMinimap.on('load',function(){
-        var markerEl=document.createElement('div');
-        markerEl.style.cssText='width:16px;height:16px;border-radius:50%;background:#4f7ed9;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.5);';
-        mapboxMarker=new mapboxgl.Marker({element:markerEl})
-          .setLngLat([MAP_CENTER_LNG,MAP_CENTER_LAT])
-          .addTo(mapboxMinimap);
-      });
-      /* Wire zoom buttons to Cauldron levels */
+      leafletMap=L.map('minimap',{zoomControl:false,attributionControl:false,doubleClickZoom:false,scrollWheelZoom:false});
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(leafletMap);
+      var ll0=gameToLatLng(19,-57);
+      leafletMap.setView(ll0,CAULDRON_MINIMAP_LEVELS[minimapLevelIdx].zoom);
+      playerMarker=L.marker(ll0,{interactive:false,icon:L.divIcon({className:'',
+        html:'<div style="width:16px;height:16px;border-radius:50%;background:#4f7ed9;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.5);"></div>',
+        iconSize:[16,16],iconAnchor:[8,8]})}).addTo(leafletMap);
       var zin=document.getElementById('map-zoom-in');
       var zout=document.getElementById('map-zoom-out');
       if(zin)zin.onclick=function(){
         minimapLevelIdx=Math.min(CAULDRON_MINIMAP_LEVELS.length-1,minimapLevelIdx+1);
-        if(mapboxMinimap)mapboxMinimap.setZoom(CAULDRON_MINIMAP_LEVELS[minimapLevelIdx].zoom);
+        if(leafletMap)leafletMap.setZoom(CAULDRON_MINIMAP_LEVELS[minimapLevelIdx].zoom);
       };
       if(zout)zout.onclick=function(){
         minimapLevelIdx=Math.max(0,minimapLevelIdx-1);
-        if(mapboxMinimap)mapboxMinimap.setZoom(CAULDRON_MINIMAP_LEVELS[minimapLevelIdx].zoom);
+        if(leafletMap)leafletMap.setZoom(CAULDRON_MINIMAP_LEVELS[minimapLevelIdx].zoom);
       };
+      /* The wrap is display:none until in-map; Leaflet needs a size refresh
+         once it becomes visible. */
+      setTimeout(function(){if(leafletMap)leafletMap.invalidateSize();},350);
+      setTimeout(function(){if(leafletMap)leafletMap.invalidateSize();},1500);
     }
     function updateLeafletMap(){
-      /* Han 2026-10-10: Updated for Cauldron Mapbox minimap */
-      if(!mapboxMinimap||!walkPlayer||!walkPlayer.pos)return;
+      if(!leafletMap||!walkPlayer||!walkPlayer.pos)return;
       var now=performance.now();
       if(now-lastMapCenter<200)return;
       lastMapCenter=now;
       var ll=gameToLatLng(walkPlayer.pos.x,walkPlayer.pos.z);
-      // ll = [lat, lng], Mapbox needs [lng, lat]
-      mapboxMinimap.setCenter([ll[1], ll[0]]);
-      if(mapboxMarker)mapboxMarker.setLngLat([ll[1], ll[0]]);
+      leafletMap.setView(ll,leafletMap.getZoom(),{animate:false});
+      if(playerMarker)playerMarker.setLatLng(ll);
     }
+    /* 2026-10-12 (Han): mobile starts in landscape — try to lock it on the
+       ENTER CITY tap (a user gesture); the rotate overlay covers the rest. */
+    function tryLandscapeLock(){
+      try{
+        if(!window.matchMedia||!matchMedia('(pointer:coarse)').matches)return;
+        var de=document.documentElement;
+        if(de.requestFullscreen){var fp=de.requestFullscreen();if(fp&&fp.catch)fp.catch(function(){});}
+        if(screen.orientation&&screen.orientation.lock){var op=screen.orientation.lock('landscape');if(op&&op.catch)op.catch(function(){});}
+      }catch(e){}
+    }
+    var __infoEnterBtn=document.getElementById('city-info-enter');
+    if(__infoEnterBtn)__infoEnterBtn.addEventListener('click',tryLandscapeLock);
     function setMapStage(s){
       mapStage=Math.max(1,Math.min(3,s));
       var wrap=document.getElementById('minimap-wrap');
