@@ -1,0 +1,4 @@
+# Local secrets & machine-local files — never commit (2026-10-12)
+.env
+local-config.js
+*.local.js

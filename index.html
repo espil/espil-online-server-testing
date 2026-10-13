@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
+  <script src="/local-config.js"></script>
   <!-- espil-online deploy 2026-10-04 v12 full -->
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -1977,7 +1978,7 @@
        NOTE: API key is in-page for LOCAL TESTING only. Production must use
        a backend proxy + server-side caching (per business model: fetch once,
        never live-query per user). */
-    var GOOGLE_PLACES_KEY='__PUT_YOUR_KEY_HERE__';
+    var GOOGLE_PLACES_KEY=(window.__ESPIL_LOCAL_CONFIG__&&window.__ESPIL_LOCAL_CONFIG__.GOOGLE_PLACES_KEY)||'__PUT_YOUR_KEY_HERE__'; /* 2026-10-12: key lives in gitignored local-config.js so git pull never clobbers it */
     var mapBuildings=[]; /* {x,z,w,d,name} — populated by buildWalkMapOnce */
     var MAP_LAT0=49.2827,MAP_LNG0=-123.1207;
     function mapToLatLng(x,z){
