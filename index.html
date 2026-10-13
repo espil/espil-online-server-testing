@@ -1,7 +1,19 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <script src="/local-config.js"></script>
+  <script>
+/* 2026-10-13: ALL API keys live in /.env (gitignored, keys only). See .env.example.
+   Loaded here so window.__ESPIL_ENV__ is ready before any key is used at runtime. */
+window.__ESPIL_ENV__={};
+window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return r.ok?r.text():'';}):Promise.resolve('')).then(function(t){
+  (t||'').split(/\r?\n/).forEach(function(line){
+    line=line.trim();
+    if(!line||line.charAt(0)==='#')return;
+    var i=line.indexOf('=');
+    if(i>0)window.__ESPIL_ENV__[line.slice(0,i).trim()]=line.slice(i+1).trim();
+  });
+}).catch(function(){});
+</script>
   <!-- espil-online deploy 2026-10-04 v12 full -->
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -1978,7 +1990,8 @@
        NOTE: API key is in-page for LOCAL TESTING only. Production must use
        a backend proxy + server-side caching (per business model: fetch once,
        never live-query per user). */
-    var GOOGLE_PLACES_KEY=(window.__ESPIL_LOCAL_CONFIG__&&window.__ESPIL_LOCAL_CONFIG__.GOOGLE_PLACES_KEY)||'__PUT_YOUR_KEY_HERE__'; /* 2026-10-12: key lives in gitignored local-config.js so git pull never clobbers it */
+    var GOOGLE_PLACES_KEY='__PUT_YOUR_KEY_HERE__'; /* 2026-10-13: real key comes from gitignored .env (GOOGLE_PLACES_KEY=...), filled in when the .env load finishes; git pull never clobbers it */
+(window.__ESPIL_ENV_READY__||Promise.resolve()).then(function(){var e=window.__ESPIL_ENV__;if(e&&e.GOOGLE_PLACES_KEY)GOOGLE_PLACES_KEY=e.GOOGLE_PLACES_KEY;});
     var mapBuildings=[]; /* {x,z,w,d,name} — populated by buildWalkMapOnce */
     var MAP_LAT0=49.2827,MAP_LNG0=-123.1207;
     function mapToLatLng(x,z){
