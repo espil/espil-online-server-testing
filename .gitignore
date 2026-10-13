@@ -1,4 +1,3 @@
-# Local secrets & machine-local files — never commit (2026-10-12)
+# API keys only — never commit (2026-10-13)
 .env
 local-config.js
-*.local.js
