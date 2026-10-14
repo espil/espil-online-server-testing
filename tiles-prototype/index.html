@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Espil.Online — Photorealistic 3D Tiles PROTOTYPE (testing only)</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#0a0e14;font-family:system-ui,sans-serif;}
+  #app{position:fixed;inset:0;}
+  canvas{display:block;}
+  .panel{position:fixed;z-index:10;background:rgba(10,16,28,.82);color:#e8f0f8;border:1px solid rgba(255,255,255,.14);
+    border-radius:10px;padding:10px 12px;font-size:12px;line-height:1.55;backdrop-filter:blur(6px);}
+  #hud{top:12px;left:12px;min-width:250px;}
+  #hud b{color:#ffd97a;}
+  #hud .row{display:flex;justify-content:space-between;gap:16px;}
+  #controls{top:12px;right:12px;display:flex;flex-direction:column;gap:6px;}
+  #controls button{background:rgba(255,255,255,.08);color:#e8f0f8;border:1px solid rgba(255,255,255,.2);
+    border-radius:8px;padding:7px 10px;font-size:12px;cursor:pointer;text-align:left;}
+  #controls button:hover{background:rgba(255,255,255,.16);}
+  #controls button.on{border-color:#ffd97a;color:#ffd97a;}
+  #controls label{font-size:11px;color:#9fb3c8;display:flex;align-items:center;gap:6px;}
+  #controls input[type=range]{width:110px;}
+  #attribution{position:fixed;left:0;right:0;bottom:0;z-index:10;background:rgba(255,255,255,.88);color:#222;
+    font-size:11px;padding:3px 10px;display:none;gap:10px;align-items:center;min-height:18px;}
+  #attribution img{height:14px;vertical-align:middle;}
+  #toast{position:fixed;left:50%;bottom:44px;transform:translateX(-50%);z-index:20;background:rgba(20,28,42,.92);
+    color:#fff;padding:9px 16px;border-radius:20px;font-size:13px;display:none;box-shadow:0 6px 24px rgba(0,0,0,.4);}
+  #fallback-note{top:auto;bottom:44px;left:12px;display:none;}
+  .warn{color:#ff9d7a;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<div class="panel" id="hud">
+  <div><b>3D Tiles Prototype</b> — Vancouver anchor 49.2827, −123.1207</div>
+  <div class="row"><span>Status</span><span id="st-status">init…</span></div>
+  <div class="row"><span>First tile visible</span><span id="st-first">—</span></div>
+  <div class="row"><span>FPS / frame</span><span id="st-fps">—</span></div>
+  <div class="row"><span>Tiles loaded / visible</span><span id="st-tiles">—</span></div>
+  <div class="row"><span>Streamed this session</span><span id="st-mb">0.0 MB</span></div>
+  <div class="row"><span>JS heap</span><span id="st-mem">—</span></div>
+  <div class="row"><span>Ground offset at origin</span><span id="st-ground">probe pending</span></div>
+  <div class="row"><span>Session</span><span id="st-token">checking…</span></div>
+</div>
+
+<div class="panel" id="controls">
+  <button id="btn-tiles" class="on">Tiles: ON</button>
+  <button id="btn-osm" class="on">OSM overlay: ON</button>
+  <button id="btn-fallback">Simulate fallback</button>
+  <button id="btn-probe">Probe ground @ origin</button>
+  <label>Tiles Y offset <input type="range" id="yoff" min="-60" max="60" step="0.5" value="0"><span id="yoff-val">0m</span></label>
+  <label>Min detail (SSE) <input type="range" id="sse" min="8" max="64" step="1" value="16"><span id="sse-val">16</span></label>
+  <div style="font-size:11px;color:#9fb3c8">SSE floor 8: higher = less detail = less streaming.<br>Range gate: tiles only within 1.5km / below 800m.</div>
+</div>
+
+<div class="panel" id="fallback-note">Fallback layer active (satellite + OSM) — tiles off/failed.</div>
+<div id="toast"></div>
+<div id="attribution"><span>Data:</span><span id="attr-items"></span></div>
+
+<!-- Token: LOCAL ONLY — never commit. Copy token.local.example.js → token.local.js -->
+<script src="token.local.js"></script>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/three.module.js",
+    "three/addons/": "./vendor/three/addons/",
+    "3d-tiles-renderer": "./vendor/3dtr/build/index.js",
+    "3d-tiles-renderer/plugins": "./vendor/3dtr/build/index.plugins.js",
+    "3d-tiles-renderer/three": "./vendor/3dtr/build/index.three.js",
+    "3d-tiles-renderer/three/plugins": "./vendor/3dtr/build/index.three-plugins.js",
+    "3d-tiles-renderer/core": "./vendor/3dtr/build/index.core.js",
+    "3d-tiles-renderer/core/plugins": "./vendor/3dtr/build/index.core-plugins.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
+import { TilesRenderer } from '3d-tiles-renderer/three';
+import { CesiumIonAuthPlugin, ReorientationPlugin, GLTFExtensionsPlugin } from '3d-tiles-renderer/three/plugins';
+import { GoogleCloudAuthPlugin } from '3d-tiles-renderer/core/plugins';
+
+/* ============================================================
+   Espil.Online — Google Photorealistic 3D Tiles prototype
+   (Han decision 2026-10-14; TESTING ONLY — do not ship)
+
+   - Anchor: our game origin = lat 49.2827, lng -123.1207.
+     ReorientationPlugin moves the tileset origin there, so tile
+     local coords == our game coords (x east, z south, meters,
+     same frame as latLngToMap). Character/OSM layers unchanged.
+   - Tiles = VISUAL layer only. OSM boxes (translucent overlay)
+     stand in for the interaction layer for alignment checks.
+   - Auth: Cesium ion (asset 2275207 = Google Photorealistic 3D
+     Tiles). PROTOTYPE reads the token from token.local.js.
+     PRODUCTION path (per Architecture review): handshake proxy —
+     a Vercel function holds the master token and returns only
+     the session tileset URL; streaming stays client→Google.
+   - No disk caching of tiles: renderer uses in-memory LRU only;
+     no CacheStorage / service worker here by design.
+   ============================================================ */
+
+const ANCHOR = { lat: 49.2827, lon: -123.1207 };
+const GOOGLE_TILES_ION_ASSET_ID = '2275207';
+
+const $ = id => document.getElementById(id);
+function toast(msg, ms = 3600) {
+  const t = $('toast'); t.textContent = msg; t.style.display = 'block';
+  clearTimeout(t._h); t._h = setTimeout(() => t.style.display = 'none', ms);
+}
+
+/* ---- streamed-bytes counter (session MB metric) ---- */
+let streamedBytes = 0;
+{
+  const origFetch = window.fetch.bind(window);
+  window.fetch = async (...args) => {
+    const res = await origFetch(...args);
+    try {
+      const url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url) || '';
+      if (/api\.cesium\.com|tile\.googleapis\.com|googleapis\.com\/v1|3dtiles/i.test(url)) {
+        const len = parseInt(res.headers.get('content-length') || '0', 10);
+        if (len) streamedBytes += len;
+      }
+    } catch (e) {}
+    return res;
+  };
+}
+
+/* ---- renderer / scene ---- */
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+$('app').appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0e14);
+const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 1, 20000);
+camera.position.set(280, 200, 280);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 25, 0);
+controls.maxPolarAngle = Math.PI * 0.495;
+scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+sun.position.set(300, 500, 200);
+scene.add(sun);
+
+/* Origin marker (Canada Place anchor) */
+{
+  const pole = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.7, 0.7, 120, 8),
+    new THREE.MeshBasicMaterial({ color: 0xffd97a })
+  );
+  pole.position.set(0, 60, 0);
+  scene.add(pole);
+}
+
+/* ---- fallback layer: satellite plane (game's own asset) ---- */
+const fallbackGroup = new THREE.Group();
+{
+  const tex = new THREE.TextureLoader().load('satellite.jpg');
+  tex.colorSpace = THREE.SRGBColorSpace;
+  /* satellite bounds from assets/ground/satellite_meta.json: x[-5008,5356], z[-5521,4854] */
+  const w = 5356 - (-5008), h = 4854 - (-5521);
+  const m = new THREE.Mesh(
+    new THREE.PlaneGeometry(w, h),
+    new THREE.MeshBasicMaterial({ map: tex })
+  );
+  m.rotation.x = -Math.PI / 2;
+  m.rotation.z = Math.PI;
+  m.position.set((-5008 + 5356) / 2, -0.3, (-5521 + 4854) / 2);
+  fallbackGroup.add(m);
+  fallbackGroup.visible = false;
+  scene.add(fallbackGroup);
+}
+
+/* ---- OSM interaction-layer overlay (alignment reference) ---- */
+const osmGroup = new THREE.Group();
+fetch('osm-sample.json').then(r => r.json()).then(j => {
+  const box = new THREE.BoxGeometry(1, 1, 1);
+  box.translate(0, 0.5, 0);
+  const mat = new THREE.MeshBasicMaterial({ color: 0x4f7ed9, transparent: true, opacity: 0.28, depthWrite: false });
+  const edge = new THREE.LineBasicMaterial({ color: 0x9fc2ff });
+  j.buildings.forEach(b => {
+    const mesh = new THREE.Mesh(box, mat);
+    mesh.position.set(b.x, 0, b.z);
+    mesh.scale.set(b.w, b.h, b.d);
+    osmGroup.add(mesh);
+    const e = new THREE.LineSegments(new THREE.EdgesGeometry(box), edge);
+    e.position.copy(mesh.position); e.scale.copy(mesh.scale);
+    osmGroup.add(e);
+  });
+  console.log('[OSM overlay]', j.buildings.length, 'buildings');
+});
+scene.add(osmGroup);
+
+/* ---- device / network gate (Architecture review: mobile web off by default) ---- */
+function tilesAllowedByDevice() {
+  const conn = navigator.connection || {};
+  const slowNet = conn.saveData || /2g/.test(conn.effectiveType || '');
+  const mobile = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
+  return !(slowNet || mobile);
+}
+
+/* ---- tiles ----
+   Session flow (Architecture review 2026-10-14):
+   1) Handshake proxy first: GET /api/tiles-session → server calls ion,
+      returns ONLY the session tileset URL; master token never in browser.
+      Streaming then goes client → Google directly.
+   2) Dev fallback: direct CesiumIonAuthPlugin with token.local.js.
+   3) No session at all → satellite/OSM fallback layer. */
+const TOKEN = (window.CESIUM_ION_TOKEN || '').trim();
+let tiles = null, tilesEnabled = false, tileErrorCount = 0, firstTileAt = 0;
+let fallbackToastShown = false;
+const bootT = performance.now();
+const SSE_FLOOR = 8;                 // streaming cap: errorTarget never below this
+const RANGE_ON = { dist: 1500, h: 800 };   // tiles scope: downtown core / close-up
+const RANGE_OFF = { dist: 1700, h: 950 };  // hysteresis
+
+function setFallback(on, reason) {
+  fallbackGroup.visible = on;
+  $('fallback-note').style.display = on ? 'block' : 'none';
+  /* One-time small toast only (Architecture UX); no error modal, ever. */
+  if (on && reason && !fallbackToastShown) { fallbackToastShown = true; toast(reason); }
+  updateAttributionVisibility();
+}
+
+function buildTiles(configure) {
+  tiles = new TilesRenderer();
+  configure(tiles);
+  tiles.registerPlugin(new ReorientationPlugin({
+    lat: ANCHOR.lat, lon: ANCHOR.lon, height: 0,
+  }));
+  /* Decoders — vendored locally (DRACO + KTX2/Basis) */
+  const draco = new DRACOLoader();
+  draco.setDecoderPath('./vendor/three/addons/libs/draco/gltf/');
+  const ktx2 = new KTX2Loader();
+  ktx2.setTranscoderPath('./vendor/three/addons/libs/basis/');
+  ktx2.detectSupport(renderer);
+  tiles.registerPlugin(new GLTFExtensionsPlugin({ dracoLoader: draco, ktxLoader: ktx2 }));
+  tiles.errorTarget = Math.max(parseFloat($('sse').value), SSE_FLOOR);
+  tiles.setCamera(camera);
+  tiles.setResolutionFromRenderer(camera, renderer);
+  tiles.addEventListener('load-tile-set', () => {
+    $('st-status').textContent = 'tileset loaded, streaming…';
+  });
+  tiles.addEventListener('load-model', () => {
+    if (!firstTileAt) {
+      firstTileAt = performance.now();
+      $('st-first').textContent = ((firstTileAt - bootT) / 1000).toFixed(1) + 's';
+      $('st-status').textContent = 'streaming';
+    }
+  });
+  tiles.addEventListener('load-error', (e) => {
+    /* Architecture UX: ANY failure (incl. 403/429) → stop immediately.
+       Retry storms burn the monthly quota; the designed UX is a silent
+       switch to the OSM city + one small toast. */
+    tileErrorCount++;
+    console.warn('[Tiles] load error → tiles OFF', e && e.error && e.error.message);
+    if (tilesEnabled) {
+      tilesEnabled = false;
+      tiles.group.visible = false;
+      $('btn-tiles').textContent = 'Tiles: OFF (failed)';
+      $('btn-tiles').classList.remove('on');
+      $('st-status').textContent = 'failed → fallback';
+      setFallback(true, '3D tiles unavailable — showing the regular city.');
+      updateAttributionVisibility();
+    }
+  });
+  scene.add(tiles.group);
+  tilesEnabled = true;
+  updateAttributionVisibility();
+  if (!tilesAllowedByDevice()) {
+    tilesEnabled = false;
+    tiles.group.visible = false;
+    $('btn-tiles').textContent = 'Tiles: OFF (device/network gate)';
+    $('btn-tiles').classList.remove('on');
+    setFallback(true, 'Tiles are off for this device/network — tap "Tiles" to override.');
+  }
+}
+
+async function initTiles() {
+  /* 1) Handshake proxy */
+  try {
+    const r = await fetch('/api/tiles-session');
+    if (r.ok) {
+      const s = await r.json();
+      if (s && s.tilesetUrl) {
+        $('st-token').textContent = 'handshake proxy' + (s.cached ? ' (server-cached)' : ' (fresh)');
+        const key = new URL(s.tilesetUrl).searchParams.get('key');
+        buildTiles((t) => {
+          t.rootURL = s.tilesetUrl;
+          if (key) t.registerPlugin(new GoogleCloudAuthPlugin({
+            apiToken: key, autoRefreshToken: true, useRecommendedSettings: true,
+          }));
+        });
+        $('st-status').textContent = 'auth via handshake, tileset fetch…';
+        return;
+      }
+    }
+    console.warn('[Tiles] handshake unavailable (HTTP ' + r.status + '), trying local token');
+  } catch (e) {
+    console.warn('[Tiles] handshake unreachable, trying local token');
+  }
+  /* 2) Dev fallback: direct ion plugin with the local token file */
+  if (TOKEN && TOKEN.indexOf('__PUT_') !== 0) {
+    $('st-token').textContent = 'local token file (dev only)';
+    buildTiles((t) => {
+      t.registerPlugin(new CesiumIonAuthPlugin({
+        apiToken: TOKEN,
+        assetId: GOOGLE_TILES_ION_ASSET_ID,
+        autoRefreshToken: true,
+        useRecommendedSettings: true,
+      }));
+    });
+    $('st-status').textContent = 'auth + tileset fetch…';
+    return;
+  }
+  /* 3) No session possible → fallback */
+  $('st-token').innerHTML = '<span class="warn">NO SESSION — see README (Han action)</span>';
+  $('st-status').textContent = 'no session → fallback';
+  setFallback(true);
+}
+initTiles();
+
+/* ---- controls wiring ---- */
+$('btn-tiles').onclick = () => {
+  if (!tiles) { toast('No tile session — unavailable. See README.'); return; }
+  tilesEnabled = !tilesEnabled;
+  tiles.group.visible = tilesEnabled;
+  if (tilesEnabled) setFallback(false);
+  $('btn-tiles').textContent = tilesEnabled ? 'Tiles: ON' : 'Tiles: OFF';
+  $('btn-tiles').classList.toggle('on', tilesEnabled);
+  $('st-status').textContent = tilesEnabled ? 'streaming' : 'tiles off';
+  updateAttributionVisibility();
+};
+$('sse').oninput = (e) => {
+  const v = Math.max(parseFloat(e.target.value), SSE_FLOOR);
+  $('sse-val').textContent = v;
+  if (tiles) tiles.errorTarget = v;
+};
+$('btn-osm').onclick = () => {
+  osmGroup.visible = !osmGroup.visible;
+  $('btn-osm').textContent = 'OSM overlay: ' + (osmGroup.visible ? 'ON' : 'OFF');
+  $('btn-osm').classList.toggle('on', osmGroup.visible);
+};
+$('btn-fallback').onclick = () => {
+  if (tiles) { tilesEnabled = false; tiles.group.visible = false; $('btn-tiles').textContent = 'Tiles: OFF'; $('btn-tiles').classList.remove('on'); }
+  fallbackToastShown = false; /* allow the simulated toast to show */
+  setFallback(true, 'Fallback simulated: satellite + OSM city.');
+  updateAttributionVisibility();
+};
+$('yoff').oninput = (e) => {
+  const v = parseFloat(e.target.value);
+  $('yoff-val').textContent = v + 'm';
+  if (tiles) tiles.group.position.y = v;
+};
+$('btn-probe').onclick = () => probeGround();
+
+/* Ground probe: raycast down at the origin against tile meshes —
+   measures the vertical offset between tile ground and our y=0 plane. */
+function probeGround() {
+  if (!tiles || !tilesEnabled) { $('st-ground').textContent = 'tiles off — cannot probe'; return; }
+  const rc = new THREE.Raycaster(new THREE.Vector3(0, 500, 0), new THREE.Vector3(0, -1, 0));
+  const hits = rc.intersectObject(tiles.group, true);
+  if (hits.length) {
+    const y = hits[0].point.y;
+    $('st-ground').textContent = 'tile ground y = ' + y.toFixed(2) + 'm (offset vs game plane)';
+    toast('Ground at origin: y=' + y.toFixed(2) + 'm. Set Tiles Y offset to ' + (-y).toFixed(1) + 'm to align.');
+  } else {
+    $('st-ground').textContent = 'no tile geometry under origin yet';
+  }
+}
+
+/* ---- attributions: exposed ONLY while tiles are displayed ---- */
+function updateAttributionVisibility() {
+  const bar = $('attribution');
+  const show = !!(tiles && tilesEnabled && tiles.group.visible);
+  bar.style.display = show ? 'flex' : 'none';
+}
+function updateAttributions() {
+  if (!tiles || !tilesEnabled) return;
+  try {
+    const list = [];
+    tiles.getAttributions(list);
+    if (list.length) {
+      $('attr-items').innerHTML = '';
+      list.forEach(a => {
+        const s = document.createElement('span');
+        if (a.type === 'html') s.innerHTML = a.value;
+        else s.textContent = String((a.value && a.value.html) || a.value || a);
+        $('attr-items').appendChild(s);
+      });
+    }
+  } catch (e) {}
+}
+
+/* ---- main loop + stats ---- */
+let frames = 0, statT = performance.now(), frameMs = 0;
+function animate() {
+  requestAnimationFrame(animate);
+  const t0 = performance.now();
+  controls.update();
+  /* Range gate (COO scope hypothesis + Architecture curve ruling):
+     tiles are a near-field layer — ON only inside the downtown core
+     radius and below the height ceiling; outside, the OSM/satellite
+     layer owns the view. Hysteresis prevents edge flicker. This also
+     bounds the region where the game's globe curve would diverge from
+     true-scale tiles (curve drop at 100m ≈ 6m, at the 1.5km gate the
+     tiles are already off/fogged). */
+  if (tiles) {
+    const dxz = Math.hypot(camera.position.x, camera.position.z);
+    const h = camera.position.y;
+    if (tilesEnabled && (dxz > RANGE_OFF.dist || h > RANGE_OFF.h)) {
+      tiles.group.visible = false;
+      $('st-status').textContent = 'out of core range → tiles hidden';
+      updateAttributionVisibility();
+    } else if (tilesEnabled && dxz < RANGE_ON.dist && h < RANGE_ON.h) {
+      if (!tiles.group.visible) { $('st-status').textContent = 'streaming'; }
+      tiles.group.visible = true;
+      updateAttributionVisibility();
+    }
+  }
+  if (tiles && tilesEnabled) tiles.update();
+  renderer.render(scene, camera);
+  frameMs = frameMs * 0.95 + (performance.now() - t0) * 0.05;
+  frames++;
+  const now = performance.now();
+  if (now - statT > 500) {
+    const fps = Math.round(frames * 1000 / (now - statT));
+    frames = 0; statT = now;
+    $('st-fps').textContent = fps + ' / ' + frameMs.toFixed(1) + 'ms';
+    $('st-mb').textContent = (streamedBytes / 1048576).toFixed(1) + ' MB';
+    if (performance.memory) $('st-mem').textContent = (performance.memory.usedJSHeapSize / 1048576).toFixed(0) + ' MB';
+    if (tiles) {
+      const vis = tiles.visibleTiles ? tiles.visibleTiles.size : '—';
+      $('st-tiles').textContent = vis + ' visible';
+    }
+    updateAttributions();
+  }
+}
+animate();
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  if (tiles) tiles.setResolutionFromRenderer(camera, renderer);
+});
+</script>
+</body>
+</html>
