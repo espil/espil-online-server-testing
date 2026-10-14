@@ -51,7 +51,7 @@
   <button id="btn-probe">Probe ground @ origin</button>
   <label>Tiles Y offset <input type="range" id="yoff" min="-60" max="60" step="0.5" value="0"><span id="yoff-val">0m</span></label>
   <label>Min detail (SSE) <input type="range" id="sse" min="8" max="64" step="1" value="16"><span id="sse-val">16</span></label>
-  <div style="font-size:11px;color:#9fb3c8">SSE floor 8: higher = less detail = less streaming.<br>Range gate: tiles only within 1.5km / below 800m.</div>
+  <div style="font-size:11px;color:#9fb3c8">SSE floor 8: higher = less detail = less streaming.<br>Range gate: tiles only inside Han's downtown boundary polygon / below 800m.</div>
 </div>
 
 <div class="panel" id="fallback-note">Fallback layer active (satellite + OSM) — tiles off/failed.</div>
@@ -217,8 +217,24 @@ let tiles = null, tilesEnabled = false, tileErrorCount = 0, firstTileAt = 0;
 let fallbackToastShown = false;
 const bootT = performance.now();
 const SSE_FLOOR = 8;                 // streaming cap: errorTarget never below this
-const RANGE_ON = { dist: 1500, h: 800 };   // tiles scope: downtown core / close-up
+const RANGE_ON = { dist: 1500, h: 800 };   // fallback gate if the boundary file fails to load
 const RANGE_OFF = { dist: 1700, h: 950 };  // hysteresis
+/* Downtown core boundary polygon (Han's red line, digitized 2026-10-14):
+   tiles ON inside the polygon; OFF beyond the 1.1x-scaled polygon. */
+let boundaryPoly = null, boundaryPolyWide = null;
+fetch('downtown-boundary.json').then(r => r.json()).then(j => {
+  boundaryPoly = j.vertices.map(v => [v.x, v.z]);
+  boundaryPolyWide = boundaryPoly.map(([x, z]) => [Math.round(x * 1.1), Math.round(z * 1.1)]);
+  console.log('[Boundary] downtown polygon loaded:', boundaryPoly.length, 'vertices');
+}).catch(() => console.warn('[Boundary] load failed — radius gate fallback'));
+function pointInPoly(x, z, poly) {
+  let inside = false;
+  for (let i = 0, k = poly.length - 1; i < poly.length; k = i++) {
+    const xi = poly[i][0], zi = poly[i][1], xk = poly[k][0], zk = poly[k][1];
+    if (((zi > z) !== (zk > z)) && (x < (xk - xi) * (z - zi) / (zk - zi) + xi)) inside = !inside;
+  }
+  return inside;
+}
 
 function setFallback(on, reason) {
   fallbackGroup.visible = on;
@@ -412,13 +428,21 @@ function animate() {
      true-scale tiles (curve drop at 100m ≈ 6m, at the 1.5km gate the
      tiles are already off/fogged). */
   if (tiles) {
-    const dxz = Math.hypot(camera.position.x, camera.position.z);
     const h = camera.position.y;
-    if (tilesEnabled && (dxz > RANGE_OFF.dist || h > RANGE_OFF.h)) {
+    let outZone, inZone;
+    if (boundaryPoly) {
+      inZone = pointInPoly(camera.position.x, camera.position.z, boundaryPoly);
+      outZone = !pointInPoly(camera.position.x, camera.position.z, boundaryPolyWide);
+    } else {
+      const dxz = Math.hypot(camera.position.x, camera.position.z);
+      inZone = dxz < RANGE_ON.dist;
+      outZone = dxz > RANGE_OFF.dist;
+    }
+    if (tilesEnabled && (outZone || h > RANGE_OFF.h)) {
       tiles.group.visible = false;
       $('st-status').textContent = 'out of core range → tiles hidden';
       updateAttributionVisibility();
-    } else if (tilesEnabled && dxz < RANGE_ON.dist && h < RANGE_ON.h) {
+    } else if (tilesEnabled && inZone && h < RANGE_ON.h) {
       if (!tiles.group.visible) { $('st-status').textContent = 'streaming'; }
       tiles.group.visible = true;
       updateAttributionVisibility();

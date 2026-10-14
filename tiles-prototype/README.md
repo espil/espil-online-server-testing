@@ -46,9 +46,13 @@ Client behavior (Architecture review, built in from the start):
 - **Attribution is shown only while tiles are displayed.**
 - **Streaming control**: screen-space error floor (`errorTarget` ≥ 8) plus a
   slider (8–64) — raise it to cut detail/streaming; HUD shows session MB.
-- **Range gate**: tiles visible only within 1.5 km of the anchor and below
-  800 m camera height (hysteresis 1.7 km / 950 m). Landing, far views and
-  mobile default to OFF.
+- **Range gate**: tiles visible only inside the **downtown core boundary
+  polygon** (Han's red line on Google Maps, digitized 2026-10-14 into
+  `downtown-boundary.json` — 72 vertices, game coords; spans x −2421…1321,
+  z −1658…1589, ≈7.8 km²) and below 800 m camera height; OFF beyond the
+  1.1×-scaled polygon (hysteresis). Falls back to a 1.5 km radius gate if
+  the polygon file fails to load. Landing, far views and mobile default
+  to OFF.
 - **Device/network gate**: mobile UA, save-data, or 2G → tiles OFF by default.
 
 ## Cesium ion setup (Han — one time)
