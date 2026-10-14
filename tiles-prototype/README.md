@@ -57,11 +57,20 @@ Client behavior (Architecture review, built in from the start):
   to OFF.
 - **Device/network gate**: mobile UA, save-data, or 2G → tiles OFF by default.
 - **Character**: the Espil.Online male character (`male.glb`, 15 MB, from the
-  house-walkthrough set) is summoned at the anchor with the **Walking** clip
-  playing. It grounds itself on the active layer — raycast probe onto the
-  tile surface when tiles are on, the y=0 game plane in fallback — and
-  re-grounds as tiles stream/toggle. Default camera is a third-person
-  **Character view**; the View button toggles to the wide City view.
+  house-walkthrough set) is summoned with the **Walking** clip playing. It
+  grounds itself on the active layer — raycast probe onto the tile surface
+  when tiles are on, the y=0 game plane in fallback — and re-grounds as
+  tiles stream/toggle. Default camera is a third-person **Character view**;
+  the View button toggles to the wide City view.
+- **Spawn rules (Han, 2026-10-14)**: “📍 Summon at my location” is the
+  in-game pre-prompt (browser permission follows). Inside the downtown
+  boundary polygon → spawn at the real location. Outside → nearest point
+  on the boundary, walked along the boundary to land if it is water
+  (never spawn on water; an in-boundary water position likewise moves to
+  the nearest land). Denied/unavailable → downtown anchor. The HUD Spawn
+  row always shows the basis + game coordinates. Headless-verified:
+  denied→anchor, Granville→inside (414, −89), False Creek water→land
+  (−501, 77), Burnaby→boundary clamp (1119, 811).
 
 ## Cesium ion setup (Han — one time)
 

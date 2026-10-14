@@ -41,11 +41,13 @@
   <div class="row"><span>Streamed this session</span><span id="st-mb">0.0 MB</span></div>
   <div class="row"><span>JS heap</span><span id="st-mem">—</span></div>
   <div class="row"><span>Ground offset at origin</span><span id="st-ground">probe pending</span></div>
+  <div class="row"><span>Spawn</span><span id="st-spawn">anchor (default)</span></div>
   <div class="row"><span>Session</span><span id="st-token">checking…</span></div>
 </div>
 
 <div class="panel" id="controls">
   <button id="btn-tiles" class="on">Tiles: ON</button>
+  <button id="btn-summon">📍 Summon at my location</button>
   <button id="btn-view">View: Character</button>
   <button id="btn-osm">OSM overlay (debug): OFF</button>
   <button id="btn-fallback">Simulate fallback</button>
@@ -110,6 +112,7 @@ const ANCHOR = { lat: 49.2827, lon: -123.1207 };
 const GOOGLE_TILES_ION_ASSET_ID = '2275207';
 
 const $ = id => document.getElementById(id);
+const spawnPoint = { x: 0, z: 0 }; // character spawn (anchor default)
 function toast(msg, ms = 3600) {
   const t = $('toast'); t.textContent = msg; t.style.display = 'block';
   clearTimeout(t._h); t._h = setTimeout(() => t.style.display = 'none', ms);
@@ -144,8 +147,8 @@ const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 20
 const controls = new OrbitControls(camera, renderer.domElement);
 function setView(name) {
   if (name === 'character') {
-    camera.position.set(6.4, 3.4, 9.4);
-    controls.target.set(0, 1.1, 0);
+    camera.position.set(spawnPoint.x + 6.4, 3.4, spawnPoint.z + 9.4);
+    controls.target.set(spawnPoint.x, 1.1, spawnPoint.z);
   } else {
     camera.position.set(280, 200, 280);
     controls.target.set(0, 25, 0);
@@ -182,7 +185,7 @@ new GLTFLoader().load('male.glb', (gltf) => {
   const h = bb.max.y - bb.min.y;
   const s = CHAR_TARGET_H / (h || 1);
   character.scale.setScalar(s);
-  character.position.set(0, -bb.min.y * s, 0);
+  character.position.set(spawnPoint.x, -bb.min.y * s, spawnPoint.z);
   character.rotation.y = 0.6;
   character.traverse(o => { if (o.isMesh) { o.castShadow = true; } });
   scene.add(character);
@@ -196,7 +199,9 @@ new GLTFLoader().load('male.glb', (gltf) => {
 function groundCharacter() {
   if (!character) return;
   if (tiles && tilesEnabled && tiles.group.visible) {
-    const rc = new THREE.Raycaster(new THREE.Vector3(0, 500, 0), new THREE.Vector3(0, -1, 0));
+    const rc = new THREE.Raycaster(
+      new THREE.Vector3(character.position.x, 500, character.position.z),
+      new THREE.Vector3(0, -1, 0));
     const hits = rc.intersectObject(tiles.group, true);
     if (hits.length) {
       character.position.y = hits[0].point.y;
@@ -207,6 +212,96 @@ function groundCharacter() {
   }
   character.position.y = 0;
   charGroundedOnTiles = false;
+}
+
+/* ---- Character spawn rules (Han, 2026-10-14) ----
+   1. Location permission first (the Summon button is the in-game
+      pre-prompt; the browser prompt follows).
+   2. Inside the downtown boundary polygon → spawn at the real location.
+   3. Outside → nearest point ON the boundary; if that point is water,
+      walk along the boundary to the nearest land point. Never on water.
+   4. Denied / unavailable → downtown anchor. HUD shows the basis. */
+function isWaterAtGame(x, z) {
+  if (z < -4350 && x > -1392 && x < 561) return true;            // Burrard Inlet
+  if (x < -2000) return true;                                    // English Bay
+  if (x > -1500 && x < 400 && z > 100 && z < 1700) return true;  // False Creek
+  return false;
+}
+function nearestOnBoundary(x, z, poly) {
+  let best = null, bd = Infinity;
+  for (let i = 0, k = poly.length - 1; i < poly.length; k = i++) {
+    const xk = poly[k][0], zk = poly[k][1], xi = poly[i][0], zi = poly[i][1];
+    const dx = xi - xk, dz = zi - zk, L2 = dx * dx + dz * dz || 1;
+    let t = ((x - xk) * dx + (z - zk) * dz) / L2;
+    t = Math.max(0, Math.min(1, t));
+    const px = xk + dx * t, pz = zk + dz * t;
+    const d = (x - px) * (x - px) + (z - pz) * (z - pz);
+    if (d < bd) { bd = d; best = { x: px, z: pz, seg: i }; }
+  }
+  return best;
+}
+function walkBoundaryToLand(start, poly) {
+  /* Densify the boundary (~10 m samples, in order), find the sample
+     nearest the clamped point, then scan both ways for the first
+     non-water sample. */
+  const pts = [];
+  for (let i = 0, k = poly.length - 1; i < poly.length; k = i++) {
+    const xk = poly[k][0], zk = poly[k][1], xi = poly[i][0], zi = poly[i][1];
+    const L = Math.hypot(xi - xk, zi - zk);
+    const n = Math.max(1, Math.round(L / 10));
+    for (let s = 0; s < n; s++) pts.push([xk + (xi - xk) * s / n, zk + (zi - zk) * s / n]);
+  }
+  let bi = 0, bd = Infinity;
+  pts.forEach((p, idx) => {
+    const d = (p[0] - start.x) ** 2 + (p[1] - start.z) ** 2;
+    if (d < bd) { bd = d; bi = idx; }
+  });
+  for (let step = 0; step < pts.length; step++) {
+    for (const dir of [1, -1]) {
+      const p = pts[(bi + dir * step + pts.length * 2) % pts.length];
+      if (!isWaterAtGame(p[0], p[1])) return { x: p[0], z: p[1] };
+    }
+  }
+  return { x: 0, z: 0 };
+}
+function nearestLandNear(x, z) {
+  for (let r = 25; r < 3000; r += 25) {
+    for (let a = 0; a < 16; a++) {
+      const px = x + r * Math.cos(a / 16 * Math.PI * 2);
+      const pz = z + r * Math.sin(a / 16 * Math.PI * 2);
+      if (!isWaterAtGame(px, pz)) return { x: px, z: pz };
+    }
+  }
+  return { x: 0, z: 0 };
+}
+function placeCharacter(x, z, basis) {
+  spawnPoint.x = x; spawnPoint.z = z;
+  if (character) {
+    character.position.x = x;
+    character.position.z = z;
+    charGroundedOnTiles = false;
+    groundCharacter();
+  }
+  $('st-spawn').textContent = basis + ' @ ' + Math.round(x) + ', ' + Math.round(z);
+  console.log('[Spawn]', basis, Math.round(x), Math.round(z));
+  if ($('btn-view').textContent.includes('Character')) setView('character');
+}
+function summonAtMyLocation() {
+  toast('Finding your location…');
+  if (!navigator.geolocation) { placeCharacter(0, 0, 'anchor (no geolocation)'); return; }
+  navigator.geolocation.getCurrentPosition((pos) => {
+    const gx = (pos.coords.longitude - (-123.1207)) * 111320 * Math.cos(49.2827 * Math.PI / 180);
+    const gz = -(pos.coords.latitude - 49.2827) * 111320;
+    if (!boundaryPoly) { placeCharacter(0, 0, 'anchor (boundary unavailable)'); return; }
+    if (pointInPoly(gx, gz, boundaryPoly)) {
+      if (!isWaterAtGame(gx, gz)) placeCharacter(gx, gz, 'geolocation (inside boundary)');
+      else { const lp = nearestLandNear(gx, gz); placeCharacter(lp.x, lp.z, 'in water → nearest land'); }
+    } else {
+      let p = nearestOnBoundary(gx, gz, boundaryPoly);
+      if (isWaterAtGame(p.x, p.z)) p = walkBoundaryToLand(p, boundaryPoly);
+      placeCharacter(p.x, p.z, 'outside → boundary clamp (land)');
+    }
+  }, () => placeCharacter(0, 0, 'anchor (permission denied)'), { timeout: 8000 });
 }
 
 /* ---- fallback layer: satellite plane (game's own asset) ---- */
@@ -412,6 +507,7 @@ $('btn-tiles').onclick = () => {
   updateAttributionVisibility();
   if (character) groundCharacter();
 };
+$('btn-summon').onclick = () => summonAtMyLocation();
 $('btn-view').onclick = () => {
   const isChar = $('btn-view').textContent.includes('Character');
   setView(isChar ? 'city' : 'character');
