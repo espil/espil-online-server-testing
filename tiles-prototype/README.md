@@ -54,6 +54,12 @@ Client behavior (Architecture review, built in from the start):
   the polygon file fails to load. Landing, far views and mobile default
   to OFF.
 - **Device/network gate**: mobile UA, save-data, or 2G → tiles OFF by default.
+- **Character**: the Espil.Online male character (`male.glb`, 15 MB, from the
+  house-walkthrough set) is summoned at the anchor with the **Walking** clip
+  playing. It grounds itself on the active layer — raycast probe onto the
+  tile surface when tiles are on, the y=0 game plane in fallback — and
+  re-grounds as tiles stream/toggle. Default camera is a third-person
+  **Character view**; the View button toggles to the wide City view.
 
 ## Cesium ion setup (Han — one time)
 

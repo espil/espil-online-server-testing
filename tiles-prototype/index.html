@@ -46,7 +46,9 @@
 
 <div class="panel" id="controls">
   <button id="btn-tiles" class="on">Tiles: ON</button>
+  <button id="btn-view">View: Character</button>
   <button id="btn-osm" class="on">OSM overlay: ON</button>
+  <button id="btn-skin">OSM skin: Plushy</button>
   <button id="btn-fallback">Simulate fallback</button>
   <button id="btn-probe">Probe ground @ origin</button>
   <label>Tiles Y offset <input type="range" id="yoff" min="-60" max="60" step="0.5" value="0"><span id="yoff-val">0m</span></label>
@@ -79,6 +81,7 @@
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
 import { TilesRenderer } from '3d-tiles-renderer/three';
@@ -138,24 +141,73 @@ $('app').appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0a0e14);
-const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 1, 20000);
-camera.position.set(280, 200, 280);
+const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 20000);
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(0, 25, 0);
+function setView(name) {
+  if (name === 'character') {
+    camera.position.set(6.4, 3.4, 9.4);
+    controls.target.set(0, 1.1, 0);
+  } else {
+    camera.position.set(280, 200, 280);
+    controls.target.set(0, 25, 0);
+  }
+  controls.update();
+  $('btn-view').textContent = 'View: ' + (name === 'character' ? 'Character' : 'City');
+}
+setView('character');
 controls.maxPolarAngle = Math.PI * 0.495;
 scene.add(new THREE.AmbientLight(0xffffff, 0.9));
 const sun = new THREE.DirectionalLight(0xffffff, 1.6);
 sun.position.set(300, 500, 200);
 scene.add(sun);
 
-/* Origin marker (Canada Place anchor) */
+/* Origin marker (Canada Place anchor) — offset so it doesn't pierce the character */
 {
   const pole = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.7, 0.7, 120, 8),
+    new THREE.CylinderGeometry(0.35, 0.35, 120, 8),
     new THREE.MeshBasicMaterial({ color: 0xffd97a })
   );
-  pole.position.set(0, 60, 0);
+  pole.position.set(14, 60, -14);
   scene.add(pole);
+}
+
+/* ---- Espil.Online male character, summoned at the anchor ----
+   Same coordinate frame as the game: stands at the origin, grounded on
+   whichever visual layer is active (tile surface via probe raycast,
+   else the y=0 game plane). Walk clip plays in place. */
+let character = null, charMixer = null, charGroundedOnTiles = false;
+const CHAR_TARGET_H = 1.75;
+new GLTFLoader().load('male.glb', (gltf) => {
+  character = gltf.scene;
+  const bb = new THREE.Box3().setFromObject(character);
+  const h = bb.max.y - bb.min.y;
+  const s = CHAR_TARGET_H / (h || 1);
+  character.scale.setScalar(s);
+  character.position.set(0, -bb.min.y * s, 0);
+  character.rotation.y = 0.6;
+  character.traverse(o => { if (o.isMesh) { o.castShadow = true; } });
+  scene.add(character);
+  charMixer = new THREE.AnimationMixer(character);
+  const walk = gltf.animations.find(a => /walk/i.test(a.name)) || gltf.animations[0];
+  if (walk) { charMixer.clipAction(walk).play(); console.log('[Character] playing clip:', walk.name); }
+  groundCharacter();
+  console.log('[Character] summoned at anchor, height', CHAR_TARGET_H + 'm');
+}, undefined, (e) => console.warn('[Character] load failed', e));
+
+function groundCharacter() {
+  if (!character) return;
+  if (tiles && tilesEnabled && tiles.group.visible) {
+    const rc = new THREE.Raycaster(new THREE.Vector3(0, 500, 0), new THREE.Vector3(0, -1, 0));
+    const hits = rc.intersectObject(tiles.group, true);
+    if (hits.length) {
+      character.position.y = hits[0].point.y;
+      charGroundedOnTiles = true;
+      $('st-ground').textContent = 'tile ground y = ' + hits[0].point.y.toFixed(2) + 'm (character grounded on tiles)';
+      return;
+    }
+  }
+  character.position.y = 0;
+  charGroundedOnTiles = false;
 }
 
 /* ---- fallback layer: satellite plane (game's own asset) ---- */
@@ -177,22 +229,82 @@ const fallbackGroup = new THREE.Group();
   scene.add(fallbackGroup);
 }
 
-/* ---- OSM interaction-layer overlay (alignment reference) ---- */
+/* ---- OSM interaction-layer overlay (alignment reference) ----
+   Two skins for the same boxes:
+   - 'wire': translucent blue + edges (alignment checking)
+   - 'plushy': Plushy AI building images as facade textures, classified
+     by the game's own archetype rule (archOf). The sprites are 3/4-view
+     renders on transparency, composited cover-fit over a wall tone —
+     expect stretching + a stylized look; that IS the style test.
+   NOTE: with photoreal tiles ON, the tile mesh contains the real
+   buildings too — these skinned boxes will overlap them (double image).
+   That overlap read is part of what this prototype exists to judge. */
 const osmGroup = new THREE.Group();
+const osmItems = []; // {mesh, edges, arch}
+let osmSkin = 'plushy';
+function archOf(h, w, d) {
+  const a = w * d;
+  if (h >= 60) return 'tower';
+  if (h >= 25) return 'midrise';
+  if (h >= 12) return 'lowrise';
+  if (a >= 300) return 'warehouse';
+  return 'house';
+}
+const wireMat = new THREE.MeshBasicMaterial({ color: 0x4f7ed9, transparent: true, opacity: 0.28, depthWrite: false });
+const wireEdgeMat = new THREE.LineBasicMaterial({ color: 0x9fc2ff });
+const skinMats = {}; // arch -> [side, side, roof, bottom, side, side]
+function makeSkinMaterial(arch) {
+  const roof = new THREE.MeshBasicMaterial({ color: 0x777d84 });
+  const side = new THREE.MeshBasicMaterial({ color: 0xbfae94 });
+  const mats = [side, side, roof, roof, side, side];
+  skinMats[arch] = mats;
+  const img = new Image();
+  img.onload = () => {
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = 512;
+    const g = cv.getContext('2d');
+    const grad = g.createLinearGradient(0, 0, 0, 512);
+    grad.addColorStop(0, '#c9bda6'); grad.addColorStop(1, '#a08e6f');
+    g.fillStyle = grad; g.fillRect(0, 0, 512, 512);
+    const s = Math.max(512 / img.width, 512 / img.height);
+    g.drawImage(img, (512 - img.width * s) / 2, (512 - img.height * s) / 2, img.width * s, img.height * s);
+    const tex = new THREE.CanvasTexture(cv);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    side.map = tex; side.color.set(0xffffff); side.needsUpdate = true;
+    console.log('[OSM skin] facade ready:', arch);
+  };
+  img.src = 'facades/' + arch + '.png';
+  return mats;
+}
+['tower', 'midrise', 'lowrise', 'warehouse', 'house'].forEach(makeSkinMaterial);
+function applyOsmSkin() {
+  osmItems.forEach(it => {
+    if (osmSkin === 'plushy') {
+      it.mesh.material = skinMats[it.arch];
+      it.edges.visible = false;
+    } else {
+      it.mesh.material = wireMat;
+      it.edges.visible = true;
+    }
+  });
+  const b = $('btn-skin');
+  if (b) b.textContent = 'OSM skin: ' + (osmSkin === 'plushy' ? 'Plushy' : 'Wireframe');
+}
 fetch('osm-sample.json').then(r => r.json()).then(j => {
   const box = new THREE.BoxGeometry(1, 1, 1);
   box.translate(0, 0.5, 0);
-  const mat = new THREE.MeshBasicMaterial({ color: 0x4f7ed9, transparent: true, opacity: 0.28, depthWrite: false });
-  const edge = new THREE.LineBasicMaterial({ color: 0x9fc2ff });
   j.buildings.forEach(b => {
-    const mesh = new THREE.Mesh(box, mat);
+    const arch = archOf(b.h, b.w, b.d);
+    const mesh = new THREE.Mesh(box, wireMat);
     mesh.position.set(b.x, 0, b.z);
     mesh.scale.set(b.w, b.h, b.d);
     osmGroup.add(mesh);
-    const e = new THREE.LineSegments(new THREE.EdgesGeometry(box), edge);
+    const e = new THREE.LineSegments(new THREE.EdgesGeometry(box), wireEdgeMat);
     e.position.copy(mesh.position); e.scale.copy(mesh.scale);
     osmGroup.add(e);
+    osmItems.push({ mesh, edges: e, arch });
   });
+  applyOsmSkin();
   console.log('[OSM overlay]', j.buildings.length, 'buildings');
 });
 scene.add(osmGroup);
@@ -284,6 +396,7 @@ function buildTiles(configure) {
       $('st-status').textContent = 'failed → fallback';
       setFallback(true, '3D tiles unavailable — showing the regular city.');
       updateAttributionVisibility();
+      if (character) groundCharacter();
     }
   });
   scene.add(tiles.group);
@@ -352,11 +465,20 @@ $('btn-tiles').onclick = () => {
   $('btn-tiles').classList.toggle('on', tilesEnabled);
   $('st-status').textContent = tilesEnabled ? 'streaming' : 'tiles off';
   updateAttributionVisibility();
+  if (character) groundCharacter();
+};
+$('btn-view').onclick = () => {
+  const isChar = $('btn-view').textContent.includes('Character');
+  setView(isChar ? 'city' : 'character');
 };
 $('sse').oninput = (e) => {
   const v = Math.max(parseFloat(e.target.value), SSE_FLOOR);
   $('sse-val').textContent = v;
   if (tiles) tiles.errorTarget = v;
+};
+$('btn-skin').onclick = () => {
+  osmSkin = osmSkin === 'plushy' ? 'wire' : 'plushy';
+  applyOsmSkin();
 };
 $('btn-osm').onclick = () => {
   osmGroup.visible = !osmGroup.visible;
@@ -372,7 +494,7 @@ $('btn-fallback').onclick = () => {
 $('yoff').oninput = (e) => {
   const v = parseFloat(e.target.value);
   $('yoff-val').textContent = v + 'm';
-  if (tiles) tiles.group.position.y = v;
+  if (tiles) { tiles.group.position.y = v; charGroundedOnTiles = false; if (character) groundCharacter(); }
 };
 $('btn-probe').onclick = () => probeGround();
 
@@ -386,6 +508,7 @@ function probeGround() {
     const y = hits[0].point.y;
     $('st-ground').textContent = 'tile ground y = ' + y.toFixed(2) + 'm (offset vs game plane)';
     toast('Ground at origin: y=' + y.toFixed(2) + 'm. Set Tiles Y offset to ' + (-y).toFixed(1) + 'm to align.');
+    groundCharacter();
   } else {
     $('st-ground').textContent = 'no tile geometry under origin yet';
   }
@@ -416,10 +539,18 @@ function updateAttributions() {
 
 /* ---- main loop + stats ---- */
 let frames = 0, statT = performance.now(), frameMs = 0;
+const clock = new THREE.Clock();
+let lastGroundTry = 0;
 function animate() {
   requestAnimationFrame(animate);
   const t0 = performance.now();
   controls.update();
+  if (charMixer) charMixer.update(clock.getDelta());
+  /* Keep the character glued to the tile surface as LOD streams in. */
+  if (character && tiles && tilesEnabled && !charGroundedOnTiles && t0 - lastGroundTry > 2000) {
+    lastGroundTry = t0;
+    groundCharacter();
+  }
   /* Range gate (COO scope hypothesis + Architecture curve ruling):
      tiles are a near-field layer — ON only inside the downtown core
      radius and below the height ceiling; outside, the OSM/satellite
