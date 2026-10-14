@@ -47,8 +47,7 @@
 <div class="panel" id="controls">
   <button id="btn-tiles" class="on">Tiles: ON</button>
   <button id="btn-view">View: Character</button>
-  <button id="btn-osm" class="on">OSM overlay: ON</button>
-  <button id="btn-skin">OSM skin: Plushy</button>
+  <button id="btn-osm">OSM overlay (debug): OFF</button>
   <button id="btn-fallback">Simulate fallback</button>
   <button id="btn-probe">Probe ground @ origin</button>
   <label>Tiles Y offset <input type="range" id="yoff" min="-60" max="60" step="0.5" value="0"><span id="yoff-val">0m</span></label>
@@ -56,7 +55,7 @@
   <div style="font-size:11px;color:#9fb3c8">SSE floor 8: higher = less detail = less streaming.<br>Range gate: tiles only inside Han's downtown boundary polygon / below 800m.</div>
 </div>
 
-<div class="panel" id="fallback-note">Fallback layer active (satellite + OSM) — tiles off/failed.</div>
+<div class="panel" id="fallback-note">Fallback layer active (satellite ground only — buildings come from the Google 3D tiles).</div>
 <div id="toast"></div>
 <div id="attribution"><span>Data:</span><span id="attr-items"></span></div>
 
@@ -229,83 +228,29 @@ const fallbackGroup = new THREE.Group();
   scene.add(fallbackGroup);
 }
 
-/* ---- OSM interaction-layer overlay (alignment reference) ----
-   Two skins for the same boxes:
-   - 'wire': translucent blue + edges (alignment checking)
-   - 'plushy': Plushy AI building images as facade textures, classified
-     by the game's own archetype rule (archOf). The sprites are 3/4-view
-     renders on transparency, composited cover-fit over a wall tone —
-     expect stretching + a stylized look; that IS the style test.
-   NOTE: with photoreal tiles ON, the tile mesh contains the real
-   buildings too — these skinned boxes will overlap them (double image).
-   That overlap read is part of what this prototype exists to judge. */
+/* ---- OSM interaction-layer overlay — DEBUG ONLY ----
+   Han's ruling (2026-10-14): buildings come from Google's 3D data
+   (the photoreal tiles) — never from geometry we fabricate in three.js,
+   no extruded masses, no pasted facade murals. The OSM layer is
+   interaction data (IDs / proximity / Places); this translucent
+   wireframe exists ONLY to check tile alignment and is OFF by default. */
 const osmGroup = new THREE.Group();
-const osmItems = []; // {mesh, edges, arch}
-let osmSkin = 'plushy';
-function archOf(h, w, d) {
-  const a = w * d;
-  if (h >= 60) return 'tower';
-  if (h >= 25) return 'midrise';
-  if (h >= 12) return 'lowrise';
-  if (a >= 300) return 'warehouse';
-  return 'house';
-}
-const wireMat = new THREE.MeshBasicMaterial({ color: 0x4f7ed9, transparent: true, opacity: 0.28, depthWrite: false });
-const wireEdgeMat = new THREE.LineBasicMaterial({ color: 0x9fc2ff });
-const skinMats = {}; // arch -> [side, side, roof, bottom, side, side]
-function makeSkinMaterial(arch) {
-  const roof = new THREE.MeshBasicMaterial({ color: 0x777d84 });
-  const side = new THREE.MeshBasicMaterial({ color: 0xbfae94 });
-  const mats = [side, side, roof, roof, side, side];
-  skinMats[arch] = mats;
-  const img = new Image();
-  img.onload = () => {
-    const cv = document.createElement('canvas');
-    cv.width = cv.height = 512;
-    const g = cv.getContext('2d');
-    const grad = g.createLinearGradient(0, 0, 0, 512);
-    grad.addColorStop(0, '#c9bda6'); grad.addColorStop(1, '#a08e6f');
-    g.fillStyle = grad; g.fillRect(0, 0, 512, 512);
-    const s = Math.max(512 / img.width, 512 / img.height);
-    g.drawImage(img, (512 - img.width * s) / 2, (512 - img.height * s) / 2, img.width * s, img.height * s);
-    const tex = new THREE.CanvasTexture(cv);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    side.map = tex; side.color.set(0xffffff); side.needsUpdate = true;
-    console.log('[OSM skin] facade ready:', arch);
-  };
-  img.src = 'facades/' + arch + '.png';
-  return mats;
-}
-['tower', 'midrise', 'lowrise', 'warehouse', 'house'].forEach(makeSkinMaterial);
-function applyOsmSkin() {
-  osmItems.forEach(it => {
-    if (osmSkin === 'plushy') {
-      it.mesh.material = skinMats[it.arch];
-      it.edges.visible = false;
-    } else {
-      it.mesh.material = wireMat;
-      it.edges.visible = true;
-    }
-  });
-  const b = $('btn-skin');
-  if (b) b.textContent = 'OSM skin: ' + (osmSkin === 'plushy' ? 'Plushy' : 'Wireframe');
-}
+osmGroup.visible = false;
 fetch('osm-sample.json').then(r => r.json()).then(j => {
   const box = new THREE.BoxGeometry(1, 1, 1);
   box.translate(0, 0.5, 0);
+  const mat = new THREE.MeshBasicMaterial({ color: 0x4f7ed9, transparent: true, opacity: 0.28, depthWrite: false });
+  const edge = new THREE.LineBasicMaterial({ color: 0x9fc2ff });
   j.buildings.forEach(b => {
-    const arch = archOf(b.h, b.w, b.d);
-    const mesh = new THREE.Mesh(box, wireMat);
+    const mesh = new THREE.Mesh(box, mat);
     mesh.position.set(b.x, 0, b.z);
     mesh.scale.set(b.w, b.h, b.d);
     osmGroup.add(mesh);
-    const e = new THREE.LineSegments(new THREE.EdgesGeometry(box), wireEdgeMat);
+    const e = new THREE.LineSegments(new THREE.EdgesGeometry(box), edge);
     e.position.copy(mesh.position); e.scale.copy(mesh.scale);
     osmGroup.add(e);
-    osmItems.push({ mesh, edges: e, arch });
   });
-  applyOsmSkin();
-  console.log('[OSM overlay]', j.buildings.length, 'buildings');
+  console.log('[OSM overlay]', j.buildings.length, 'buildings (debug, off by default)');
 });
 scene.add(osmGroup);
 
@@ -476,19 +421,15 @@ $('sse').oninput = (e) => {
   $('sse-val').textContent = v;
   if (tiles) tiles.errorTarget = v;
 };
-$('btn-skin').onclick = () => {
-  osmSkin = osmSkin === 'plushy' ? 'wire' : 'plushy';
-  applyOsmSkin();
-};
 $('btn-osm').onclick = () => {
   osmGroup.visible = !osmGroup.visible;
-  $('btn-osm').textContent = 'OSM overlay: ' + (osmGroup.visible ? 'ON' : 'OFF');
+  $('btn-osm').textContent = 'OSM overlay (debug): ' + (osmGroup.visible ? 'ON' : 'OFF');
   $('btn-osm').classList.toggle('on', osmGroup.visible);
 };
 $('btn-fallback').onclick = () => {
   if (tiles) { tilesEnabled = false; tiles.group.visible = false; $('btn-tiles').textContent = 'Tiles: OFF'; $('btn-tiles').classList.remove('on'); }
   fallbackToastShown = false; /* allow the simulated toast to show */
-  setFallback(true, 'Fallback simulated: satellite + OSM city.');
+  setFallback(true, 'Fallback simulated: satellite ground only.');
   updateAttributionVisibility();
 };
 $('yoff').oninput = (e) => {

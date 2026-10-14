@@ -11,10 +11,12 @@ Han decision 2026-10-14. **Do not ship to production from here.**
   `ReorientationPlugin` — tile local coordinates == game coordinates
   (x east, z south, meters; the same frame as `latLngToMap`). The game’s
   character/building coordinate system does not change.
-- Tiles = visual layer only. The translucent blue boxes are real OSM footprints
-  (from the game's `vancouver_chunks.json`, 93 buildings within ~280 m of the
-  anchor) standing in for the interaction layer — use them to judge alignment.
-- Fallback: satellite plane (the game's own `satellite_z15.jpg`) + OSM overlay.
+- Tiles = the ONLY building visual (Han's ruling 2026-10-14: buildings come
+  from Google's 3D data — no fabricated three.js building geometry, no
+  extruded masses, no facade murals). The OSM layer is interaction data
+  (IDs/proximity); its translucent wireframe overlay is a debug aid for
+  alignment checks and is OFF by default.
+- Fallback: satellite plane only (the game's own `satellite_z15.jpg`).
   Tiles auto-fall back after 3 load errors (no retry storms — quota protection),
   and are gated OFF by default on mobile / save-data / 2G (toggle to override).
 - HUD measures: first-tile time, FPS + frame ms, session streamed MB,
