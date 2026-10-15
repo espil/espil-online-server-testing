@@ -25,7 +25,10 @@
   #attribution img{height:14px;vertical-align:middle;}
   #toast{position:fixed;left:50%;bottom:44px;transform:translateX(-50%);z-index:20;background:rgba(20,28,42,.92);
     color:#fff;padding:9px 16px;border-radius:20px;font-size:13px;display:none;box-shadow:0 6px 24px rgba(0,0,0,.4);}
-  #fallback-note{top:auto;bottom:44px;left:12px;display:none;}
+  #fallback-note{top:auto;bottom:318px;left:12px;display:none;}
+  #minimap-wrap{position:fixed;left:12px;bottom:44px;z-index:9;background:rgba(10,16,28,.82);border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:6px;}
+  #minimap{display:block;border-radius:6px;}
+  #minimap-readout{font-size:11px;line-height:1.5;color:#cfe0f0;padding:4px 2px 0;white-space:pre-line;}
   .warn{color:#ff9d7a;}
 </style>
 </head>
@@ -58,6 +61,10 @@
 </div>
 
 <div class="panel" id="fallback-note">Fallback layer active (satellite ground only — buildings come from the Google 3D tiles).</div>
+<div id="minimap-wrap">
+  <canvas id="minimap" width="232" height="232"></canvas>
+  <div id="minimap-readout">map loading…</div>
+</div>
 <div id="toast"></div>
 <div id="attribution"><span>Data:</span><span id="attr-items"></span></div>
 
@@ -411,7 +418,16 @@ function buildTiles(configure) {
   tiles = new TilesRenderer();
   configure(tiles);
   tiles.registerPlugin(new ReorientationPlugin({
-    lat: ANCHOR.lat, lon: ANCHOR.lon, height: 0,
+    /* UNITS + FRAME (verified 2026-10-14 against the vendored Ellipsoid):
+       this plugin takes lat/lon in RADIANS. Passing degrees put the
+       frame in the South Pacific (anchor landed 11,509 km off — open
+       ocean, hence the blue void + bathymetry attribution on Han's PC).
+       azimuth = PI rotates the frame so tile-local axes match the game
+       convention exactly: east -> +X, north -> -Z, up -> +Y. */
+    lat: ANCHOR.lat * Math.PI / 180,
+    lon: ANCHOR.lon * Math.PI / 180,
+    height: 0,
+    azimuth: Math.PI,
   }));
   /* Decoders — vendored locally (DRACO + KTX2/Basis) */
   const draco = new DRACOLoader();
@@ -594,10 +610,69 @@ function updateAttributions() {
 let frames = 0, statT = performance.now(), frameMs = 0;
 const clock = new THREE.Clock();
 let lastGroundTry = 0;
+/* ---- minimap (Han request, 2026-10-14: coordinate cross-check) ----
+   Drawn from the local satellite.jpg with the SAME game-coordinate
+   mapping as the fallback plane (bounds x[-5008,5356], z[-5521,4854]).
+   Orientation pre-verified offline: with this mapping the boundary
+   polygon hugs the downtown peninsula and the False Creek box lands
+   exactly on False Creek. Markers: amber = boundary polygon,
+   white cross = anchor, yellow = spawn, cyan = camera, white = target.
+   Readout shows lat/lng via the canonical inverse conversion. */
+const SAT_B = { x0: -5008, x1: 5356, z0: -5521, z1: 4854 };
+const MM = 232;
+let mmBase = null, mmImg = null, mmBaked = false;
+function mmPx(x, z) {
+  return [(x - SAT_B.x0) / (SAT_B.x1 - SAT_B.x0) * MM, (z - SAT_B.z0) / (SAT_B.z1 - SAT_B.z0) * MM];
+}
+function gameToLatLng(x, z) {
+  const lat = ANCHOR.lat - z / 111320;
+  const lng = ANCHOR.lon + x / (111320 * Math.cos(ANCHOR.lat * Math.PI / 180));
+  return lat.toFixed(4) + ', ' + lng.toFixed(4);
+}
+{
+  mmImg = new Image();
+  mmImg.onload = () => { mmBase = document.createElement('canvas'); mmBase.width = mmBase.height = MM; };
+  mmImg.src = 'satellite.jpg';
+}
+function bakeMinimapBase() {
+  const g = mmBase.getContext('2d');
+  g.drawImage(mmImg, 0, 0, MM, MM);
+  if (boundaryPoly) {
+    g.strokeStyle = '#ffb340'; g.lineWidth = 1.5; g.beginPath();
+    boundaryPoly.forEach(([x, z], i) => { const [px, py] = mmPx(x, z); i ? g.lineTo(px, py) : g.moveTo(px, py); });
+    g.closePath(); g.stroke();
+  }
+  const [ax, ay] = mmPx(0, 0);
+  g.strokeStyle = '#fff'; g.lineWidth = 1.5;
+  g.beginPath(); g.moveTo(ax - 6, ay); g.lineTo(ax + 6, ay); g.moveTo(ax, ay - 6); g.lineTo(ax, ay + 6); g.stroke();
+  mmBaked = true;
+}
+let mmLast = 0;
+function drawMinimap(now) {
+  if (!mmBase || now - mmLast < 200) return;
+  mmLast = now;
+  if (!mmBaked || (boundaryPoly && !drawMinimap._bp)) { bakeMinimapBase(); if (boundaryPoly) drawMinimap._bp = true; }
+  const c = $('minimap').getContext('2d');
+  c.drawImage(mmBase, 0, 0);
+  const dot = (x, z, col, r) => {
+    const [px, py] = mmPx(x, z);
+    c.fillStyle = col; c.beginPath(); c.arc(px, py, r, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = 'rgba(0,0,0,.6)'; c.lineWidth = 1; c.stroke();
+  };
+  dot(spawnPoint.x, spawnPoint.z, '#ffd94f', 4);
+  dot(camera.position.x, camera.position.z, '#57d7ff', 3.5);
+  dot(controls.target.x, controls.target.z, '#ffffff', 3);
+  $('minimap-readout').textContent =
+    'target ' + gameToLatLng(controls.target.x, controls.target.z) +
+    '\ncam ' + gameToLatLng(camera.position.x, camera.position.z) +
+    ' · spawn ' + gameToLatLng(spawnPoint.x, spawnPoint.z);
+}
+
 function animate() {
   requestAnimationFrame(animate);
   const t0 = performance.now();
   controls.update();
+  drawMinimap(t0);
   if (charMixer) charMixer.update(clock.getDelta());
   /* Keep the character glued to the tile surface as LOD streams in. */
   if (character && tiles && tilesEnabled && !charGroundedOnTiles && t0 - lastGroundTry > 2000) {

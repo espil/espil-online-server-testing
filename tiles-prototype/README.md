@@ -89,6 +89,30 @@ Client behavior (Architecture review, built in from the start):
    function will hold the master token, call ion server-side, and return only
    the short-lived session tileset URL (Architecture review 2026-10-14).
 
+## Coordinate frame — READ THIS (bug found on Han's PC run, 2026-10-14)
+
+`ReorientationPlugin` takes lat/lon in **RADIANS** (the whole
+3d-tiles-renderer cartographic API is radians; its display helpers
+multiply by RAD2DEG). The first build passed **degrees** — the frame
+landed in the South Pacific (the anchor's ECEF point mapped 11,509 km
+off origin; open ocean — hence the blue void, the SIO/NOAA/GEBCO
+bathymetry attribution, and 0.0 MB of detailed content). The plugin's
+default azimuth also mirrors the game axes; `azimuth: Math.PI` fixes
+it. Verified numerically with the vendored Ellipsoid itself:
+
+| test point | frame coords (fixed) | game expects |
+|---|---|---|
+| anchor | (0, 0, 0) | (0, 0, 0) |
+| 100 m east | (+100.2, 0, 0) | (+100, 0, 0) |
+| 100 m north | (0, 0, −99.9) | (0, 0, −100) |
+| 100 m up | (0, +100, 0) | (0, +100, 0) |
+
+The page also carries a **minimap** (bottom-left): satellite image +
+boundary polygon + camera/target/spawn markers with a live lat/lng
+readout, so the frame can be eyeballed against real geography at any
+time. Its mapping was pre-verified offline (polygon hugs the downtown
+peninsula; the False Creek box lands on False Creek).
+
 ## Known integration blockers (for the production phase, not this prototype)
 
 - **Three.js version — RULED (Architecture, 2026-10-14, confirmed via COO): isolated module
