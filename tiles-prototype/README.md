@@ -62,6 +62,16 @@ Client behavior (Architecture review, built in from the start):
   when tiles are on, the y=0 game plane in fallback — and re-grounds as
   tiles stream/toggle. Default camera is a third-person **Character view**;
   the View button toggles to the wide City view.
+- **Entry + navigation (Han's vision, COO-confirmed prototype scope)**:
+  landing overlay with city select → 7 s continuous zoom-in while tiles
+  stream → sky descent → landed. Minimap: **M** cycles small → medium →
+  large; on the large map a click **pins** a destination (water nudges
+  to land, spawn rules) — guidance is a dashed line + distance/bearing
+  readout, a light beacon at the pin, and an arrival state at 15 m.
+  **WASD** glides the character over the measured surface with a height
+  gate (steps climbing > 2.5 m — walls, roof edges — are refused) so the
+  pin loop is provable end-to-end. Still open: the UI rise after landing
+  (UI-room coordination first, per COO).
 - **Sky-descent summon (Han's direction, 2026-10-14)**: a spawn point's
   height is unknowable before its tiles stream, and a character planted
   at y=0 sat ~12 m under downtown streets (invisible until re-summon).
