@@ -156,3 +156,35 @@ peninsula; the False Creek box lands on False Creek).
   the 1.5 km hard range gate.)
 - Vendored here: `three@0.186.1` modules + `3d-tiles-renderer@0.5.3` builds +
   DRACO decoder + Basis/KTX2 transcoder under `vendor/`.
+
+## Globe curvature + occlusion fade (2026-10-15, per Han)
+
+- **Globe view (Han's EverPlanet law)**: `drop = k × d²`, d = distance
+  from the CAMERA, rendered by ONE shared vertex-shader bend injected
+  into every scene material (tiles, satellite ground, OSM overlay,
+  character) - the same world point always bends identically, so
+  tile/OSM/character alignment holds by construction. Geometry, tile
+  data and physics are untouched (probes stay on the flat plane, like
+  the production game's curvedMat). Toggle + k slider in the panel
+  (k shown ×10⁻⁶; default 600, range 0-1200; drop capped at 1000 m).
+  Production comparison: the game's curvedMat uses the same d² family
+  but is PLAYER-relative and anisotropic ((dx²·70 + dz²·80)/120000,
+  i.e. kx ≈ 5.83e-4, kz ≈ 6.67e-4, capped 1000 m) - the prototype
+  default sits between those; Han's spec here is camera-relative and
+  isotropic. The fallback satellite plane is subdivided 96×96 so it
+  rolls smoothly too; real tiles carry dense vertices per tile.
+- **Occlusion fade**: a 200 ms raycast along the camera→character
+  sightline; any tile mesh blocking it (with a 1.2 m margin in front
+  of the character) fades to 10% opacity and restores when clear.
+  Unit = TILE MESH (Google tiles do not separate per building, so a
+  whole chunk ghosts; in production the OSM boxes are per-building
+  and the same system fades per building). Fading uses a private
+  material clone (tile materials are shared; the clone is
+  bend-patched too) which is disposed when the original swaps back;
+  transitions ease in the render loop, no boundary flicker.
+- Verified on the fallback layer in a GPU-less VM (tiles cannot
+  stream here): city view rolls into the globe slab, street view
+  rolls away under the character, k=0 renders the correct flat view,
+  occlusion fade measured 1 → 0.11 → restored on a synthetic
+  occluder placed under the same occluder root the tiles group uses.
+  Real-tile bending/fading awaits Han's PC run.

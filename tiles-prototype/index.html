@@ -76,6 +76,9 @@
   <label>Tiles Y offset <input type="range" id="yoff" min="-60" max="60" step="0.5" value="0"><span id="yoff-val">0m</span></label>
   <label>Min detail (SSE) <input type="range" id="sse" min="8" max="64" step="1" value="16"><span id="sse-val">16</span></label>
   <div style="font-size:11px;color:#9fb3c8">SSE floor 8: higher = less detail = less streaming.<br>Range gate: tiles only inside Han's downtown boundary polygon / below 800m.</div>
+  <button id="btn-curve" class="on">Globe curve: ON</button>
+  <label>Curve k (×10⁻⁶) <input type="range" id="curve-k" min="0" max="1200" step="10" value="600"><span id="curve-k-v">600</span></label>
+  <div style="font-size:11px;color:#9fb3c8">EverPlanet globe view (Han's law): drop = k × d² from the camera, one shared vertex-shader bend for tiles, ground, character — alignment holds at every distance.<br>Occlusion fade: a tile mesh blocking the camera→character sightline fades to 10% until clear (tile-mesh unit; production OSM boxes fade per building).</div>
 </div>
 
 <div class="panel" id="fallback-note">Fallback layer active (satellite ground only — buildings come from the Google 3D tiles).</div>
@@ -179,6 +182,10 @@ renderer.setSize(innerWidth, innerHeight);
 $('app').appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
+/* Occluders live under one root so the sightline fade (below) scans a
+   single subtree: the tiles group, when tiles are on. */
+const occluderRoot = new THREE.Group();
+scene.add(occluderRoot);
 scene.background = new THREE.Color(0x0a0e14);
 const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 20000);
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -357,6 +364,81 @@ function stepDescent(dt, now) {
       character.position.x, character.position.y + 1.2, character.position.z), k);
   }
 }
+
+/* ---- Occlusion fade (Han, 2026-10-15) ----
+   When a tile mesh sits on the camera→character sightline, fade it to
+   10% opacity so the character stays visible; restore when clear.
+   Unit = TILE MESH: Google's photoreal tiles do not separate into
+   buildings, so a whole tile chunk ghosts at once (in production the
+   OSM boxes are per-building, so the same system fades per building
+   there). Materials are shared across tiles, so a fading mesh gets a
+   private CLONE (bend-patched like everything else); the original is
+   swapped back once the clone has faded back to full. Transitions are
+   eased in the render loop with scan hysteresis (200 ms scans, the
+   occluder must clear a 1.2 m margin in front of the character), so
+   the boundary does not flicker. */
+const fadeMap = new Map(); // mesh -> { orig, clone, target }
+let lastFadeScan = 0;
+function fadeSetMesh(mesh, faded) {
+  let rec = fadeMap.get(mesh);
+  if (faded) {
+    if (rec) { rec.target = 0.1; return; }
+    const orig = mesh.material;
+    const cloneOne = (m) => {
+      const c = m.clone();
+      c.transparent = true; c.depthWrite = false; c.opacity = 1;
+      patchBendMaterial(c);
+      return c;
+    };
+    const clone = Array.isArray(orig) ? orig.map(cloneOne) : cloneOne(orig);
+    mesh.material = clone;
+    fadeMap.set(mesh, { orig, clone, target: 0.1 });
+  } else if (rec) {
+    rec.target = 1;
+  }
+}
+function scanOcclusion(now) {
+  if (now - lastFadeScan < 200) return;
+  lastFadeScan = now;
+  const active = !!(character && character.visible && !descent && entryPhase === 'done'
+    && occluderRoot.children.length);
+  const blocked = new Set();
+  if (active) {
+    const head = new THREE.Vector3(character.position.x, character.position.y + 1.1, character.position.z);
+    const dir = head.clone().sub(camera.position);
+    const dist = dir.length();
+    const rc = new THREE.Raycaster(camera.position, dir.normalize(), 0.5, Math.max(0.6, dist - 1.2));
+    for (const hit of rc.intersectObject(occluderRoot, true)) {
+      if (!hit.object.isMesh) continue;
+      /* Raycast ignores visibility — skip hits inside hidden subtrees
+         (e.g. the tiles group while the range gate has it off). */
+      let vis = true, o = hit.object;
+      while (o) { if (!o.visible) { vis = false; break; } o = o.parent; }
+      if (vis) blocked.add(hit.object);
+    }
+  }
+  for (const mesh of blocked) fadeSetMesh(mesh, true);
+  for (const mesh of [...fadeMap.keys()]) if (!blocked.has(mesh)) fadeSetMesh(mesh, false);
+}
+function stepFades(dt) {
+  if (!fadeMap.size) return;
+  const k = Math.min(1, dt * 7);
+  for (const [mesh, rec] of [...fadeMap.entries()]) {
+    const mats = Array.isArray(rec.clone) ? rec.clone : [rec.clone];
+    let done = true;
+    for (const m of mats) {
+      m.opacity += (rec.target - m.opacity) * k;
+      if (Math.abs(rec.target - m.opacity) > 0.01) done = false;
+    }
+    if (rec.target === 1 && done) {
+      mesh.material = rec.orig;
+      mats.forEach((m) => m.dispose());
+      fadeMap.delete(mesh);
+    }
+  }
+}
+/* Debug/measurement handle (this page is a test rig). */
+window.__tilesProto = { scene, camera, renderer, occluderRoot, fadeMap, THREE };
 
 /* ---- Entry sequence (Han's landing vision, 2026-10-14; COO-confirmed
    prototype scope) ----
@@ -569,8 +651,10 @@ const fallbackGroup = new THREE.Group();
   tex.colorSpace = THREE.SRGBColorSpace;
   /* satellite bounds from assets/ground/satellite_meta.json: x[-5008,5356], z[-5521,4854] */
   const w = 5356 - (-5008), h = 4854 - (-5521);
+  /* 96x96 segments so the vertex-shader globe bend rolls smoothly over
+     the fallback plane too (a 1x1 plane could only tilt whole). */
   const m = new THREE.Mesh(
-    new THREE.PlaneGeometry(w, h),
+    new THREE.PlaneGeometry(w, h, 96, 96),
     new THREE.MeshBasicMaterial({ map: tex })
   );
   m.rotation.x = -Math.PI / 2;
@@ -706,7 +790,7 @@ function buildTiles(configure) {
       if (character) groundCharacter();
     }
   });
-  scene.add(tiles.group);
+  occluderRoot.add(tiles.group);
   tilesEnabled = true;
   updateAttributionVisibility();
   if (!tilesAllowedByDevice()) {
@@ -858,6 +942,60 @@ let camGroundY = null, lastCamProbe = 0;
    exactly on False Creek. Markers: amber = boundary polygon,
    white cross = anchor, yellow = spawn, cyan = camera, white = target.
    Readout shows lat/lng via the canonical inverse conversion. */
+/* ---------------- Globe curvature (Han's EverPlanet law, 2026-10-15) ----
+   drop = k × d², d = distance from the CAMERA, applied as ONE shared
+   vertex-shader bend to every material in the scene — Google tiles,
+   satellite ground, OSM overlay, character alike — so tiles/OSM/
+   character alignment is preserved by construction (the same world
+   position always bends by the same amount). Geometry and data are
+   untouched; physics/probes stay on the flat plane, exactly like the
+   production game's curvedMat (which uses the player as reference and
+   (dx²·70 + dz²·80)/120000 capped at 1000 — Han's law here is the
+   isotropic camera-relative form). */
+const BEND_K = { value: 0.0006 }; // shared uniform object — one update bends all
+const bendPatched = new WeakSet();
+const BEND_CHUNK = [
+  'vec4 bwp = vec4( transformed, 1.0 );',
+  '#ifdef USE_INSTANCING',
+  '  bwp = instanceMatrix * bwp;',
+  '#endif',
+  'bwp = modelMatrix * bwp;',
+  'float bd = distance( bwp.xz, cameraPosition.xz );',
+  'bwp.y -= min( uBendK * bd * bd, 1000.0 );',
+  'vec4 mvPosition = viewMatrix * bwp;',
+  'gl_Position = projectionMatrix * mvPosition;'
+].join('\n');
+function patchBendMaterial(mat) {
+  if (!mat || bendPatched.has(mat)) return;
+  bendPatched.add(mat);
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uBendK = BEND_K;
+    shader.vertexShader = 'uniform float uBendK;\n' + shader.vertexShader.replace('#include <project_vertex>', BEND_CHUNK);
+  };
+  mat.needsUpdate = true;
+}
+let lastBendSweep = 0;
+function sweepBend(now) {
+  if (now - lastBendSweep < 300) return;
+  lastBendSweep = now;
+  scene.traverse((o) => {
+    if (!o.material) return;
+    if (Array.isArray(o.material)) o.material.forEach(patchBendMaterial);
+    else patchBendMaterial(o.material);
+  });
+}
+let curveOn = true;
+$('btn-curve').onclick = () => {
+  curveOn = !curveOn;
+  BEND_K.value = curveOn ? Number($('curve-k').value) / 1e6 : 0;
+  $('btn-curve').textContent = 'Globe curve: ' + (curveOn ? 'ON' : 'OFF');
+  $('btn-curve').classList.toggle('on', curveOn);
+};
+$('curve-k').addEventListener('input', (e) => {
+  $('curve-k-v').textContent = e.target.value;
+  if (curveOn) BEND_K.value = Number(e.target.value) / 1e6;
+});
+
 const SAT_B = { x0: -5008, x1: 5356, z0: -5521, z1: 4854 };
 let mmSize = 232, mmStage = 0;
 let mmBase = null, mmImg = null, mmBaked = false;
@@ -979,6 +1117,9 @@ function animate() {
   const dt = Math.min(clock.getDelta(), 0.05);
   if (charMixer) charMixer.update(dt);
   stepEntry(dt);
+  sweepBend(t0);
+  scanOcclusion(t0);
+  stepFades(dt);
   stepDescent(dt, t0);
   stepGlide(dt, t0);
   if (navBeacon.visible) navBeacon.material.opacity = 0.28 + 0.14 * Math.sin(t0 / 300);
