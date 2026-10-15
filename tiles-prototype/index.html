@@ -196,6 +196,13 @@ new GLTFLoader().load('male.glb', (gltf) => {
   console.log('[Character] summoned at anchor, height', CHAR_TARGET_H + 'm');
 }, undefined, (e) => console.warn('[Character] load failed', e));
 
+/* Ground truth tolerance: Google's ROOT tile is a coarse whole-planet
+   mesh whose facets sag kilometres below the ellipsoid between vertices
+   (Han's PC run: probe read y = -2963.89m at the anchor). A hit that far
+   from the game plane is LOD scaffolding, NOT ground — never ground the
+   character on it; detailed tiles refine to within metres and win the
+   raycast once loaded. */
+const GROUND_TOLERANCE_M = 60;
 function groundCharacter() {
   if (!character) return;
   if (tiles && tilesEnabled && tiles.group.visible) {
@@ -204,10 +211,14 @@ function groundCharacter() {
       new THREE.Vector3(0, -1, 0));
     const hits = rc.intersectObject(tiles.group, true);
     if (hits.length) {
-      character.position.y = hits[0].point.y;
-      charGroundedOnTiles = true;
-      $('st-ground').textContent = 'tile ground y = ' + hits[0].point.y.toFixed(2) + 'm (character grounded on tiles)';
-      return;
+      const y = hits[0].point.y;
+      if (Math.abs(y) <= GROUND_TOLERANCE_M) {
+        character.position.y = y;
+        charGroundedOnTiles = true;
+        $('st-ground').textContent = 'tile ground y = ' + y.toFixed(2) + 'm (character grounded on tiles)';
+        return;
+      }
+      $('st-ground').textContent = 'coarse tile surface y = ' + y.toFixed(0) + 'm — not ground truth, waiting for detailed tiles';
     }
   }
   character.position.y = 0;
@@ -543,8 +554,13 @@ function probeGround() {
   const hits = rc.intersectObject(tiles.group, true);
   if (hits.length) {
     const y = hits[0].point.y;
-    $('st-ground').textContent = 'tile ground y = ' + y.toFixed(2) + 'm (offset vs game plane)';
-    toast('Ground at origin: y=' + y.toFixed(2) + 'm. Set Tiles Y offset to ' + (-y).toFixed(1) + 'm to align.');
+    if (Math.abs(y) <= GROUND_TOLERANCE_M) {
+      $('st-ground').textContent = 'tile ground y = ' + y.toFixed(2) + 'm (offset vs game plane)';
+      toast('Ground at origin: y=' + y.toFixed(2) + 'm. Set Tiles Y offset to ' + (-y).toFixed(1) + 'm to align.');
+    } else {
+      $('st-ground').textContent = 'coarse tile surface y = ' + y.toFixed(0) + 'm — not ground truth, waiting for detailed tiles';
+      toast('Only the coarse planet tile has loaded at the origin so far — wait for detailed tiles before measuring.');
+    }
     groundCharacter();
   } else {
     $('st-ground').textContent = 'no tile geometry under origin yet';
