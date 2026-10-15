@@ -333,6 +333,7 @@ function loop() {
     if (!state.active) { state.active = true; canvas.style.display = 'block'; }
     camera.position.set(cs.px, cs.py, cs.pz);
     camera.quaternion.set(cs.qx, cs.qy, cs.qz, cs.qw);
+    if (cs.curveK) BEND_K.value = cs.curveK;
     BEND_CENTER.value.set(cs.charX, cs.charZ);
     const fc = new THREE.Color(cs.fogColor);
     scene.background.copy(fc); scene.fog.color.copy(fc);
@@ -367,6 +368,7 @@ function loop() {
   camera.position.set(cs.px, cs.py, cs.pz);
   camera.quaternion.set(cs.qx, cs.qy, cs.qz, cs.qw);
   if (cs.fov && camera.fov !== cs.fov) { camera.fov = cs.fov; camera.updateProjectionMatrix(); }
+  if (cs.curveK) BEND_K.value = cs.curveK; /* single source: the game's curveStrength */
   BEND_CENTER.value.set(cs.charX, cs.charZ);
   const fogColor = new THREE.Color(cs.fogColor);
   scene.background.copy(fogColor);

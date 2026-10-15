@@ -2237,6 +2237,9 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         cs.fov=mapCamera.fov; cs.aspect=mapCamera.aspect; cs.near=mapCamera.near; cs.far=mapCamera.far; }
       if(walkPlayer){ cs.charX=walkPlayer.pos.x; cs.charY=walkPlayer.pos.y||0; cs.charZ=walkPlayer.pos.z; }
       if(mapScene&&mapScene.fog){ cs.fogColor=mapScene.fog.color.getHex(); cs.fogNear=mapScene.fog.near; cs.fogFar=mapScene.fog.far; }
+      /* The curve constant has ONE source: the game's own curveStrength.
+         The tiles layer reads it from here - it never tunes its own. */
+      cs.curveK=(typeof curveStrength!=='undefined'&&curveStrength)?curveStrength.x/120000:0.0015;
     }
     function espilTilesSweep(on){
       if(!mapScene)return;
