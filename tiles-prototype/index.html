@@ -42,6 +42,11 @@
   #btn-enter{margin-top:26px;padding:13px 44px;font-size:16px;letter-spacing:2px;border:0;border-radius:10px;background:#ffd94f;color:#141a26;font-weight:700;cursor:pointer;}
   #btn-enter:hover{background:#ffe27a;}
   #entry-note{margin-top:16px;font-size:11px;color:#7186a0;}
+  /* UI rise (pattern by the UI room, 2026-10-14): elements start 28px
+     low + transparent and rise into place, bottom first, on
+     cubic-bezier(.22,.9,.26,1); input blocked until settled. */
+  #hud,#controls,#minimap-wrap,#fallback-note,#attribution{transition:transform 1s cubic-bezier(.22,.9,.26,1),opacity 1s cubic-bezier(.22,.9,.26,1);}
+  .rise-hidden{transform:translateY(28px)!important;opacity:0!important;pointer-events:none!important;}
   .warn{color:#ff9d7a;}
 </style>
 </head>
@@ -288,7 +293,7 @@ function startDescent() {
   character.visible = true;
   character.position.y = DESCENT_TOP_M;
   charGroundedOnTiles = false;
-  descent = { surfaceY: null, probeAt: 0 };
+  descent = { surfaceY: null, probeAt: 0, startX: character.position.x, startZ: character.position.z };
   if (viewName === 'character') {
     camera.position.set(spawnPoint.x + 170, 150, spawnPoint.z + 190);
     controls.target.set(spawnPoint.x, 30, spawnPoint.z);
@@ -319,6 +324,26 @@ function stepDescent(dt, now) {
     if (entryPhase === 'descent') { entryPhase = 'done'; onEntryLanded(); }
     if (viewName === 'character') setView('character');
     return;
+  }
+  /* Arrow-key steering during the descent (Han: movement is the arrow
+     keys, descent included — this is how the landing spot is chosen).
+     Drift is capped at 250 m from the descent start so the flight
+     stays inside the tiles gate. */
+  if (glideKeys.size) {
+    const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd); fwd.y = 0; fwd.normalize();
+    const rgt = new THREE.Vector3(-fwd.z, 0, fwd.x);
+    const mv = new THREE.Vector3();
+    if (glideKeys.has('ArrowUp')) mv.add(fwd);
+    if (glideKeys.has('ArrowDown')) mv.sub(fwd);
+    if (glideKeys.has('ArrowRight')) mv.add(rgt);
+    if (glideKeys.has('ArrowLeft')) mv.sub(rgt);
+    if (mv.lengthSq()) {
+      mv.normalize().multiplyScalar(16 * dt);
+      const nx = character.position.x + mv.x, nz = character.position.z + mv.z;
+      if (Math.hypot(nx - descent.startX, nz - descent.startZ) <= 250) {
+        character.position.x = nx; character.position.z = nz;
+      }
+    }
   }
   const speed = Math.min(55, Math.max(3.5, above * 0.9));
   character.position.y = Math.max(floorY, character.position.y - speed * dt);
@@ -354,10 +379,14 @@ function requestDescent() {
   character.visible = true;
   startDescent();
 }
+const RISE_ELS = [['minimap-wrap', 0], ['fallback-note', 130], ['attribution', 130], ['hud', 260], ['controls', 390]];
 function beginEntry() {
   if (entryPhase !== 'landing') return;
   entryPhase = 'approach'; entryT = 0;
   $('entry-overlay').classList.add('gone');
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    for (const [id] of RISE_ELS) { const el = $(id); if (el) el.classList.add('rise-hidden'); }
+  }
   entryFrom.pos.set(spawnPoint.x + 2400, 1500, spawnPoint.z + 2400);
   entryFrom.tgt.set(spawnPoint.x, 80, spawnPoint.z);
   entryTo.pos.set(spawnPoint.x + 170, 150, spawnPoint.z + 190);
@@ -379,12 +408,17 @@ function stepEntry(dt) {
   }
 }
 function onEntryLanded() {
-  /* UI rise hooks here (UI-room coordination first, per COO). */
-  console.log('[Entry] landed — entry sequence complete');
+  console.log('[Entry] landed — UI rise');
+  for (const [id, delay] of RISE_ELS) {
+    const el = $(id); if (!el) continue;
+    el.style.transitionDelay = delay + 'ms';
+    el.classList.remove('rise-hidden');
+    setTimeout(() => { el.style.transitionDelay = ''; }, 2400);
+  }
 }
 $('btn-enter').addEventListener('click', beginEntry);
 
-/* ---- keyboard: Enter = enter city, M = map stage, WASD = glide ---- */
+/* ---- keyboard: Enter = enter city, M = map stage, arrows = move ---- */
 const glideKeys = new Set();
 let lastGlideProbe = 0, glideSurfaceY = null;
 addEventListener('keydown', (e) => {
@@ -397,7 +431,8 @@ addEventListener('keydown', (e) => {
 addEventListener('keyup', (e) => glideKeys.delete(e.code));
 
 /* Prototype locomotion so pin navigation is provable end-to-end:
-   camera-relative WASD, surface-following, with a height gate —
+   camera-relative ARROW KEYS (the game's original movement scheme),
+   surface-following, with a height gate —
    a step that would climb more than 2.5m (a wall, a roof edge) is
    refused, which is what keeps the walker on streets. */
 function stepGlide(dt, now) {
@@ -405,13 +440,13 @@ function stepGlide(dt, now) {
   const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd); fwd.y = 0; fwd.normalize();
   const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
   const move = new THREE.Vector3();
-  if (glideKeys.has('KeyW') || glideKeys.has('ArrowUp')) move.add(fwd);
-  if (glideKeys.has('KeyS') || glideKeys.has('ArrowDown')) move.sub(fwd);
-  if (glideKeys.has('KeyD') || glideKeys.has('ArrowRight')) move.add(right);
-  if (glideKeys.has('KeyA') || glideKeys.has('ArrowLeft')) move.sub(right);
+  if (glideKeys.has('ArrowUp')) move.add(fwd);
+  if (glideKeys.has('ArrowDown')) move.sub(fwd);
+  if (glideKeys.has('ArrowRight')) move.add(right);
+  if (glideKeys.has('ArrowLeft')) move.sub(right);
   if (!move.lengthSq()) return;
   move.normalize();
-  const speed = (glideKeys.has('ShiftLeft') || glideKeys.has('ShiftRight')) ? 30 : 12;
+  const speed = 14;
   const nx = character.position.x + move.x * speed * dt;
   const nz = character.position.z + move.z * speed * dt;
   const tilesOn = !!(tiles && tilesEnabled && tiles.group.visible);
@@ -933,7 +968,7 @@ $('minimap').addEventListener('click', (e) => {
   navBeacon.position.set(gx, (probeSurfaceY(gx, gz) ?? 0) + 80, gz);
   navBeacon.visible = true;
   const charPos = character ? character.position : spawnPoint;
-  toast('📍 Pin set — ' + Math.round(Math.hypot(gx - charPos.x, gz - charPos.z)) + 'm away. WASD to walk, follow the arrow.');
+  toast('📍 Pin set — ' + Math.round(Math.hypot(gx - charPos.x, gz - charPos.z)) + 'm away. Arrow keys to walk, follow the arrow.');
 });
 
 function animate() {

@@ -68,10 +68,13 @@ Client behavior (Architecture review, built in from the start):
   large; on the large map a click **pins** a destination (water nudges
   to land, spawn rules) — guidance is a dashed line + distance/bearing
   readout, a light beacon at the pin, and an arrival state at 15 m.
-  **WASD** glides the character over the measured surface with a height
+  **Arrow keys** glide the character over the measured surface with a height
   gate (steps climbing > 2.5 m — walls, roof edges — are refused) so the
-  pin loop is provable end-to-end. Still open: the UI rise after landing
-  (UI-room coordination first, per COO).
+  pin loop is provable end-to-end. Movement is the ARROW keys — on the
+  ground and during the sky descent alike (drift caps at 250 m from the
+  descent start), per Han: the original movement scheme. The UI rise
+  after landing follows the UI room's pattern (bottom → side → top,
+  28 px + fade, cubic-bezier(.22,.9,.26,1), ~1.4 s total).
 - **Sky-descent summon (Han's direction, 2026-10-14)**: a spawn point's
   height is unknowable before its tiles stream, and a character planted
   at y=0 sat ~12 m under downtown streets (invisible until re-summon).
