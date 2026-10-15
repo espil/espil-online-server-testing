@@ -166,7 +166,12 @@ peninsula; the False Creek box lands on False Creek).
   tile/OSM/character alignment holds by construction. Geometry, tile
   data and physics are untouched (probes stay on the flat plane, like
   the production game's curvedMat). Toggle + k slider in the panel
-  (k shown ×10⁻⁶; default 600, range 0-1200; drop capped at 1000 m).
+  (k shown ×10⁻⁶; default 1500 per Han 2026-10-15, range 0-2000;
+  drop capped at 1000 m, so it saturates past ~820 m at the default).
+  Distance fade (Han, 2026-10-15): scene fog melts geometry into the
+  background void from 700 m to fully faded at 3000 m, so the map
+  beyond the planet's curve is never seen. Fog depth comes from the
+  bent view position, so it tracks the curved world.
   Production comparison: the game's curvedMat uses the same d² family
   but is PLAYER-relative and anisotropic ((dx²·70 + dz²·80)/120000,
   i.e. kx ≈ 5.83e-4, kz ≈ 6.67e-4, capped 1000 m) - the prototype
@@ -181,7 +186,10 @@ peninsula; the False Creek box lands on False Creek).
   and the same system fades per building). Fading uses a private
   material clone (tile materials are shared; the clone is
   bend-patched too) which is disposed when the original swaps back;
-  transitions ease in the render loop, no boundary flicker.
+  transitions ease in the render loop, no boundary flicker. A mesh
+  the camera is INSIDE (orbiting into a building - the sightline ray
+  starts inside and cannot hit it) is also faded, via a world-box
+  containment test on near occluders.
 - Verified on the fallback layer in a GPU-less VM (tiles cannot
   stream here): city view rolls into the globe slab, street view
   rolls away under the character, k=0 renders the correct flat view,

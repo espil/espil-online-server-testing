@@ -77,8 +77,8 @@
   <label>Min detail (SSE) <input type="range" id="sse" min="8" max="64" step="1" value="16"><span id="sse-val">16</span></label>
   <div style="font-size:11px;color:#9fb3c8">SSE floor 8: higher = less detail = less streaming.<br>Range gate: tiles only inside Han's downtown boundary polygon / below 800m.</div>
   <button id="btn-curve" class="on">Globe curve: ON</button>
-  <label>Curve k (×10⁻⁶) <input type="range" id="curve-k" min="0" max="1200" step="10" value="600"><span id="curve-k-v">600</span></label>
-  <div style="font-size:11px;color:#9fb3c8">EverPlanet globe view (Han's law): drop = k × d² from the camera, one shared vertex-shader bend for tiles, ground, character — alignment holds at every distance.<br>Occlusion fade: a tile mesh blocking the camera→character sightline fades to 10% until clear (tile-mesh unit; production OSM boxes fade per building).</div>
+  <label>Curve k (×10⁻⁶) <input type="range" id="curve-k" min="0" max="2000" step="25" value="1500"><span id="curve-k-v">1500</span></label>
+  <div style="font-size:11px;color:#9fb3c8">EverPlanet globe view (Han's law): drop = k × d² from the camera, one shared vertex-shader bend for tiles, ground, character — alignment holds at every distance. Distance fade melts the map beyond ~3 km into the void.<br>Occlusion fade: a tile mesh blocking the camera→character sightline fades to 10% until clear (tile-mesh unit; production OSM boxes fade per building).</div>
 </div>
 
 <div class="panel" id="fallback-note">Fallback layer active (satellite ground only — buildings come from the Google 3D tiles).</div>
@@ -187,6 +187,11 @@ const scene = new THREE.Scene();
 const occluderRoot = new THREE.Group();
 scene.add(occluderRoot);
 scene.background = new THREE.Color(0x0a0e14);
+/* Distance fade (Han, 2026-10-15): beyond the planet's curve the map
+   must vanish - fog melts distant geometry into the background void,
+   fully faded by 3000 m, starting at 700 m. Fog depth comes from the
+   bent view position, so it tracks the curved world. */
+scene.fog = new THREE.Fog(0x0a0e14, 700, 3000);
 const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 20000);
 const controls = new OrbitControls(camera, renderer.domElement);
 let viewName = 'character';
@@ -415,6 +420,25 @@ function scanOcclusion(now) {
       let vis = true, o = hit.object;
       while (o) { if (!o.visible) { vis = false; break; } o = o.parent; }
       if (vis) blocked.add(hit.object);
+    }
+  }
+  if (active) {
+    /* Camera INSIDE a mesh (orbiting into a building): the sightline
+       ray starts inside it and can never hit it, so also fade any near
+       occluder whose world box contains the camera. The sphere
+       prefilter keeps this to a handful of meshes per scan. */
+    const near = [];
+    occluderRoot.traverse((o) => {
+      if (!o.isMesh || blocked.has(o)) return;
+      if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere();
+      const c = o.geometry.boundingSphere.center.clone().applyMatrix4(o.matrixWorld);
+      const r = o.geometry.boundingSphere.radius * o.getWorldScale(new THREE.Vector3()).x;
+      if (c.distanceTo(camera.position) < r + 2 && c.distanceTo(camera.position) < 90) near.push(o);
+    });
+    const box = new THREE.Box3();
+    for (const o of near) {
+      box.setFromObject(o);
+      if (box.containsPoint(camera.position)) blocked.add(o);
     }
   }
   for (const mesh of blocked) fadeSetMesh(mesh, true);
@@ -952,7 +976,7 @@ let camGroundY = null, lastCamProbe = 0;
    production game's curvedMat (which uses the player as reference and
    (dx²·70 + dz²·80)/120000 capped at 1000 — Han's law here is the
    isotropic camera-relative form). */
-const BEND_K = { value: 0.0006 }; // shared uniform object — one update bends all
+const BEND_K = { value: 0.0015 }; // shared uniform object — one update bends all
 const bendPatched = new WeakSet();
 const BEND_CHUNK = [
   'vec4 bwp = vec4( transformed, 1.0 );',
