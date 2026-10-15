@@ -120,6 +120,7 @@ const GOOGLE_TILES_ION_ASSET_ID = '2275207';
 
 const $ = id => document.getElementById(id);
 const spawnPoint = { x: 0, z: 0 }; // character spawn (anchor default)
+let character = null, charMixer = null, charGroundedOnTiles = false;
 function toast(msg, ms = 3600) {
   const t = $('toast'); t.textContent = msg; t.style.display = 'block';
   clearTimeout(t._h); t._h = setTimeout(() => t.style.display = 'none', ms);
@@ -152,10 +153,17 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0a0e14);
 const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 20000);
 const controls = new OrbitControls(camera, renderer.domElement);
+let viewName = 'character';
 function setView(name) {
+  viewName = name;
   if (name === 'character') {
-    camera.position.set(spawnPoint.x + 6.4, 3.4, spawnPoint.z + 9.4);
-    controls.target.set(spawnPoint.x, 1.1, spawnPoint.z);
+    /* Frame on the character's GROUNDED height — downtown tile ground
+       sits at y ≈ +10.9m, not on the y=0 game plane. Framing at plane
+       heights put the camera ~7.5m UNDER the street (Han's PC run:
+       buildings streamed in but the character was out of frame). */
+    const cy = character ? character.position.y : 0;
+    camera.position.set(spawnPoint.x + 7.5, cy + 3.6, spawnPoint.z + 11.5);
+    controls.target.set(spawnPoint.x, cy + 1.2, spawnPoint.z);
   } else {
     camera.position.set(280, 200, 280);
     controls.target.set(0, 25, 0);
@@ -184,7 +192,6 @@ scene.add(sun);
    Same coordinate frame as the game: stands at the origin, grounded on
    whichever visual layer is active (tile surface via probe raycast,
    else the y=0 game plane). Walk clip plays in place. */
-let character = null, charMixer = null, charGroundedOnTiles = false;
 const CHAR_TARGET_H = 1.75;
 new GLTFLoader().load('male.glb', (gltf) => {
   character = gltf.scene;
@@ -223,6 +230,8 @@ function groundCharacter() {
         character.position.y = y;
         charGroundedOnTiles = true;
         $('st-ground').textContent = 'tile ground y = ' + y.toFixed(2) + 'm (character grounded on tiles)';
+        /* The camera frames on the grounded height, not the y=0 plane. */
+        if (viewName === 'character') setView('character');
         return;
       }
       $('st-ground').textContent = 'coarse tile surface y = ' + y.toFixed(0) + 'm — not ground truth, waiting for detailed tiles';
@@ -302,7 +311,7 @@ function placeCharacter(x, z, basis) {
   }
   $('st-spawn').textContent = basis + ' @ ' + Math.round(x) + ', ' + Math.round(z);
   console.log('[Spawn]', basis, Math.round(x), Math.round(z));
-  if ($('btn-view').textContent.includes('Character')) setView('character');
+  if (viewName === 'character') setView('character');
 }
 function summonAtMyLocation() {
   toast('Finding your location…');
@@ -536,8 +545,7 @@ $('btn-tiles').onclick = () => {
 };
 $('btn-summon').onclick = () => summonAtMyLocation();
 $('btn-view').onclick = () => {
-  const isChar = $('btn-view').textContent.includes('Character');
-  setView(isChar ? 'city' : 'character');
+  setView(viewName === 'character' ? 'city' : 'character');
 };
 $('sse').oninput = (e) => {
   const v = Math.max(parseFloat(e.target.value), SSE_FLOOR);
@@ -610,6 +618,7 @@ function updateAttributions() {
 let frames = 0, statT = performance.now(), frameMs = 0;
 const clock = new THREE.Clock();
 let lastGroundTry = 0;
+let camGroundY = null, lastCamProbe = 0;
 /* ---- minimap (Han request, 2026-10-14: coordinate cross-check) ----
    Drawn from the local satellite.jpg with the SAME game-coordinate
    mapping as the fallback plane (bounds x[-5008,5356], z[-5521,4854]).
@@ -674,6 +683,23 @@ function animate() {
   controls.update();
   drawMinimap(t0);
   if (charMixer) charMixer.update(clock.getDelta());
+  /* Camera collision (Han request, 2026-10-14): the eye may not sink
+     below the tile surface — street or rooftop, whichever the downward
+     ray meets first. Probed at 5 Hz and cached between probes (a full
+     raycast against 100+ tile meshes is not a per-frame cost). */
+  if (tiles && tilesEnabled && tiles.group.visible) {
+    if (t0 - lastCamProbe > 200) {
+      lastCamProbe = t0;
+      const rc = new THREE.Raycaster(
+        new THREE.Vector3(camera.position.x, camera.position.y + 400, camera.position.z),
+        new THREE.Vector3(0, -1, 0), 0, 900);
+      const hits = rc.intersectObject(tiles.group, true);
+      camGroundY = hits.length ? hits[0].point.y : null;
+    }
+    if (camGroundY !== null && camera.position.y < camGroundY + 1.2) {
+      camera.position.y = camGroundY + 1.2;
+    }
+  }
   /* Keep the character glued to the tile surface as LOD streams in. */
   if (character && tiles && tilesEnabled && !charGroundedOnTiles && t0 - lastGroundTry > 2000) {
     lastGroundTry = t0;
