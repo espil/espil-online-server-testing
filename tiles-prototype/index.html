@@ -172,6 +172,7 @@ function setView(name) {
   $('btn-view').textContent = 'View: ' + (name === 'character' ? 'Character' : 'City');
 }
 setView('character');
+controls.addEventListener('start', () => { introActive = false; });
 controls.maxPolarAngle = Math.PI * 0.495;
 scene.add(new THREE.AmbientLight(0xffffff, 0.9));
 const sun = new THREE.DirectionalLight(0xffffff, 1.6);
@@ -206,8 +207,8 @@ new GLTFLoader().load('male.glb', (gltf) => {
   charMixer = new THREE.AnimationMixer(character);
   const walk = gltf.animations.find(a => /walk/i.test(a.name)) || gltf.animations[0];
   if (walk) { charMixer.clipAction(walk).play(); console.log('[Character] playing clip:', walk.name); }
-  groundCharacter();
-  console.log('[Character] summoned at anchor, height', CHAR_TARGET_H + 'm');
+  startDescent();
+  console.log('[Character] summoned, height', CHAR_TARGET_H + 'm — descending to spawn');
 }, undefined, (e) => console.warn('[Character] load failed', e));
 
 /* Ground truth tolerance: Google's ROOT tile is a coarse whole-planet
@@ -217,28 +218,93 @@ new GLTFLoader().load('male.glb', (gltf) => {
    character on it; detailed tiles refine to within metres and win the
    raycast once loaded. */
 const GROUND_TOLERANCE_M = 60;
+function probeSurfaceY(x, z) {
+  if (!tiles || !tilesEnabled || !tiles.group.visible) return null;
+  const rc = new THREE.Raycaster(new THREE.Vector3(x, 500, z), new THREE.Vector3(0, -1, 0));
+  const hits = rc.intersectObject(tiles.group, true);
+  if (!hits.length) return null;
+  const y = hits[0].point.y;
+  return Math.abs(y) <= GROUND_TOLERANCE_M ? y : null;
+}
 function groundCharacter() {
   if (!character) return;
+  descent = null;
+  const y = probeSurfaceY(character.position.x, character.position.z);
+  if (y !== null) {
+    character.position.y = y;
+    charGroundedOnTiles = true;
+    $('st-ground').textContent = 'tile ground y = ' + y.toFixed(2) + 'm (character grounded on tiles)';
+    /* The camera frames on the grounded height, not the y=0 plane. */
+    if (viewName === 'character') setView('character');
+    return;
+  }
   if (tiles && tilesEnabled && tiles.group.visible) {
-    const rc = new THREE.Raycaster(
-      new THREE.Vector3(character.position.x, 500, character.position.z),
-      new THREE.Vector3(0, -1, 0));
-    const hits = rc.intersectObject(tiles.group, true);
-    if (hits.length) {
-      const y = hits[0].point.y;
-      if (Math.abs(y) <= GROUND_TOLERANCE_M) {
-        character.position.y = y;
-        charGroundedOnTiles = true;
-        $('st-ground').textContent = 'tile ground y = ' + y.toFixed(2) + 'm (character grounded on tiles)';
-        /* The camera frames on the grounded height, not the y=0 plane. */
-        if (viewName === 'character') setView('character');
-        return;
-      }
-      $('st-ground').textContent = 'coarse tile surface y = ' + y.toFixed(0) + 'm — not ground truth, waiting for detailed tiles';
-    }
+    $('st-ground').textContent = 'no detailed tile surface yet — waiting (see descent)';
   }
   character.position.y = 0;
   charGroundedOnTiles = false;
+}
+
+/* ---- Sky-descent summon (Han's direction, 2026-10-14) ----
+   A spawn point's true height cannot be known before the tiles for
+   that spot have streamed, and a character planted at y=0 ends up
+   buried ~12m under downtown streets (Han's report: invisible until
+   re-summon). So the character ENTERS FROM THE SKY: it appears ~160m
+   above the spawn point and descends while the surface underneath is
+   probed continuously, touching down on whatever the probe measures —
+   street or rooftop. While the surface is still unknown (tiles
+   streaming) it holds a slow sink at 30m and waits. After landing, a
+   2s re-ground keeps it glued as LOD keeps refining, so it can never
+   be buried by a later, more detailed tile again. */
+let descent = null; // { surfaceY: number|null, probeAt: number }
+const DESCENT_TOP_M = 160, DESCENT_HOLD_M = 30;
+let introActive = false;
+function startDescent() {
+  if (!character) return;
+  character.position.y = DESCENT_TOP_M;
+  charGroundedOnTiles = false;
+  descent = { surfaceY: null, probeAt: 0 };
+  if (viewName === 'character') {
+    camera.position.set(spawnPoint.x + 170, 150, spawnPoint.z + 190);
+    controls.target.set(spawnPoint.x, 30, spawnPoint.z);
+    controls.update();
+    introActive = true;
+  }
+}
+function stepDescent(dt, now) {
+  if (!descent || !character) return;
+  const tilesOn = !!(tiles && tilesEnabled && tiles.group.visible);
+  if (now - descent.probeAt > 150) {
+    descent.probeAt = now;
+    const y = probeSurfaceY(character.position.x, character.position.z);
+    if (y !== null) descent.surfaceY = y;
+    else if (!tilesOn) descent.surfaceY = 0;
+  }
+  const surf = descent.surfaceY;
+  const floorY = surf !== null ? surf : DESCENT_HOLD_M;
+  const above = character.position.y - floorY;
+  if (above <= 0.05 && surf !== null) {
+    character.position.y = surf;
+    charGroundedOnTiles = tilesOn && surf !== 0;
+    descent = null;
+    introActive = false;
+    $('st-ground').textContent = tilesOn
+      ? 'landed on tile surface y = ' + surf.toFixed(2) + 'm'
+      : 'landed on game plane (fallback)';
+    if (viewName === 'character') setView('character');
+    return;
+  }
+  const speed = Math.min(55, Math.max(3.5, above * 0.9));
+  character.position.y = Math.max(floorY, character.position.y - speed * dt);
+  /* Intro camera: ease from the wide shot into the character framing
+     as the descent runs (Han's landing zoom-in image, prototype form). */
+  if (introActive && viewName === 'character') {
+    const k = 1 - Math.exp(-dt * 1.8);
+    camera.position.lerp(new THREE.Vector3(
+      character.position.x + 7.5, character.position.y + 3.6, character.position.z + 11.5), k);
+    controls.target.lerp(new THREE.Vector3(
+      character.position.x, character.position.y + 1.2, character.position.z), k);
+  }
 }
 
 /* ---- Character spawn rules (Han, 2026-10-14) ----
@@ -306,8 +372,7 @@ function placeCharacter(x, z, basis) {
   if (character) {
     character.position.x = x;
     character.position.z = z;
-    charGroundedOnTiles = false;
-    groundCharacter();
+    startDescent();
   }
   $('st-spawn').textContent = basis + ' @ ' + Math.round(x) + ', ' + Math.round(z);
   console.log('[Spawn]', basis, Math.round(x), Math.round(z));
@@ -682,7 +747,9 @@ function animate() {
   const t0 = performance.now();
   controls.update();
   drawMinimap(t0);
-  if (charMixer) charMixer.update(clock.getDelta());
+  const dt = Math.min(clock.getDelta(), 0.05);
+  if (charMixer) charMixer.update(dt);
+  stepDescent(dt, t0);
   /* Camera collision (Han request, 2026-10-14): the eye may not sink
      below the tile surface — street or rooftop, whichever the downward
      ray meets first. Probed at 5 Hz and cached between probes (a full
@@ -700,10 +767,21 @@ function animate() {
       camera.position.y = camGroundY + 1.2;
     }
   }
-  /* Keep the character glued to the tile surface as LOD streams in. */
-  if (character && tiles && tilesEnabled && !charGroundedOnTiles && t0 - lastGroundTry > 2000) {
+  /* Continuous re-ground while tiles are on: LOD keeps refining after
+     the first landing, and a surface measured later can differ by
+     metres — re-probe every 2s and follow it, so the character can
+     never end up buried under a more detailed tile (Han's report:
+     invisible until re-summon). Skipped during a descent, which does
+     its own continuous probing. */
+  if (character && !descent && tiles && tilesEnabled && tiles.group.visible && t0 - lastGroundTry > 2000) {
     lastGroundTry = t0;
-    groundCharacter();
+    const y = probeSurfaceY(character.position.x, character.position.z);
+    if (y !== null && Math.abs(y - character.position.y) > 0.5) {
+      character.position.y = y;
+      charGroundedOnTiles = true;
+      $('st-ground').textContent = 'tile ground y = ' + y.toFixed(2) + 'm (re-grounded as LOD refined)';
+      if (viewName === 'character') setView('character');
+    }
   }
   /* Range gate (COO scope hypothesis + Architecture curve ruling):
      tiles are a near-field layer — ON only inside the downtown core

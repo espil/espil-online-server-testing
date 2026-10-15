@@ -62,6 +62,14 @@ Client behavior (Architecture review, built in from the start):
   when tiles are on, the y=0 game plane in fallback — and re-grounds as
   tiles stream/toggle. Default camera is a third-person **Character view**;
   the View button toggles to the wide City view.
+- **Sky-descent summon (Han's direction, 2026-10-14)**: a spawn point's
+  height is unknowable before its tiles stream, and a character planted
+  at y=0 sat ~12 m under downtown streets (invisible until re-summon).
+  The character now enters from ~160 m up and descends while the surface
+  below is probed continuously, landing on the measured surface; a 2 s
+  re-ground follows later LOD refinement so it can never be buried
+  again. The camera starts wide and eases into the character framing
+  during the descent (prototype form of Han's landing zoom-in).
 - **Spawn rules (Han, 2026-10-14)**: “📍 Summon at my location” is the
   in-game pre-prompt (browser permission follows). Inside the downtown
   boundary polygon → spawn at the real location. Outside → nearest point
