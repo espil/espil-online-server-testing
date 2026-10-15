@@ -2215,6 +2215,295 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       var dx=x-curvePlayer.x,dz=z-curvePlayer.y;
       return Math.min((dx*dx*curveStrength.x+dz*dz*curveStrength.y)/120000,1000);
     }
+    /* ==== ESPIL TILES BRIDGE (isolated tiles module interface) ====
+       The Google 3D Tiles layer lives in tiles/tiles-module.js (ES
+       module, own three@0.186, own canvas UNDER the game canvas).
+       The only crossings are two window state objects:
+         window.__espilCamState   game -> module (camera + character)
+         window.__espilTilesState module -> game (active flag, probe)
+       In tiles mode the game's own ground meshes hide and its building
+       meshes swap to depth-only materials, so the photoreal tiles
+       show through while the OSM boxes still occlude the character
+       (interaction data stays authoritative). Removing the module's
+       script tags returns the game to standalone behaviour. */
+    window.__espilCamState={cityPhase:false,tilesRequested:false,px:0,py:0,pz:0,qx:0,qy:0,qz:0,qw:1,fov:55,aspect:1,near:.1,far:8000,charX:0,charY:0,charZ:0,fogColor:0x9ec8e8,fogNear:200,fogFar:1500};
+    if(!window.__espilTilesState)window.__espilTilesState={active:false,ready:false,gated:false,streamedMB:0,probe:null};
+    var espilTilesApplied=false,espilDepthMat=null,espilDepthMatInst=null,espilTilesSweepAt=0;
+    function espilTilesCamPush(){
+      var cs=window.__espilCamState; if(!cs)return;
+      cs.cityPhase=!!cityPhaseActive;
+      if(mapCamera){ cs.px=mapCamera.position.x; cs.py=mapCamera.position.y; cs.pz=mapCamera.position.z;
+        cs.qx=mapCamera.quaternion.x; cs.qy=mapCamera.quaternion.y; cs.qz=mapCamera.quaternion.z; cs.qw=mapCamera.quaternion.w;
+        cs.fov=mapCamera.fov; cs.aspect=mapCamera.aspect; cs.near=mapCamera.near; cs.far=mapCamera.far; }
+      if(walkPlayer){ cs.charX=walkPlayer.pos.x; cs.charY=walkPlayer.pos.y||0; cs.charZ=walkPlayer.pos.z; }
+      if(mapScene&&mapScene.fog){ cs.fogColor=mapScene.fog.color.getHex(); cs.fogNear=mapScene.fog.near; cs.fogFar=mapScene.fog.far; }
+    }
+    function espilTilesSweep(on){
+      if(!mapScene)return;
+      if(on&&!espilDepthMat){
+        espilDepthMat=new THREE.MeshBasicMaterial({colorWrite:false,depthWrite:true});
+        if(typeof curvePatch==='function')curvePatch(espilDepthMat);
+        espilDepthMatInst=new THREE.MeshBasicMaterial({colorWrite:false,depthWrite:true});
+      }
+      mapScene.traverse(function(o){
+        if(!o.isMesh)return;
+        if(o.userData.espilGround){ o.visible=!on; return; }
+        if(o.userData.espilBuilding){
+          if(on){
+            if(!o.userData._espilOrigMat)o.userData._espilOrigMat=o.material;
+            var dm=o.isInstancedMesh?espilDepthMatInst:espilDepthMat;
+            if(o.material!==dm)o.material=dm;
+          }else if(o.userData._espilOrigMat){ o.material=o.userData._espilOrigMat; }
+        }
+      });
+      if(typeof mapSkyDome!=='undefined'&&mapSkyDome)mapSkyDome.visible=!on;
+      if(on)renderer.setClearColor(0x000000,0); else renderer.setClearColor(0x010306,1);
+    }
+    /* --- tile ground: the module probe, cached (the bend is zero at
+       the character by construction, so the unbent raycast height IS
+       the visual surface height at the probe point) --- */
+    var espilTileBaseCache={x:1e9,z:1e9,y:null,at:0};
+    function espilTileBase(x,z){
+      var st=window.__espilTilesState;
+      if(!st||!st.active||!st.probe)return null;
+      var now=performance.now();
+      if(Math.abs(x-espilTileBaseCache.x)<2&&Math.abs(z-espilTileBaseCache.z)<2&&now-espilTileBaseCache.at<120)return espilTileBaseCache.y;
+      var y=null; try{ y=st.probe(x,z); }catch(e){}
+      espilTileBaseCache={x:x,z:z,y:(typeof y==='number'?y:null),at:now};
+      return espilTileBaseCache.y;
+    }
+    /* --- spawn resolution (prototype rules): real location inside the
+       boundary plays there; outside resolves to the nearest boundary
+       land point; water is always nudged to land; no geo = downtown. --- */
+    var espilBoundary=null;
+    try{ fetch('tiles/downtown-boundary.json').then(function(r){return r.json();}).then(function(j){espilBoundary=j.polygon||j;}).catch(function(){}); }catch(e){}
+    function espilInBoundary(x,z,scale){
+      if(!espilBoundary)return Math.hypot(x,z)<1500*(scale||1);
+      var px=x/(scale||1),pz=z/(scale||1),inside=false,poly=espilBoundary;
+      for(var i=0,k=poly.length-1;i<poly.length;k=i++){
+        var xi=poly[i][0],zi=poly[i][1],xk=poly[k][0],zk=poly[k][1];
+        if(((zi>pz)!==(zk>pz))&&(px<(xk-xi)*(pz-zi)/(zk-zi)+xi))inside=!inside;
+      }
+      return inside;
+    }
+    function espilNudgeToLand(x,z){
+      if(!isWaterAt(x,z))return {x:x,z:z};
+      for(var r=15;r<=240;r+=15){
+        for(var a=0;a<8;a++){
+          var nx=x+Math.cos(a*Math.PI/4)*r,nz=z+Math.sin(a*Math.PI/4)*r;
+          if(!isWaterAt(nx,nz))return {x:nx,z:nz};
+        }
+      }
+      return {x:19,z:-57};
+    }
+    function espilResolveSpawn(geo){
+      if(!geo)return {x:19,z:-57};
+      if(espilInBoundary(geo.x,geo.z,1))return espilNudgeToLand(geo.x,geo.z);
+      /* nearest point on the boundary polygon edges */
+      var best=null,bd=1e18,poly=espilBoundary;
+      if(poly){
+        for(var i=0,k=poly.length-1;i<poly.length;k=i++){
+          var x1=poly[k][0],z1=poly[k][1],x2=poly[i][0],z2=poly[i][1];
+          var dx=x2-x1,dz=z2-z1,L2=dx*dx+dz*dz||1;
+          var t=Math.max(0,Math.min(1,((geo.x-x1)*dx+(geo.z-z1)*dz)/L2));
+          var px=x1+dx*t,pz=z1+dz*t,dd=(geo.x-px)*(geo.x-px)+(geo.z-pz)*(geo.z-pz);
+          if(dd<bd){bd=dd;best={x:px,z:pz};}
+        }
+      }
+      if(!best)best={x:19,z:-57};
+      return espilNudgeToLand(best.x,best.z);
+    }
+    /* --- geolocation pre-prompt (fresh entries only, during the fall) --- */
+    var espilGeoEl=null;
+    function espilHideGeoPrompt(){ if(espilGeoEl){espilGeoEl.style.display='none';} }
+    function espilShowGeoPrompt(){
+      if(espilGeoEl){espilGeoEl.style.display='block';return;}
+      var d=document.createElement('div');
+      d.style.cssText='position:fixed;left:50%;bottom:120px;transform:translateX(-50%);z-index:65;display:block;background:rgba(10,14,20,.9);color:#e8eef4;padding:12px 16px;border-radius:12px;font:500 .85rem "Manrope",sans-serif;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.45);';
+      d.innerHTML='<div style="margin-bottom:9px;">Start from your real location?</div>';
+      var b1=document.createElement('button');
+      b1.textContent='\uD83D\uDCCD Use my location';
+      b1.style.cssText='margin-right:8px;padding:7px 12px;border-radius:8px;border:0;background:#e8b34a;color:#14100a;font:600 .82rem "Manrope",sans-serif;cursor:pointer;';
+      var b2=document.createElement('button');
+      b2.textContent='Start downtown';
+      b2.style.cssText='padding:7px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.35);background:transparent;color:#e8eef4;font:600 .82rem "Manrope",sans-serif;cursor:pointer;';
+      b1.onclick=function(){
+        espilHideGeoPrompt();
+        if(!navigator.geolocation)return;
+        navigator.geolocation.getCurrentPosition(function(pos){
+          var p=walkPlayer; if(!p||!p._espilDescend)return; /* landed already - too late to retarget */
+          var gx=(pos.coords.longitude+123.1207)*111320*Math.cos(49.2827*Math.PI/180);
+          var gz=-(pos.coords.latitude-49.2827)*111320;
+          var pt=espilResolveSpawn({x:gx,z:gz});
+          p.pos.x=pt.x; p.pos.z=pt.z;
+          if(p._espilDescend)p._espilDescend.surf=null; /* re-probe at the new target */
+        },function(){}, {timeout:8000,maximumAge:60000});
+      };
+      b2.onclick=function(){ espilHideGeoPrompt(); };
+      d.appendChild(b1); d.appendChild(b2);
+      document.body.appendChild(d);
+      espilGeoEl=d;
+      setTimeout(espilHideGeoPrompt,25000);
+    }
+    /* --- UI rise (production standard): panels start lowered + faded
+       during the fall, then rise bottom -> top once the landing lands. --- */
+    var espilStyleDone=false;
+    function espilInjectStyle(){
+      if(espilStyleDone)return; espilStyleDone=true;
+      var st=document.createElement('style'); st.id='espil-bridge-style';
+      st.textContent=
+        '#minimap-wrap,#map-hint{transition:transform 1s cubic-bezier(.22,.9,.26,1),opacity 1s cubic-bezier(.22,.9,.26,1);}' +
+        'body.espil-ui-pre #minimap-wrap{transform:translateY(30px);opacity:0;pointer-events:none;}' +
+        'body.espil-ui-pre #map-hint{transform:translateY(30px);opacity:0;pointer-events:none;transition-delay:.26s;}' +
+        '@media (prefers-reduced-motion: reduce){#minimap-wrap,#map-hint{transition:none;}}';
+      document.head.appendChild(st);
+    }
+    function espilUiRise(){
+      document.body.classList.remove('espil-ui-pre');
+      setTimeout(function(){ /* settled: pointer events return with the class gone */ },1800);
+    }
+    /* --- sky descent: spawn at +160 m, probe-driven landing --- */
+    function espilBeginDescent(tx,tz){
+      var p=walkPlayer; if(!p)return;
+      espilInjectStyle();
+      document.body.classList.add('espil-ui-pre');
+      p.pos.x=tx; p.pos.z=tz;
+      var base=espilTileBase(tx,tz);
+      p._espilDescend={surf:base,probeAt:0,startedAt:performance.now()};
+      p.pos.y=(base!==null?base:0)+160;
+      p.velY=0; p.onGround=false;
+      walkCamDist=60; /* wide sky framing; the step eases it to 14 */
+      if(p.av&&p.av.ready&&p.av.actions.dive)p.av.playAnim('dive');
+      espilShowGeoPrompt();
+    }
+    function espilDescentStep(p,dt){
+      var d=p._espilDescend; if(!d)return;
+      var now=performance.now();
+      if(now-d.probeAt>150){ d.probeAt=now; var y=espilTileBase(p.pos.x,p.pos.z); if(y!==null)d.surf=y; }
+      if((d.surf===null||d.surf===undefined)&&now-d.startedAt>4000)d.surf=0; /* tiles unavailable: land on the flat frame */
+      var ground=(d.surf!==null&&d.surf!==undefined)?d.surf:0;
+      var h=p.pos.y-ground;
+      var f=Math.max(0,Math.min(1,h/160)); walkCamDist=14+46*f*f;
+      if(p.av&&p.av.ready&&p.av.actions.dive&&p.av.curAnim!=='dive'&&p.av.curAnim!=='land')p.av.playAnim('dive');
+      if(d.surf===null||d.surf===undefined){
+        p.pos.y=Math.max(p.pos.y-3.5*dt,30); /* surface unknown: slow sink, hold the last 30 m */
+        p.velY=0; p.onGround=false;
+        return;
+      }
+      var speed=h>60?55:Math.max(3.5,55*(h/60));
+      p.pos.y-=speed*dt;
+      p.velY=0; p.onGround=false;
+      if(p.pos.y<=ground+0.02){
+        p.pos.y=ground;
+        p._espilDescend=null;
+        p.onGround=true; p.jumps=0;
+        espilHideGeoPrompt();
+        if(p.av&&p.av.playOneShot)p.av.playOneShot('land');
+        p._espilLanding=true;
+        var landDur=(p.av&&p.av.actions.land)?p.av.actions.land.getClip().duration*1000:2400;
+        setTimeout(function(){ p._espilLanding=false; }, Math.min(landDur,2600));
+        walkCamDist=14;
+        espilUiRise();
+      }
+    }
+    function espilEntryStart(){
+      var p=walkPlayer; if(!p)return;
+      var last=null; try{ last=loadLastPos(); }catch(e){}
+      if(last)return; /* returning player: no descent; the support logic grounds them */
+      espilBeginDescent(p.pos.x,p.pos.z);
+    }
+    /* --- pin navigation (prototype rules, on the game's Leaflet map):
+       on the LARGE stage a click drops a destination pin (water clicks
+       nudged to land); a dashed guidance line + readout track it, an
+       amber beacon pulses in the world, arrival within 15 m clears it. --- */
+    var espilPin=null, espilPinReadout=null, espilMbReadout=null, espilToastEl=null;
+    function espilBridgeToast(msg){
+      if(window.__espilToast){ try{ window.__espilToast(msg); return; }catch(e){} }
+      if(!espilToastEl){
+        espilToastEl=document.createElement('div');
+        espilToastEl.style.cssText='position:fixed;left:50%;bottom:96px;transform:translateX(-50%);z-index:66;background:rgba(10,14,20,.9);color:#e8eef4;padding:8px 14px;border-radius:10px;font:500 .82rem "Manrope",sans-serif;display:none;';
+        document.body.appendChild(espilToastEl);
+      }
+      espilToastEl.textContent=msg; espilToastEl.style.display='block';
+      setTimeout(function(){ espilToastEl.style.display='none'; },3600);
+    }
+    function espilSetPin(x,z){
+      espilClearPin();
+      var ll=gameToLatLng(x,z);
+      var marker=L.marker(ll,{interactive:false,icon:L.divIcon({className:'',
+        html:'<div style="width:14px;height:14px;border-radius:50%;background:#e5484d;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.55);"></div>',
+        iconSize:[14,14],iconAnchor:[7,7]})}).addTo(leafletMap);
+      var line=L.polyline([gameToLatLng(walkPlayer.pos.x,walkPlayer.pos.z),ll],
+        {color:'#e8b34a',weight:2,dashArray:'6 6',interactive:false}).addTo(leafletMap);
+      var beacon=new THREE.Mesh(
+        new THREE.CylinderGeometry(1.4,1.4,30,12,1,true),
+        new THREE.MeshBasicMaterial({color:0xe8b34a,transparent:true,opacity:.45,depthWrite:false,side:THREE.DoubleSide}));
+      var by=espilTileBase(x,z);
+      beacon.position.set(x,(by!==null?by:0)+15,z);
+      mapScene.add(beacon);
+      if(!espilPinReadout){
+        espilPinReadout=document.createElement('div');
+        espilPinReadout.style.cssText='position:fixed;left:50%;bottom:64px;transform:translateX(-50%);z-index:40;background:rgba(10,14,20,.82);color:#f2d38a;padding:6px 12px;border-radius:9px;font:600 .78rem "Manrope",sans-serif;pointer-events:none;display:none;';
+        document.body.appendChild(espilPinReadout);
+      }
+      espilPinReadout.style.display='block';
+      espilPin={x:x,z:z,marker:marker,line:line,beacon:beacon};
+    }
+    function espilClearPin(){
+      if(!espilPin)return;
+      try{ leafletMap.removeLayer(espilPin.marker); leafletMap.removeLayer(espilPin.line); }catch(e){}
+      if(espilPin.beacon){ mapScene.remove(espilPin.beacon); espilPin.beacon.geometry.dispose(); espilPin.beacon.material.dispose(); }
+      espilPin=null;
+      if(espilPinReadout)espilPinReadout.style.display='none';
+    }
+    var ESPIL_DIRS=['\u2191','\u2197','\u2192','\u2198','\u2193','\u2199','\u2190','\u2196'];
+    function espilPinTick(){
+      if(typeof leafletMap!=='undefined'&&leafletMap&&!leafletMap.__espilPinHooked){
+        leafletMap.__espilPinHooked=true;
+        leafletMap.on('click',function(e){
+          if(typeof mapStage==='undefined'||mapStage!==3||!cityPhaseActive||!walkPlayer)return;
+          var gx=(e.latlng.lng-MAP_LNG0)*111320*Math.cos(MAP_LAT0*Math.PI/180);
+          var gz=-(e.latlng.lat-MAP_LAT0)*111320;
+          var pt=espilNudgeToLand(gx,gz);
+          espilSetPin(pt.x,pt.z);
+        });
+        leafletMap.on('contextmenu',function(){ espilClearPin(); });
+      }
+      /* streamed-MB readout (real bytes, module-counted) */
+      var st=window.__espilTilesState;
+      if(!espilMbReadout){
+        espilMbReadout=document.createElement('div');
+        espilMbReadout.style.cssText='position:fixed;right:10px;bottom:26px;z-index:36;font:500 .65rem "Manrope",sans-serif;color:rgba(255,255,255,.6);text-shadow:0 1px 3px rgba(0,0,0,.7);pointer-events:none;display:none;';
+        document.body.appendChild(espilMbReadout);
+      }
+      if(st&&st.active){ espilMbReadout.textContent='3D tiles \u00B7 '+st.streamedMB.toFixed(1)+' MB'; espilMbReadout.style.display='block'; }
+      else espilMbReadout.style.display='none';
+      /* pin upkeep */
+      if(espilPin&&walkPlayer){
+        var dx=espilPin.x-walkPlayer.pos.x, dz=espilPin.z-walkPlayer.pos.z;
+        var dist=Math.sqrt(dx*dx+dz*dz);
+        espilPin.line.setLatLngs([gameToLatLng(walkPlayer.pos.x,walkPlayer.pos.z),gameToLatLng(espilPin.x,espilPin.z)]);
+        var pll=mapToLatLng(espilPin.x,espilPin.z);
+        var rel=Math.atan2(dx,-dz)-Math.atan2(-Math.sin(walkCamYaw),Math.cos(walkCamYaw));
+        while(rel>Math.PI)rel-=Math.PI*2; while(rel<-Math.PI)rel+=Math.PI*2;
+        var sector=Math.round(rel/(Math.PI/4)); if(sector<0)sector+=8;
+        espilPinReadout.textContent='pin '+pll.lat.toFixed(5)+', '+pll.lng.toFixed(5)+' \u00B7 '+Math.round(dist)+'m '+ESPIL_DIRS[sector%8];
+        var pulse=1+0.16*Math.sin(performance.now()/300);
+        espilPin.beacon.scale.set(pulse,1,pulse);
+        espilPin.beacon.material.opacity=0.36+0.16*Math.sin(performance.now()/300);
+        if(dist<=15){
+          espilClearPin();
+          espilBridgeToast('\uD83D\uDCCD Arrived at pin');
+        }
+      }
+    }
+    setInterval(function(){ if(cityPhaseActive)espilPinTick(); },250);
+    function espilTilesApplyMode(now){
+      var st=window.__espilTilesState; if(!st)return;
+      var on=!!st.active;
+      if(on!==espilTilesApplied){ espilTilesApplied=on; espilTilesSweep(on); espilTilesSweepAt=now; }
+      else if(on&&now-espilTilesSweepAt>1000){ espilTilesSweep(true); espilTilesSweepAt=now; }
+    }
     /* Real-time navigation-style traffic engine — DATA ONLY (Han 2026-10-05).
        No visual overlay. Segment flow values simulate for navigation use. */
     var trafficSegs=[];
@@ -2610,6 +2899,57 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           loadAnimClip('male_chat.glb','chat',false);
           /* Keep legacy male_jump.glb as fallback if armsopen fails */
           loadAnimClip('male_jump.glb','jumpLegacy',false);
+          /* Sky-descent clips (Meshy action 508, wired for the tiles
+             integration): ONE GLB holds dive (frames 0-19) + land
+             (19-93) at 30fps. Split with subclip. The Hips position
+             track is KEPT (the land crouch lives in it) but re-based
+             so the final frame matches the idle clip's standing Hips
+             height, with X/Z pinned to the first frame - descent
+             physics owns the actual height and horizontal position. */
+          (function loadDescentClips(){
+            try{
+              new THREE.GLTFLoader().load('tiles/male_dive_land_2.glb',function(gltf){
+                var cs=gltf.animations||[]; if(!cs.length)return;
+                var full=cs[0],hipsTrack=null,ti,ii;
+                /* RETARGET (found in integration testing): the Meshy
+                   export names its bones plainly (Hips, Spine01, neck)
+                   while the game rig is Mixamo-prefixed (mixamorigHips,
+                   mixamorigSpine1, mixamorigNeck) - unrenamed, the clip's
+                   tracks bind to NOTHING and the actions play empty.
+                   Rename via the map, and keep only the Hips position
+                   track (pose lives in the quaternions; per-bone
+                   positions are bind offsets the rig already has - the
+                   same shape as the working male_walk_casual clip). */
+                var NAME_MAP={Hips:'mixamorigHips',Spine:'mixamorigSpine',Spine01:'mixamorigSpine1',Spine02:'mixamorigSpine2',neck:'mixamorigNeck',Head:'mixamorigHead',LeftShoulder:'mixamorigLeftShoulder',LeftArm:'mixamorigLeftArm',LeftForeArm:'mixamorigLeftForeArm',LeftHand:'mixamorigLeftHand',RightShoulder:'mixamorigRightShoulder',RightArm:'mixamorigRightArm',RightForeArm:'mixamorigRightForeArm',RightHand:'mixamorigRightHand',LeftUpLeg:'mixamorigLeftUpLeg',LeftLeg:'mixamorigLeftLeg',LeftFoot:'mixamorigLeftFoot',LeftToeBase:'mixamorigLeftToeBase',RightUpLeg:'mixamorigRightUpLeg',RightLeg:'mixamorigRightLeg',RightFoot:'mixamorigRightFoot',RightToeBase:'mixamorigRightToeBase'};
+                full.tracks=full.tracks.filter(function(t){
+                  var m=t.name.match(/^(.+)\.(position|quaternion|scale)$/);
+                  if(!m||!NAME_MAP[m[1]])return false;
+                  if(m[2]==='scale')return false;
+                  if(m[2]==='position'&&m[1]!=='Hips')return false;
+                  t.name=NAME_MAP[m[1]]+'.'+m[2];
+                  return true;
+                });
+                for(ti=0;ti<full.tracks.length;ti++){
+                  if(full.tracks[ti].name==='mixamorigHips.position'){hipsTrack=full.tracks[ti];break;}
+                }
+                if(hipsTrack){
+                  var standY=null;
+                  if(idleClip)for(ii=0;ii<idleClip.tracks.length;ii++){
+                    if(idleClip.tracks[ii].name===hipsTrack.name){standY=idleClip.tracks[ii].values[1];break;}
+                  }
+                  var v=hipsTrack.values,n=v.length/3,lastY=v[(n-1)*3+1];
+                  var off=(standY!==null?standY:lastY)-lastY,x0=v[0],z0=v[2];
+                  for(var ki=0;ki<n;ki++){v[ki*3]=x0;v[ki*3+1]+=off;v[ki*3+2]=z0;}
+                }
+                var diveAct=mixer.clipAction(THREE.AnimationUtils.subclip(full,'espilDive',0,20,30));
+                diveAct.setLoop(THREE.LoopOnce);diveAct.clampWhenFinished=true;
+                av.actions.dive=diveAct;
+                var landAct=mixer.clipAction(THREE.AnimationUtils.subclip(full,'espilLand',19,94,30));
+                landAct.setLoop(THREE.LoopOnce);landAct.clampWhenFinished=true;
+                av.actions.land=landAct;
+              });
+            }catch(e){/* descent falls back to plain physics landing */}
+          })();
           /* Female clips staged (not activated — male character active) */
           av.femaleClips={};
           ['female_idle.glb','female_walk_strut.glb','female_run_charge.glb','female_stop.glb'].forEach(function(f){
@@ -2685,6 +3025,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       baseGround.rotation.x=-Math.PI/2;
       baseGround.position.set(0,0,0);
       baseGround.receiveShadow=true;
+      baseGround.userData.espilGround=1; /* ESPIL TILES BRIDGE: hidden while tiles are on */
       mapScene.add(baseGround);
       /* #8b (Asset room 2026-10-09): Esri World Imagery satellite ground.
          Covers x:-5008~5356, z:-5521~4854. Replaces procedural grass/cobble/water/roads. */
@@ -2706,6 +3047,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
             smesh.rotation.x=-Math.PI/2;
             smesh.position.set((satBounds.x0+satBounds.x1)/2,0.035,(satBounds.z0+satBounds.z1)/2);
             smesh.receiveShadow=true;
+            smesh.userData.espilGround=1; /* ESPIL TILES BRIDGE */
             smesh.frustumCulled=false;
             /* Apply globe curve */
             if(typeof curvePatch==='function')curvePatch(smat);
@@ -2810,10 +3152,10 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       }
       function buildingAt(w,h,d,x,y,z,color){
         var bm=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),facadeMats(pickFacade(),color));
-        bm.position.set(x,y,z);bm.castShadow=true;bm.receiveShadow=true;mapScene.add(bm);return bm;
+        bm.position.set(x,y,z);bm.castShadow=true;bm.receiveShadow=true;bm.userData.espilBuilding=1;mapScene.add(bm);return bm;
       }
       var ground=new THREE.Mesh(new THREE.PlaneGeometry(640,640,64,64),curvedMat(0xa7b198));
-      ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;mapScene.add(ground);
+      ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;ground.userData.espilGround=1;mapScene.add(ground);
       /* Han's modern-city road tiles: asphalt with lane dashes + curb edges. */
       function roadTexture(rot, plain, fourLane){
         var rt=new THREE.TextureLoader().load('assets/props/ground/'+(plain?'road_plain.png':(fourLane?'road_4lane.png':'road_lane.png')));
@@ -2870,9 +3212,9 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         if(rnd()>.7)continue; /* not every block gets alleys */
         var abx=blockC[bi],abz=blockC[bj];
         var ah=new THREE.Mesh(new THREE.PlaneGeometry(26,4,8,2),alleyMat);
-        ah.rotation.x=-Math.PI/2;ah.position.set(abx,.025,abz);ah.receiveShadow=true;mapScene.add(ah);
+        ah.rotation.x=-Math.PI/2;ah.position.set(abx,.025,abz);ah.receiveShadow=true;ah.userData.espilGround=1;mapScene.add(ah);
         var av=new THREE.Mesh(new THREE.PlaneGeometry(4,26,2,8),alleyMat);
-        av.rotation.x=-Math.PI/2;av.position.set(abx,.026,abz);av.receiveShadow=true;mapScene.add(av);
+        av.rotation.x=-Math.PI/2;av.position.set(abx,.026,abz);av.receiveShadow=true;av.userData.espilGround=1;mapScene.add(av);
       }
       /* Real-time navigation-style traffic engine — DATA ONLY.
          Road network -> segments between intersections. Each segment carries a
@@ -3442,7 +3784,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       }
       function boxAt(w,h,d,x,y,z,color){
         var m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),bldgMat(color));
-        m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;mapScene.add(m);return m;
+        m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;m.userData.espilBuilding=1;mapScene.add(m);return m;
       }
       /* Buildings: 2x2 lots per block, taller toward the center. */
       var buildingRects=[];
@@ -3872,6 +4214,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           var gmat=new THREE.MeshLambertMaterial({map:facadeTexture(gname)});
           if(typeof curvePatch==='function')curvePatch(gmat);
           var ginst=new THREE.InstancedMesh(bgeo,gmat,gitems.length);
+          ginst.userData.espilBuilding=1; /* ESPIL TILES BRIDGE */
           var gm4=new THREE.Matrix4(),gq=new THREE.Quaternion(),gsv=new THREE.Vector3(),gpv=new THREE.Vector3();
           var gcc=new THREE.Color();
           for(var gj=0;gj<gitems.length;gj++){
@@ -4009,6 +4352,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         var wmat=new THREE.MeshLambertMaterial({color:0x2a6a9e,transparent:true,opacity:.92});
         curvePatch(wmat);
         var wmesh=new THREE.Mesh(wgeo,wmat);
+        wmesh.userData.espilGround=1; /* ESPIL TILES BRIDGE */
         wmesh.rotation.x=-Math.PI/2;
         wmesh.position.set(x0+CHUNK_SIZE/2,.2,z0+CHUNK_SIZE/2);
         group.add(wmesh);
@@ -4078,6 +4422,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           /* Han 2026-10-10: MeshBasicMaterial (unlit) — always visible */
           var bmat=new THREE.MeshBasicMaterial({map:facadeTexture('midrise')});
           var inst=new THREE.InstancedMesh(bgeo,bmat,items.length);
+          inst.userData.espilBuilding=1; /* ESPIL TILES BRIDGE */
           var m4=new THREE.Matrix4(),q=new THREE.Quaternion(),sv=new THREE.Vector3(),pv=new THREE.Vector3();
           var cc=new THREE.Color();
           for(var ii=0;ii<items.length;ii++){
@@ -4176,6 +4521,8 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       /* 5km city: load initial chunks around spawn. */
       if(walkPlayer)updateChunks(walkPlayer.pos.x,walkPlayer.pos.z);
       cityPhaseActive=true;
+      if(window.__espilCamState)window.__espilCamState.tilesRequested=true; /* ESPIL TILES BRIDGE */
+      espilEntryStart(); /* ESPIL TILES BRIDGE: fresh entries arrive by sky descent */
       targetDistance=1.34; /* continue the entry dive (2026-10-06 QA #3) */
       citySky.visible=false;
       cityPhaseName.textContent=selected?selected.userData.name:'Vancouver Downtown';
@@ -4230,6 +4577,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       updateSunPosition();
     }
     function exitWalkMap(silent){
+      if(window.__espilCamState)window.__espilCamState.tilesRequested=false; /* ESPIL TILES BRIDGE */
       if(!cityPhaseActive)return;
       saveLastPos(); /* QA #6: persist position on exit */
       cityPhaseActive=false;
@@ -4250,6 +4598,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(!cityPhaseActive||!walkPlayer)return;
       var p=walkPlayer;
       if(p.swimming)return; /* QA #17: no jumping while swimming */
+      if(p._espilDescend||p._espilLanding)return; /* ESPIL TILES BRIDGE: descent/landing owns the body */
       if(p.onGround||p.jumps<2){
         var _mj=moveSpeeds();
         p.velY=(p.jumps>0?_mj.djumpV:_mj.jumpV);p.onGround=false;p.jumps++;
@@ -5331,6 +5680,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         if(typeof updateWalkCamera==='function')updateWalkCamera(dt);
         return;
       }
+      p._tileBase=espilTileBase(p.pos.x,p.pos.z); /* ESPIL TILES BRIDGE */
       updateDnaImprint(dt);
       /* --- input: keys + touch stick, relative to camera yaw --- */
       var ix=0,iz=0;
@@ -5339,6 +5689,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(walkKeys['arrowleft'])ix-=1;
       if(walkKeys['arrowright'])ix+=1;
       if(window.__joyVec){ix+=window.__joyVec.x;iz+=window.__joyVec.y;}
+      if(p._espilLanding){ix=0;iz=0;} /* ESPIL TILES BRIDGE: the land clip owns input until it settles */
       var il=Math.sqrt(ix*ix+iz*iz);
       if(il>1){ix/=il;iz/=il;}
       var fx=-Math.sin(walkCamYaw),fz=-Math.cos(walkCamYaw);
@@ -5348,7 +5699,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       /* 2026-10-12 (Han): one run mode — moving always runs. Sprint toggle removed. */
       p.running=p.moving;
       /* QA #17: swimming mode when in water. */
-      p.swimming=isWaterAt(p.pos.x,p.pos.z)&&p.pos.y<1.5;
+      p.swimming=isWaterAt(p.pos.x,p.pos.z)&&p.pos.y<(p._tileBase!==null&&p._tileBase!==undefined?p._tileBase+1.5:1.5);
       var _ms=moveSpeeds();
       var SPEED=p.swimming?_ms.swim:(p.running?_ms.run:_ms.walk);
       p._dx=mx*SPEED*dt;p._dz=mz*SPEED*dt;
@@ -5367,7 +5718,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(p._chunkT>.25){p._chunkT=0;updateChunks(p.pos.x,p.pos.z);}
       /* QA #17: in water, float at surface; no gravity, no jump. */
       if(p.swimming){
-        p.pos.y+=(WATER_Y-p.pos.y)*Math.min(1,dt*5);
+        p.pos.y+=(((p._tileBase!==null&&p._tileBase!==undefined)?p._tileBase+0.25:WATER_Y)-p.pos.y)*Math.min(1,dt*5);
         p.velY=0;p.onGround=false;p.jumps=0;
       }
       /* --- vertical: gravity + landing on tops (rooftops, planters, plaza, cars) --- */
@@ -5382,6 +5733,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       }
       for(var i=0;i<walkColliders.length;i++)considerSupport(walkColliders[i]);
       for(var ci=0;ci<carColliders.length;ci++)considerSupport(carColliders[ci]);
+      if(p._tileBase!==null&&p._tileBase!==undefined)support=p._tileBase+(support-.05); /* ESPIL TILES BRIDGE: colliders ride on the tile surface */
       if(p.pos.y<=support){
         if(!p.onGround&&p.velY<-9)walkSfx('land');
         p.pos.y=support;p.velY=0;p.onGround=true;p.jumps=0;
@@ -5393,6 +5745,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         var cu=supportCar.userData.car;
         p.pos.x+=cu.x-cu.px;p.pos.z+=cu.z-cu.pz;
       }
+      if(p._espilDescend)espilDescentStep(p,dt); /* ESPIL TILES BRIDGE */
       /* --- avatar pose --- */
       var g=p.av.group;
       g.position.copy(p.pos);
@@ -5406,7 +5759,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       g.rotation.y=p.faceY;
       /* Animation state machine: idle / walk / run / swim follow movement state.
          While a one-shot (jump, doubleJump, attack, etc.) is playing, don't override it. */
-      if(p.av.ready&&['jump','doubleJump','attack','stop','checkout','chat'].indexOf(p.av.curAnim)<0){
+      if(p.av.ready&&['jump','doubleJump','attack','stop','checkout','chat','dive','land'].indexOf(p.av.curAnim)<0){
         var wantAnim;
         if(p.swimming){
           wantAnim=!p.moving?'swimIdle':'swim';
@@ -6190,6 +6543,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         /* Walkable downtown map owns the frame. */
         updateWalkMap(dt,nowMs/1000);
         if(walkPlayer)curvePlayer.set(walkPlayer.pos.x,walkPlayer.pos.z);
+        espilTilesCamPush(); espilTilesApplyMode(nowMs);
         updateMapSky();
         updateProps();
         updateTraffic(dt);
@@ -6713,5 +7067,21 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     });
   }());
   </script>
+<!-- ESPIL TILES MODULE (isolated; remove these tags to disable the tiles layer entirely) -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "./tiles/vendor/three/three.module.js",
+    "three/addons/": "./tiles/vendor/three/addons/",
+    "3d-tiles-renderer": "./tiles/vendor/3dtr/build/index.js",
+    "3d-tiles-renderer/plugins": "./tiles/vendor/3dtr/build/index.plugins.js",
+    "3d-tiles-renderer/three": "./tiles/vendor/3dtr/build/index.three.js",
+    "3d-tiles-renderer/three/plugins": "./tiles/vendor/3dtr/build/index.three-plugins.js",
+    "3d-tiles-renderer/core": "./tiles/vendor/3dtr/build/index.core.js",
+    "3d-tiles-renderer/core/plugins": "./tiles/vendor/3dtr/build/index.core-plugins.js"
+  }
+}
+</script>
+<script type="module" src="./tiles/tiles-module.js"></script>
 </body>
 </html>
