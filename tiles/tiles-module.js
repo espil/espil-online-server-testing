@@ -30,6 +30,10 @@ import { GoogleCloudAuthPlugin } from '3d-tiles-renderer/core/plugins';
 const ANCHOR = { lat: 49.2827, lon: -123.1207 };
 const SSE_FLOOR = 16;
 const GROUND_TOLERANCE_M = 60;
+/* Session endpoint, hostname-gated like the Places proxy: on the
+   production hosts the Vercel /api function answers; anywhere else the
+   local dev server answers on the same path. There is deliberately NO
+   direct-token browser flow on any host (handshake-only ruling). */
 const SESSION_URL = (typeof window !== 'undefined' && window.__ESPIL_TILES_SESSION_URL__) || '/api/tiles-session';
 
 /* ---------- kill switch ---------- */
@@ -79,8 +83,10 @@ const canvas = document.createElement('canvas');
 canvas.id = 'espil-tiles-canvas';
 canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:none;';
 if (gameCanvas && gameCanvas.parentNode) {
+  /* Sibling order does the layering: both canvases are positioned, so
+     the later sibling (the game canvas) paints above. The module does
+     not write to the game's elements. */
   gameCanvas.parentNode.insertBefore(canvas, gameCanvas);
-  gameCanvas.style.zIndex = '1';
 } else {
   document.body.appendChild(canvas);
 }

@@ -2257,6 +2257,10 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         }
       });
       if(typeof mapSkyDome!=='undefined'&&mapSkyDome)mapSkyDome.visible=!on;
+      /* Attribution hygiene: while Google tiles are the imagery, the
+         game's Esri satellite credit must not show (and vice versa). */
+      var _sa=document.getElementById('sat-attribution');
+      if(_sa)_sa.style.display=on?'none':'';
       if(on)renderer.setClearColor(0x000000,0); else renderer.setClearColor(0x010306,1);
     }
     /* --- tile ground: the module probe, cached (the bend is zero at
