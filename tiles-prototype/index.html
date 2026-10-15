@@ -270,7 +270,8 @@ new GLTFLoader().load('male.glb', (gltf) => {
   scene.add(character);
   charMixer = new THREE.AnimationMixer(character);
   const walk = gltf.animations.find(a => /walk/i.test(a.name)) || gltf.animations[0];
-  if (walk) { charMixer.clipAction(walk).play(); console.log('[Character] playing clip:', walk.name); }
+  if (walk) { walkAction = charMixer.clipAction(walk); walkAction.play(); console.log('[Character] playing clip:', walk.name); }
+  setupDescentAnims();
   requestDescent();
   console.log('[Character] summoned, height', CHAR_TARGET_H + 'm — descending to spawn');
 }, undefined, (e) => console.warn('[Character] load failed', e));
@@ -292,7 +293,9 @@ function probeSurfaceY(x, z) {
 }
 function groundCharacter() {
   if (!character) return;
+  const wasDescent = !!descent;
   descent = null;
+  if (wasDescent) playLand();
   const y = probeSurfaceY(character.position.x, character.position.z);
   if (y !== null) {
     character.position.y = y;
@@ -307,6 +310,70 @@ function groundCharacter() {
   }
   character.position.y = 0;
   charGroundedOnTiles = false;
+}
+
+/* ---- Sky-descent animation (Meshy action 508 "Dive Down and Land 2",
+   asset room delivery 2026-10-15; action 507 - Han's #1 - was a
+   defective Meshy output and must not be used) ----
+   The full clip is split at the touchdown frame: Dive (frames 0-19
+   @30fps) plays at descent start and clamps on its last pose for the
+   rest of the fall; Land (19-93) plays at touchdown; then the walk
+   clip resumes. The clip's Hips Y track is re-based so its final
+   frame sits at the walk clip's standing Hips height - the descent
+   physics owns the group's Y, the clip owns the pose, crouch depth
+   included. If the file fails to load, the descent runs unanimated. */
+let walkAction = null, diveAction = null, landAction = null, landPlaying = false;
+let descentClip = null; // full clip, once the anim GLB arrives
+new GLTFLoader().load('male_dive_land_2.glb', (gltf) => {
+  descentClip = gltf.animations[0] || null;
+  setupDescentAnims();
+}, undefined, (e) => console.warn('[DescentAnim] load failed', e));
+function hipsTrack(clip) {
+  return clip ? clip.tracks.find(t => /hips/i.test(t.name) && t.name.endsWith('.position')) : null;
+}
+function setupDescentAnims() {
+  if (!charMixer || !character || !descentClip || diveAction) return;
+  const walkClip = walkAction ? walkAction.getClip() : null;
+  const wt = hipsTrack(walkClip), ct = hipsTrack(descentClip);
+  if (wt && ct) {
+    let sum = 0; for (let i = 1; i < wt.values.length; i += 3) sum += wt.values[i];
+    const standY = sum / (wt.values.length / 3);
+    const lastY = ct.values[ct.values.length - 2];
+    const off = standY - lastY;
+    for (let i = 1; i < ct.values.length; i += 3) ct.values[i] += off;
+    console.log('[DescentAnim] Hips Y re-based by', off.toFixed(3));
+  }
+  const diveClip = THREE.AnimationUtils.subclip(descentClip, 'Dive', 0, 19, 30);
+  const landClip = THREE.AnimationUtils.subclip(descentClip, 'Land', 19, 93, 30);
+  diveAction = charMixer.clipAction(diveClip);
+  landAction = charMixer.clipAction(landClip);
+  console.log('[DescentAnim] ready: Dive + Land subclips of', descentClip.name);
+}
+window.__descentAnimState = () => ({
+  ready: !!diveAction,
+  diveRunning: !!(diveAction && diveAction.isRunning()),
+  landRunning: !!(landAction && landAction.isRunning()),
+  landPlaying,
+  walkRunning: !!(walkAction && walkAction.isRunning()),
+});
+function playDive() {
+  if (!diveAction) return;
+  if (walkAction) walkAction.stop();
+  if (landAction) landAction.stop();
+  landPlaying = false;
+  diveAction.reset();
+  diveAction.setLoop(THREE.LoopOnce, 1);
+  diveAction.clampWhenFinished = true;
+  diveAction.play();
+}
+function playLand() {
+  if (!landAction) return;
+  if (diveAction) diveAction.stop();
+  if (walkAction) walkAction.stop();
+  landAction.reset();
+  landAction.setLoop(THREE.LoopOnce, 1);
+  landAction.play();
+  landPlaying = true;
 }
 
 /* ---- Sky-descent summon (Han's direction, 2026-10-14) ----
@@ -326,6 +393,7 @@ let introActive = false;
 function startDescent() {
   if (!character) return;
   character.visible = true;
+  playDive();
   character.position.y = DESCENT_TOP_M;
   charGroundedOnTiles = false;
   descent = { surfaceY: null, probeAt: 0, startX: character.position.x, startZ: character.position.z };
@@ -352,6 +420,7 @@ function stepDescent(dt, now) {
     character.position.y = surf;
     charGroundedOnTiles = tilesOn && surf !== 0;
     descent = null;
+    playLand();
     introActive = false;
     $('st-ground').textContent = tilesOn
       ? 'landed on tile surface y = ' + surf.toFixed(2) + 'm'
@@ -565,7 +634,7 @@ addEventListener('keyup', (e) => glideKeys.delete(e.code));
    a step that would climb more than 2.5m (a wall, a roof edge) is
    refused, which is what keeps the walker on streets. */
 function stepGlide(dt, now) {
-  if (!character || descent || entryPhase !== 'done' || !glideKeys.size) return;
+  if (!character || descent || landPlaying || entryPhase !== 'done' || !glideKeys.size) return;
   const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd); fwd.y = 0; fwd.normalize();
   const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
   const move = new THREE.Vector3();
@@ -1175,6 +1244,10 @@ function animate() {
   drawMinimap(t0);
   const dt = Math.min(clock.getDelta(), 0.05);
   if (charMixer) charMixer.update(dt);
+  if (landPlaying && landAction && !landAction.isRunning()) {
+    landPlaying = false;
+    if (walkAction && !descent) { walkAction.reset(); walkAction.play(); }
+  }
   stepEntry(dt);
   if (character) BEND_CENTER.value.set(character.position.x, character.position.z);
   sweepBend(t0);

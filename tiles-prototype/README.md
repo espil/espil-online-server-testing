@@ -75,6 +75,15 @@ Client behavior (Architecture review, built in from the start):
   descent start), per Han: the original movement scheme. The UI rise
   after landing follows the UI room's pattern (bottom → side → top,
   28 px + fade, cubic-bezier(.22,.9,.26,1), ~1.4 s total).
+- **Descent animation (Meshy action 508, 2026-10-15)**: the character
+  plays "Dive Down and Land 2" split at the touchdown frame - Dive
+  (frames 0-19 @30fps) starts with the descent and clamps on its last
+  pose for the whole fall, Land (19-93) plays at touchdown, then the
+  walk clip resumes; movement input waits for the landing to finish.
+  The clip's Hips Y is re-based so its last frame matches the walk
+  clip's standing Hips height (physics owns the fall, the clip owns
+  the pose). Action 507 (Han's #1) was a defective Meshy output and is
+  not used; the anim file is `male_dive_land_2.glb` next to `male.glb`.
 - **Sky-descent summon (Han's direction, 2026-10-14)**: a spawn point's
   height is unknowable before its tiles stream, and a character planted
   at y=0 sat ~12 m under downtown streets (invisible until re-summon).
