@@ -160,7 +160,11 @@ peninsula; the False Creek box lands on False Creek).
 ## Globe curvature + occlusion fade (2026-10-15, per Han)
 
 - **Globe view (Han's EverPlanet law)**: `drop = k × d²`, d = distance
-  from the CAMERA, rendered by ONE shared vertex-shader bend injected
+  from the CHARACTER (anchored 2026-10-15 after Han's descent report:
+  a camera anchor made the un-dropped disc travel with the camera and
+  read as a ball sprouting on flat land; at gameplay distances the two
+  are indistinguishable, and this matches the production curvedMat's
+  player reference), rendered by ONE shared vertex-shader bend injected
   into every scene material (tiles, satellite ground, OSM overlay,
   character) - the same world point always bends identically, so
   tile/OSM/character alignment holds by construction. Geometry, tile
@@ -169,9 +173,15 @@ peninsula; the False Creek box lands on False Creek).
   (k shown ×10⁻⁶; default 1500 per Han 2026-10-15, range 0-2000;
   drop capped at 1000 m, so it saturates past ~820 m at the default).
   Distance fade (Han, 2026-10-15): scene fog melts geometry into the
-  background void from 700 m to fully faded at 3000 m, so the map
-  beyond the planet's curve is never seen. Fog depth comes from the
-  bent view position, so it tracks the curved world.
+  background void from 500 m to fully faded at 1600 m, so the map
+  beyond the planet's curve is never seen and the dome's far shoulder
+  dissolves before it reads as a separate ball. Fog depth comes from
+  the bent view position, so it tracks the curved world. All bent
+  materials are DoubleSide (at k=1500 the dome crest tilts past 65°;
+  FrontSide punched backface holes). An opaque dark underlay - an
+  exact twin of the satellite plane 2.7 m below it, bending
+  identically - floors the hollow tiles shell, so looking through a
+  faded mesh lands on dark floor instead of through the world.
   Production comparison: the game's curvedMat uses the same d² family
   but is PLAYER-relative and anisotropic ((dx²·70 + dz²·80)/120000,
   i.e. kx ≈ 5.83e-4, kz ≈ 6.67e-4, capped 1000 m) - the prototype

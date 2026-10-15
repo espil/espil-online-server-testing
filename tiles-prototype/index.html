@@ -78,7 +78,7 @@
   <div style="font-size:11px;color:#9fb3c8">SSE floor 8: higher = less detail = less streaming.<br>Range gate: tiles only inside Han's downtown boundary polygon / below 800m.</div>
   <button id="btn-curve" class="on">Globe curve: ON</button>
   <label>Curve k (×10⁻⁶) <input type="range" id="curve-k" min="0" max="2000" step="25" value="1500"><span id="curve-k-v">1500</span></label>
-  <div style="font-size:11px;color:#9fb3c8">EverPlanet globe view (Han's law): drop = k × d² from the camera, one shared vertex-shader bend for tiles, ground, character — alignment holds at every distance. Distance fade melts the map beyond ~3 km into the void.<br>Occlusion fade: a tile mesh blocking the camera→character sightline fades to 10% until clear (tile-mesh unit; production OSM boxes fade per building).</div>
+  <div style="font-size:11px;color:#9fb3c8">EverPlanet globe view (Han's law): drop = k × d² from the character, one shared vertex-shader bend for tiles, ground, character — alignment holds at every distance. Distance fade melts the map beyond ~1.6 km into the void.<br>Occlusion fade: a tile mesh blocking the camera→character sightline fades to 10% until clear (tile-mesh unit; production OSM boxes fade per building).</div>
 </div>
 
 <div class="panel" id="fallback-note">Fallback layer active (satellite ground only — buildings come from the Google 3D tiles).</div>
@@ -182,6 +182,27 @@ renderer.setSize(innerWidth, innerHeight);
 $('app').appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
+/* Underlay (Han's hollow-shell report, 2026-10-15): the tiles world
+   is a shell with nothing under the floor, so a faded mesh used to
+   show the far side of the world through the gap. This opaque dark
+   disc sits 2.5 m under the ground, spans past the map, and bends
+   with the same shader - looking through a ghost lands on it. */
+{
+  /* Exact twin of the satellite plane (same size/grid/transform, 2.7 m
+     lower): identical vertices bend identically, so it can NEVER poke
+     through the surface above it - a coarser or larger grid would
+     (chord deviation over the dome's crest exceeds the gap). The
+     visible disc is always well inside the satellite bounds, and
+     beyond them the fog has already erased everything. */
+  const under = new THREE.Mesh(
+    new THREE.PlaneGeometry(5356 - (-5008), 4854 - (-5521), 96, 96),
+    new THREE.MeshBasicMaterial({ color: 0x0c1016 })
+  );
+  under.rotation.x = -Math.PI / 2;
+  under.rotation.z = Math.PI;
+  under.position.set(174, -3.0, -333.5);
+  scene.add(under);
+}
 /* Occluders live under one root so the sightline fade (below) scans a
    single subtree: the tiles group, when tiles are on. */
 const occluderRoot = new THREE.Group();
@@ -189,9 +210,11 @@ scene.add(occluderRoot);
 scene.background = new THREE.Color(0x0a0e14);
 /* Distance fade (Han, 2026-10-15): beyond the planet's curve the map
    must vanish - fog melts distant geometry into the background void,
-   fully faded by 3000 m, starting at 700 m. Fog depth comes from the
+   fully faded by 1600 m, starting at 500 m (tightened after Han's
+   descent report: the dome's far shoulder must dissolve into the fog
+   before it can read as a separate ball on the flat land). Fog depth comes from the
    bent view position, so it tracks the curved world. */
-scene.fog = new THREE.Fog(0x0a0e14, 700, 3000);
+scene.fog = new THREE.Fog(0x0a0e14, 500, 1600);
 const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 20000);
 const controls = new OrbitControls(camera, renderer.domElement);
 let viewName = 'character';
@@ -391,7 +414,7 @@ function fadeSetMesh(mesh, faded) {
     const orig = mesh.material;
     const cloneOne = (m) => {
       const c = m.clone();
-      c.transparent = true; c.depthWrite = false; c.opacity = 1;
+      c.transparent = true; c.depthWrite = true; c.opacity = 1;
       patchBendMaterial(c);
       return c;
     };
@@ -977,6 +1000,13 @@ let camGroundY = null, lastCamProbe = 0;
    (dx²·70 + dz²·80)/120000 capped at 1000 — Han's law here is the
    isotropic camera-relative form). */
 const BEND_K = { value: 0.0015 }; // shared uniform object — one update bends all
+/* Bend reference = the CHARACTER (Han's descent report, 2026-10-15):
+   with a camera reference the un-dropped disc travels with the camera
+   and reads as a ball sprouting on flat land during the sky descent.
+   Anchored to the character, the dome sits at the city you are falling
+   toward - and in normal play (camera 7-14 m from the character) it is
+   indistinguishable from camera-relative. Same law, same k. */
+const BEND_CENTER = { value: new THREE.Vector2(0, 0) };
 const bendPatched = new WeakSet();
 const BEND_CHUNK = [
   'vec4 bwp = vec4( transformed, 1.0 );',
@@ -984,7 +1014,7 @@ const BEND_CHUNK = [
   '  bwp = instanceMatrix * bwp;',
   '#endif',
   'bwp = modelMatrix * bwp;',
-  'float bd = distance( bwp.xz, cameraPosition.xz );',
+  'float bd = distance( bwp.xz, uBendCenter );',
   'bwp.y -= min( uBendK * bd * bd, 1000.0 );',
   'vec4 mvPosition = viewMatrix * bwp;',
   'gl_Position = projectionMatrix * mvPosition;'
@@ -992,9 +1022,14 @@ const BEND_CHUNK = [
 function patchBendMaterial(mat) {
   if (!mat || bendPatched.has(mat)) return;
   bendPatched.add(mat);
+  /* DoubleSide: at k=1500 the dome's crest tilts past 65 degrees - with
+     FrontSide only, oblique views punch backface holes through the
+     world (part of Han's piercing report). Closed look wins. */
+  mat.side = THREE.DoubleSide;
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uBendK = BEND_K;
-    shader.vertexShader = 'uniform float uBendK;\n' + shader.vertexShader.replace('#include <project_vertex>', BEND_CHUNK);
+    shader.uniforms.uBendCenter = BEND_CENTER;
+    shader.vertexShader = 'uniform float uBendK;\nuniform vec2 uBendCenter;\n' + shader.vertexShader.replace('#include <project_vertex>', BEND_CHUNK);
   };
   mat.needsUpdate = true;
 }
@@ -1141,6 +1176,7 @@ function animate() {
   const dt = Math.min(clock.getDelta(), 0.05);
   if (charMixer) charMixer.update(dt);
   stepEntry(dt);
+  if (character) BEND_CENTER.value.set(character.position.x, character.position.z);
   sweepBend(t0);
   scanOcclusion(t0);
   stepFades(dt);
