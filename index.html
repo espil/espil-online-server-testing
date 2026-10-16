@@ -2421,6 +2421,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     function espilEntryStart(){
       var p=walkPlayer; if(!p)return;
       var last=null; try{ last=loadLastPos(); }catch(e){}
+      var target=null;
       if(last){
         /* Returning player INSIDE the downtown boundary: resume at the
            saved spot, no descent (unchanged). */
@@ -2429,11 +2430,25 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
            boundary is treated as a fresh entry - resolve to the
            nearest boundary land point and re-run the full descent
            (geolocation pre-prompt included) over it. */
-        var pt=espilResolveSpawn({x:last.x,z:last.z});
-        espilBeginDescent(pt.x,pt.z);
-        return;
+        target=espilResolveSpawn({x:last.x,z:last.z});
+      } else {
+        target={x:p.pos.x,z:p.pos.z};
       }
-      espilBeginDescent(p.pos.x,p.pos.z);
+      /* Han 2026-10-15: on a cold first load the descent scene was
+         over before the world had finished loading (the character and
+         its dive clip stream in last). The descent now WAITS until
+         the avatar is ready before it starts, UI held down meanwhile;
+         a failsafe keeps a stuck load from ever blocking entry. */
+      espilInjectStyle();
+      document.body.classList.add('espil-ui-pre');
+      p.pos.x=target.x; p.pos.z=target.z; p.pos.y=160;
+      var tries=0;
+      (function beginWhenReady(){
+        if(!walkPlayer)return;
+        if(walkPlayer.av&&walkPlayer.av.ready){ espilBeginDescent(target.x,target.z); return; }
+        if(++tries>60){ espilBeginDescent(target.x,target.z); return; } /* ~12 s failsafe */
+        setTimeout(beginWhenReady,200);
+      })();
     }
     /* --- pin navigation (prototype rules, on the game's Leaflet map):
        on the LARGE stage a click drops a destination pin (water clicks
@@ -2534,8 +2549,16 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     (function(){
       var style=document.createElement('style');
       style.textContent=
-        '#espil-chat{position:fixed;left:14px;bottom:120px;width:min(350px,74vw);z-index:55;display:none;pointer-events:none;}'+
+        /* Chat placement per UI room spec 2026-10-15 (Han feedback 5):
+           the wrapper's bottom edge sits ABOVE the skill cluster top
+           (156px desktop / 154px mobile) so log and input never overlap
+           the buttons in any state. */
+        '#espil-chat{position:fixed;left:14px;bottom:calc(196px + env(safe-area-inset-bottom));width:min(350px,calc(100vw - 28px));z-index:55;display:none;pointer-events:none;}'+
         '#espil-chat-log{display:flex;flex-direction:column;justify-content:flex-end;gap:3px;max-height:168px;overflow:hidden;margin-bottom:6px;}'+
+        '@media (pointer:coarse) and (orientation:landscape){'+
+        '#espil-chat{left:12px;bottom:calc(170px + env(safe-area-inset-bottom));width:min(320px,calc(100vw - 24px));}'+
+        '#espil-chat-log{max-height:clamp(28px,calc(100dvh - 330px),96px);}'+
+        '}'+
         '.espil-chat-line{align-self:flex-start;max-width:100%;background:rgba(6,12,18,.66);border:1px solid rgba(134,238,228,.16);border-radius:9px;padding:3px 8px;font-size:12.5px;line-height:1.35;color:#eaf6f3;word-break:break-word;}'+
         '.espil-chat-line b{color:#6ee7d8;font-weight:600;}'+
         '.espil-chat-line.sys{opacity:.75;font-style:italic;}'+
@@ -5891,8 +5914,12 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         p.pos.z+Math.cos(walkCamYaw)*cp*walkCamDist
       );
       if(want.y<1.4)want.y=1.4;
-      var k=Math.min(1,dt*7);
-      mapCamera.position.lerp(want,k);
+      /* Han 2026-10-15: the view stays FIXED while the character moves.
+         The old lerp chase trailed the character and re-aimed every
+         frame, so the view drifted and shook with movement. The camera
+         now takes the follow offset exactly - its direction changes
+         only when the player drags (walkCamYaw/walkCamPitch). */
+      mapCamera.position.copy(want);
       mapCamera.lookAt(p.pos.x,p.pos.y+1.7,p.pos.z);
       /* Building name pill when near a building. */
       updateBuildingProximity(p.pos.x,p.pos.z,performance.now());
@@ -6567,7 +6594,13 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     ];
     var minimapLevelIdx=1; // 100m default
     function gameToLatLng(x,z){
-      var lat=MAP_CENTER_LAT+(z/111320);
+      /* Canonical inverse of the world build: z = -(lat - LAT0) * 111320,
+         so lat = LAT0 - z / 111320. The latitude sign was PLUS here,
+         which mirrored the player marker (and the pin graphics) across
+         the anchor latitude while every other converter in the file
+         used the minus form. Han 2026-10-15: marker and character now
+         read from this one conversion - fully locked. */
+      var lat=MAP_CENTER_LAT-(z/111320);
       var lng=MAP_CENTER_LNG+(x/(111320*Math.cos(MAP_CENTER_LAT*Math.PI/180)));
       return [lat,lng];
     }

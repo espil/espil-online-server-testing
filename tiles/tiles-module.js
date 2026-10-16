@@ -287,8 +287,16 @@ function scanOcclusion(camPos, headPos) {
   _rc.far = Math.max(0, dist - 1.2);
   _rc.near = 0.1;
   const hits = _rc.intersectObject(occluderRoot, true);
+  /* Han 2026-10-15: ONLY what stands between the camera and the
+     character may fade. The surface the character stands on must
+     never fade - the old scan counted the ground tile the sightline
+     crosses just in front of the character, so the chunk under his
+     feet ghosted. A hit now counts only if it crosses the sightline
+     meaningfully ABOVE the character's standing surface. */
+  const probed = probeSurfaceY(_to.x, _to.z);
+  const surfY = (probed !== null && probed !== undefined) ? probed : (_to.y - 1.1);
   const blocked = new Set();
-  for (const h of hits) if (isChainVisible(h.object)) blocked.add(h.object);
+  for (const h of hits) if (isChainVisible(h.object) && h.point.y > surfY + 1.0) blocked.add(h.object);
   /* camera inside a near building: its walls never cross the ray */
   const box = new THREE.Box3(), sph = new THREE.Sphere();
   occluderRoot.traverse((o) => {
@@ -297,6 +305,7 @@ function scanOcclusion(camPos, headPos) {
     sph.copy(o.geometry.boundingSphere).applyMatrix4(o.matrixWorld);
     if (sph.center.distanceTo(camPos) > 90) return;
     box.setFromObject(o);
+    if (box.max.y <= surfY + 1.0) return; /* ground-level mesh: never an occluder */
     if (box.containsPoint(camPos) && isChainVisible(o)) blocked.add(o);
   });
   for (const mesh of blocked) {
@@ -418,6 +427,14 @@ function loop() {
   tiles.update();
   renderer.render(scene, camera);
 
+  /* The fetch tee alone undercounts: part of the library's tile
+     traffic passes URL objects (no .url string to match) and bypasses
+     the interception - Han's counter sat at 0.0 MB while tiles were
+     visibly streaming. The renderer's own LRU cache accounts every
+     downloaded tile payload, so the published figure takes the max
+     of both real-byte sources and can only climb as data arrives. */
+  const cacheBytes = (tiles && tiles.lruCache && tiles.lruCache.cachedBytes) || 0;
+  if (cacheBytes > streamedBytes) streamedBytes = cacheBytes;
   state.streamedMB = streamedBytes / 1048576;
   if (++attrTick % 30 === 0) {
     try {
