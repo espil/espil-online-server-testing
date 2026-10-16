@@ -6678,7 +6678,30 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           targetPitch=0;
         },900);
       },
-      skipStationReveal:function(){/* no-op: the station reveal no longer exists */}
+      skipStationReveal:function(){/* no-op: the station reveal no longer exists */},
+      /* Direct entry (/vancouver): the intro script cannot see the
+         game's markers/selectCity (they live in this scope), so the
+         auto-entry runs through this hook. Selects Vancouver, then
+         clicks ENTER CITY once the info panel is actually up. */
+      directEnterVancouver:function(){
+        var van=null;
+        for(var i=0;i<markers.length;i++){
+          if(markers[i].userData&&markers[i].userData.name==='Vancouver'){van=markers[i];break;}
+        }
+        if(!van)return false;
+        selectCity(van);
+        var tries=0;
+        var iv=setInterval(function(){
+          tries++;
+          var btn=document.getElementById('city-info-enter');
+          var panel=document.getElementById('city-info');
+          var shown=panel&&panel.getAttribute('aria-hidden')==='false';
+          if(shown&&btn&&!btn.disabled&&!btn.classList.contains('is-disabled')){
+            clearInterval(iv);btn.click();
+          }else if(tries>80)clearInterval(iv);
+        },250);
+        return true;
+      }
     };
     animate();
   }());
@@ -6822,24 +6845,20 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         window.__directCityEntry={city:'Vancouver',storePlaceId:storePlaceId};
         /* Skip intro — go straight to map flow */
         if(document.body)document.body.classList.add('direct-entry');
-        /* Auto-trigger after markers are ready */
+        /* Auto-trigger via the game's own hook (markers/selectCity live
+           in the game scope; referencing them from here silently never
+           fired - the /vancouver entry bug fixed 2026-10-15). Poll for
+           the hook in case the game script finished after this one. */
         setTimeout(function(){
-          try{
-            if(typeof markers!=='undefined'&&markers.length>0){
-              var van=null;
-              for(var i=0;i<markers.length;i++){
-                if(markers[i].userData&&markers[i].userData.name==='Vancouver'){van=markers[i];break;}
-              }
-              if(van&&typeof selectCity==='function'){
-                selectCity(van);
-                /* Auto-click ENTER CITY after info panel shows */
-                setTimeout(function(){
-                  var btn=document.getElementById('city-info-enter');
-                  if(btn&&!btn.classList.contains('is-disabled'))btn.click();
-                },800);
-              }
-            }
-          }catch(e){console.warn('Direct entry failed:',e);}
+          var tries=0;
+          var iv=setInterval(function(){
+            tries++;
+            try{
+              var G=window.__espilGlobe;
+              if(G&&G.directEnterVancouver&&G.directEnterVancouver()){clearInterval(iv);return;}
+            }catch(e){console.warn('Direct entry failed:',e);}
+            if(tries>20)clearInterval(iv);
+          },500);
         },2500);
       }
       sizeStars();initStars();
