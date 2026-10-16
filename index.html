@@ -943,10 +943,13 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
   <!-- Leaflet for 3-stage map (QA #7, 2026-10-09) -->
   <link rel="stylesheet" href="assets/leaflet/leaflet.css" />
 <style id="espil-map-loader-css">
-/* Standard water-glass loading screen (UI room component, han.espil.online
-   v4 + glass-plus) - applied to the MAP/TILE loading interval by the
-   ESPIL TILES BRIDGE (Han 2026-10-16). It starts hidden and is shown
-   only while the map loads; the bridge driver lives with the bridge. */
+/* Standard water-glass loading screen - UI room v10 STREAM-FREE
+   standard (index-loader-nostream.html), applied to the MAP entry
+   interval by the ESPIL TILES BRIDGE (Han/COO 2026-10-16). The
+   component (CSS, markup, driver, liquid physics) is the UI
+   room's; only the wiring differs: it starts hidden, the bridge
+   starts it on entry, progress follows own-city readiness, and
+   it finishes on the own-city settled flag. */
     @property --p{syntax:"<number>"; inherits:true; initial-value:0}
     #loader{
       position:fixed; inset:0; z-index:200; display:flex; flex-direction:column;
@@ -954,9 +957,9 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       /* Han 2026-10-15: richer gradients, stronger spherical reflections, and
          slosh that grows with progress — --rock/--sway/--bob scale with --p,
          so the liquid sloshes harder the closer loading gets to done. */
-      --rock:calc(1.1deg + var(--p,0) * .052deg);
-      --sway:calc(.7px + var(--p,0) * .045px);
-      --bob:calc(.6px + var(--p,0) * .02px);
+      --rock:calc(0.5deg + var(--p,0) * .02deg + var(--agit,0.7) * (1.1deg + var(--p,0) * .055deg));
+      --sway:calc(0.4px + var(--p,0) * .016px + var(--agit,0.7) * (0.9px + var(--p,0) * .05px));
+      --bob:calc(.8px + var(--p,0) * .032px);
       background:
         radial-gradient(340px 340px at 50% 42%, rgba(190,242,100,.09), rgba(190,242,100,0) 70%),
         radial-gradient(ellipse at 50% 40%, #0d2030 0%, #050d16 70%, #02060b 100%);
@@ -967,15 +970,17 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       position:relative; width:98px; height:98px; border-radius:50%;
       overflow:hidden; isolation:isolate;
       background:
-        radial-gradient(circle at 32% 26%, rgba(255,255,255,.13), rgba(255,255,255,0) 56%),
-        linear-gradient(165deg, rgba(255,255,255,.06), rgba(255,255,255,0) 42%, rgba(120,200,255,.05) 78%, rgba(190,242,100,.06)),
+        radial-gradient(circle at 32% 24%, rgba(255,255,255,.34), rgba(255,255,255,.10) 26%, rgba(255,255,255,0) 48%),
+        linear-gradient(115deg, rgba(255,255,255,0) 30%, rgba(255,255,255,.16) 45%, rgba(255,255,255,.03) 52%, rgba(255,255,255,0) 62%),
+        linear-gradient(165deg, rgba(255,255,255,.08), rgba(255,255,255,0) 42%, rgba(120,200,255,.06) 78%, rgba(190,242,100,.08)),
         rgba(240,238,233,.02);
       border:none;
       box-shadow:
-        inset 0 0 0 1px rgba(240,238,233,.16),
-        inset 0 10px 18px rgba(255,255,255,.07),
-        inset 0 -16px 24px rgba(0,0,0,.3),
-        inset 0 0 17px rgba(240,238,233,.07),
+        inset 0 0 0 1px rgba(255,255,255,.28),
+        inset 0 10px 18px rgba(255,255,255,.14),
+        inset 0 -16px 24px rgba(0,0,0,.38),
+        inset 0 0 17px rgba(240,238,233,.10),
+        0 0 18px rgba(220,255,190,.10),
         0 12px 30px rgba(0,0,0,.4);
       filter:drop-shadow(0 16px 16px rgba(0,0,0,.35));
       -webkit-backdrop-filter:blur(1px); backdrop-filter:blur(1px);
@@ -984,14 +989,14 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        around the circle, so the edge reads as curved glass catching light. */
     #loader .glass::before{
       content:""; position:absolute; inset:0; border-radius:50%; z-index:4; pointer-events:none;
-      background:conic-gradient(from 215deg, rgba(255,255,255,.4), rgba(255,255,255,.06) 20%, rgba(255,255,255,0) 38%, rgba(255,255,255,0) 74%, rgba(190,242,100,.16) 90%, rgba(255,255,255,.3));
+      background:conic-gradient(from 215deg, rgba(255,255,255,.62), rgba(255,255,255,.10) 20%, rgba(255,255,255,0) 38%, rgba(255,255,255,0) 74%, rgba(190,242,100,.24) 90%, rgba(255,255,255,.5));
       -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
       mask:radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
     }
     /* Bounce light pooled at the bottom inside of the glass. */
     #loader .glass::after{
       content:""; position:absolute; left:10%; right:10%; bottom:4px; height:18px; border-radius:50%; z-index:2; pointer-events:none;
-      background:radial-gradient(ellipse at 50% 100%, rgba(216,252,170,.22), rgba(216,252,170,0) 70%);
+      background:radial-gradient(ellipse at 50% 100%, rgba(216,252,170,.34), rgba(216,252,170,0) 70%);
     }
     /* The liquid mass: everything wet lives in .slosh and rocks as one body,
        pivoting low in the glass — the fill stays put, the liquid moves. */
@@ -1004,21 +1009,29 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       from{transform:rotate(calc(var(--rock) * -1)) translateX(calc(var(--sway) * -1))}
       to{transform:rotate(var(--rock)) translateX(var(--sway))}
     }
+    /* Liquid physics layer (Han 2026-10-15): a canvas spring-surface with
+       droplet particles, driven by the same --p (script at end of body).
+       Pure enhancement — while .physics-on is absent the CSS liquid above
+       renders exactly as before, and any failure leaves it in place. */
+    #loader .water-canvas{position:absolute; inset:0; width:100%; height:100%; z-index:1; display:none; filter:brightness(1.24) saturate(1.38)}
+    #loader.physics-on .water-canvas{display:block}
+    #loader.physics-on .slosh{display:none}
     #loader .water{
       position:absolute; left:0; right:0; bottom:0; height:calc(var(--p,0)*1%);
       background:
         linear-gradient(100deg, rgba(255,255,255,.12), rgba(255,255,255,0) 36%, rgba(255,255,255,.07) 60%, rgba(255,255,255,0) 82%),
-        linear-gradient(180deg, rgba(236,255,178,.58), rgba(190,242,100,.5) 16%, rgba(134,239,120,.44) 36%, rgba(52,185,90,.48) 60%, rgba(21,128,61,.56) 82%, rgba(9,80,38,.68));
+        linear-gradient(180deg, rgba(255,245,155,.78), rgba(254,246,160,.72) 22%, rgba(224,252,175,.70) 45%, rgba(198,244,120,.68) 66%, rgba(172,232,70,.70) 85%, rgba(148,214,50,.74));
+      filter:brightness(1.24) saturate(1.38);
       transition:height .12s linear; /* JS tick already eases; a long CSS transition makes the water trail the % counter */
       z-index:1;
     }
     #loader .water::before{ /* caustic glow pooled at the bottom of the glass */
       content:""; position:absolute; left:6%; right:6%; bottom:2px; height:34%;
-      background:radial-gradient(ellipse at 50% 100%, rgba(210,255,180,.28), rgba(210,255,180,0) 70%);
+      background:radial-gradient(ellipse at 50% 100%, rgba(232,255,200,.68), rgba(232,255,200,0) 70%);
     }
     #loader .water::after{ /* a slow light streak travelling through the liquid */
       content:""; position:absolute; inset:0;
-      background:linear-gradient(105deg, transparent 28%, rgba(255,255,255,.14) 45%, rgba(255,255,255,.03) 55%, transparent 68%);
+      background:linear-gradient(105deg, transparent 28%, rgba(255,255,255,.22) 45%, rgba(255,255,255,.05) 55%, transparent 68%);
       background-size:260% 100%;
       animation:espilStreakSlide 5.5s ease-in-out infinite alternate;
     }
@@ -1129,6 +1142,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
   <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs><filter id="espil-fisheye" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB"><feImage href="data:image/svg+xml;utf8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='100'%20height='100'%3E%3Cdefs%3E%3ClinearGradient%20id='gx'%20x1='0'%20y1='0'%20x2='1'%20y2='0'%3E%3Cstop%20offset='0'%20stop-color='rgb%280,128,0%29'/%3E%3Cstop%20offset='1'%20stop-color='rgb%28255,128,0%29'/%3E%3C/linearGradient%3E%3ClinearGradient%20id='gy'%20x1='0'%20y1='0'%20x2='0'%20y2='1'%3E%3Cstop%20offset='0'%20stop-color='rgb%28128,0,0%29'/%3E%3Cstop%20offset='1'%20stop-color='rgb%28128,255,0%29'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width='100'%20height='100'%20fill='url%28%23gx%29'/%3E%3Crect%20width='100'%20height='100'%20fill='url%28%23gy%29'%20opacity='0.55'/%3E%3C/svg%3E" x="0" y="0" width="100" height="100" preserveAspectRatio="none" result="map"/><feDisplacementMap in="SourceGraphic" in2="map" scale="10" xChannelSelector="R" yChannelSelector="G"/></filter></defs></svg>
   <div id="loader" role="status" aria-label="Loading Espil Online">
     <div class="glass" aria-hidden="true">
+      <canvas class="water-canvas" width="196" height="196"></canvas>
       <div class="slosh">
         <div class="water"><div class="surface"></div><div class="wave"></div><div class="wave back"></div><div class="wave deep"></div></div>
         <div class="swirl"><i></i></div>
@@ -2674,26 +2688,31 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     function espilShowMapLoader(){
       var el=document.getElementById('loader'); if(!el)return;
       el.classList.remove('done'); el.classList.add('show');
-      espilLoaderShownAt=Date.now(); espilLoaderShown=0;
-      var pct=document.getElementById('loader-pct'), st=document.getElementById('loader-status');
+      el.style.setProperty('--p',0);
+      var pct=document.getElementById('loader-pct'); if(pct)pct.textContent='0';
+      var st=document.getElementById('loader-status'); if(st)st.textContent='Opening the map';
+      espilLoaderShownAt=Date.now();
+      window.__espilCityProgress01=0; window.__espilCitySettledFlag=false;
+      /* the v10 standard driver + liquid physics, started by the bridge */
+      if(window.__espilStartMapLoader)window.__espilStartMapLoader();
+      if(window.__espilStartLoaderPhysics)window.__espilStartLoaderPhysics();
       if(espilLoaderIv)clearInterval(espilLoaderIv);
       espilLoaderIv=setInterval(function(){
-        var target=10+Math.round(85*espilCityProgress());
-        if(espilCitySettled())target=100;
-        espilLoaderShown+=(target-espilLoaderShown)*.18;
-        if(target-espilLoaderShown<.5)espilLoaderShown=target;
-        el.style.setProperty('--p',espilLoaderShown);
-        if(pct)pct.textContent=Math.floor(espilLoaderShown);
-        if(st)st.textContent=espilLoaderShown<35?'Opening the map':(espilLoaderShown<65?'Pouring the water':(espilLoaderShown<90?'Building the city':'Setting the ground'));
-      },100);
+        window.__espilCityProgress01=espilCityProgress();
+        if(espilCitySettled())window.__espilCitySettledFlag=true;
+      },120);
     }
     function espilHideMapLoader(){
-      var el=document.getElementById('loader'); if(!el)return;
+      /* The v10 driver finishes itself once the settled flag is set
+         (its own fade into .done); the bridge drops the visibility
+         gate shortly after so the element leaves the screen. */
+      window.__espilCitySettledFlag=true;
       if(espilLoaderIv){ clearInterval(espilLoaderIv); espilLoaderIv=null; }
-      el.style.setProperty('--p',100);
-      var pct=document.getElementById('loader-pct'); if(pct)pct.textContent='100';
-      setTimeout(function(){ el.classList.add('done'); el.classList.remove('show'); },250);
+      setTimeout(function(){ var el=document.getElementById('loader'); if(el)el.classList.remove('show'); },1200);
     }
+    window.__espilMapLoaderDone=function(){
+      var el=document.getElementById('loader'); if(el)el.classList.remove('show');
+    };
     function espilWatchLoaderSettle(){
       var t0=Date.now();
       (function w(){
@@ -7695,5 +7714,212 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
 }
 </script>
 <script type="module" src="./tiles/tiles-module.js"></script>
+<!-- Map loader: UI room v10 stream-free standard driver + liquid physics.
+     Inert until the bridge starts them (window.__espilStartMapLoader /
+     __espilStartLoaderPhysics); see the ESPIL TILES BRIDGE loader block. -->
+<script>
+  /* Loading screen driver (2026-10-14, Han): the han.espil.online water-glass
+     sequence, driven by real load progress — document.images + readyState,
+     completed by the Earth-settled signal (espil-earth-ready). Min ~1s on
+     screen, 8s hard cap so it never traps the reader. */
+  window.__espilStartMapLoader=function(){
+  (function(){
+    var loader=document.getElementById('loader'); if(!loader) return;
+    document.body.classList.add('loading');
+    var pctEl=document.getElementById('loader-pct'),
+        statusEl=document.getElementById('loader-status'),
+        shown=0, real=0, start=Date.now(), finished=false, earthReady=false;
+    window.addEventListener('espil-earth-ready',function(){earthReady=true;});
+    if(window.__espilEarthReady)earthReady=true;
+    var words=[[0,'Opening the map'],[30,'Pouring the water'],[60,'Building the city'],[85,'Setting the ground']]; /* map-interval words (bridge wiring) */
+    function render(){
+      loader.style.setProperty('--p', shown);
+      pctEl.textContent=Math.floor(shown);
+      for(var i=words.length-1;i>=0;i--){ if(shown>=words[i][0]){ statusEl.textContent=words[i][1]; break; } }
+    }
+    function measure(){
+      var imgs=document.images, done=0;
+      for(var i=0;i<imgs.length;i++){ if(imgs[i].complete) done++; }
+      var imgPart=imgs.length? (done/imgs.length)*65 : 65;
+      var docPart=(document.readyState==='complete')?15:(document.readyState==='interactive'?9:3);
+      var earthPart=earthReady?20:0;
+      real=Math.min(100, imgPart+docPart+earthPart);
+      var cp=window.__espilCityProgress01; if(typeof cp==='number') real=Math.max(real, Math.round(cp*100)); /* bridge: own-city progress */
+    }
+    var tick=setInterval(function(){
+      measure();
+      var target=Math.max(real, Math.min(92, (Date.now()-start)/55)); /* time floor, capped until truly loaded */
+      if(window.__espilCitySettledFlag) target=100; /* bridge: own-city settled */
+      shown+=(target-shown)*0.14; if(target-shown<0.4) shown=target;
+      render();
+      if(shown>=99.5 && (earthReady||window.__espilCitySettledFlag) && Date.now()-start>=800) finish();
+      if(Date.now()-start>25000) finish(); /* never trap the player (map interval cap) */
+    },50);
+    function finish(){
+      if(finished) return; finished=true;
+      shown=100; render(); clearInterval(tick);
+      setTimeout(function(){
+        loader.classList.add('done');
+        document.body.classList.remove('loading');
+        setTimeout(function(){ if(window.__espilMapLoaderDone)window.__espilMapLoaderDone(); },700); /* bridge keeps the element for re-entry */
+      },350);
+    }
+    render();
+  })();
+  };
+  </script>
+<script>
+  /* Liquid physics for the loading glass (2026-10-15, Han): the surface is a
+     spring chain — each column pulls on its neighbours — rocked by an
+     oscillating lateral force that grows with --p. Fast crests throw
+     droplets; droplets arc under gravity and splash back in with a ripple.
+     Pure enhancement: any failure here leaves the CSS liquid untouched. */
+  window.__espilStartLoaderPhysics=function(){
+  (function(){
+    var loader=document.getElementById('loader'); if(!loader) return;
+    if(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    /* Luminous yellow-to-green gradient (Han 2026-10-16): the stops are drawn
+       fresh on every load along yellow -> green and lifted in luminance so
+       the liquid glows inside the glass. Shared by the CSS liquid (inline
+       style) and the physics canvas, so both always match. */
+    var YC=[255,245,155], GC=[202,248,118], stops=[[0,YC[0],YC[1],YC[2],0.76]], k;
+    for(k=1;k<=4;k++){
+      var t=k/5+(Math.random()-0.5)*0.09;
+      stops.push([t, Math.round(YC[0]+(GC[0]-YC[0])*t), Math.round(YC[1]+(GC[1]-YC[1])*t), Math.round(YC[2]+(GC[2]-YC[2])*t), 0.68+Math.random()*0.08]);
+    }
+    stops.push([1,172,230,64,0.78]);
+    var waterEl=loader.querySelector('.water');
+    if(waterEl){
+      var parts=[];
+      for(k=0;k<stops.length;k++){ var s0=stops[k]; parts.push('rgba('+s0[1]+','+s0[2]+','+s0[3]+','+s0[4].toFixed(2)+') '+(s0[0]*100).toFixed(1)+'%'); }
+      waterEl.style.background='linear-gradient(100deg, rgba(255,255,255,.12), rgba(255,255,255,0) 36%, rgba(255,255,255,.07) 60%, rgba(255,255,255,0) 82%), linear-gradient(180deg, '+parts.join(', ')+')';
+    }
+    var canvas=loader.querySelector('.water-canvas'); if(!canvas) return;
+    var ctx=null; try{ ctx=canvas.getContext('2d'); }catch(e){}
+    if(!ctx) return;
+    loader.classList.add('physics-on');
+    var W=196, H=196, N=30, K=90, C=1.6, COUPLE=150, GRAV=1600;
+    var h=[], v=[], i;
+    for(i=0;i<N;i++){ h.push(0); v.push(0); }
+    var drops=[], bubbles=[];
+    var baseY=H+4, phase=0, budget=0, last=performance.now(), prevDrive=0, speedSm=0, agit=0.7, agitTick=0;
+    function progress(){
+      var p=parseFloat(loader.style.getPropertyValue('--p'));
+      return isNaN(p)?0:Math.max(0,Math.min(100,p));
+    }
+    function colAt(x){ var c=Math.floor(x/W*N); return c<0?0:(c>=N?N-1:c); }
+    function surfY(x){ return baseY+h[colAt(x)]; }
+    function spawnDrop(x,y,vy,vx,r){
+      if(drops.length>=60) return;
+      drops.push({x:x,y:y,vy:vy,vx:vx,r:r});
+    }
+    function frame(now){
+      if(!document.body.contains(loader) || loader.classList.contains('done')) return;
+      var dt=(now-last)/1000; last=now;
+      if(dt>0.05) dt=0.05;
+      if(dt<=0){ requestAnimationFrame(frame); return; }
+      var p=progress(), energy=0.3+0.7*agit;
+      phase+=dt*1.85;
+      var amp=(0.5+p*0.02+agit*(1.1+p*0.055))/9.1; /* rock fraction, speed-led */
+      var drive=Math.cos(phase)*amp;
+      if(prevDrive!==0 && Math.sign(drive)!==Math.sign(prevDrive) && p>50){
+        /* rock reversal at high fill: a burst off the leading side — inset
+           from the rim, where the round glass does not clip the droplets */
+        var ex=(drive>0?0.22:0.78)*W;
+        for(var b=0;b<3+Math.round(3*agit);b++) spawnDrop(ex+(Math.random()*14-7), surfY(ex), -(230+Math.random()*190)*(0.45+0.75*agit), (Math.random()*90-45), 2.2+Math.random()*2.6);
+      }
+      prevDrive=drive;
+      /* fill level eases toward the driver's --p */
+      var targetY=H-(p/100)*H, prevBase=baseY;
+      baseY+=(targetY-baseY)*Math.min(1,dt*2.6);
+      var rise=(prevBase-baseY)/Math.max(dt,0.001); /* px/s the line climbs */
+      /* Agitation follows the loading SPEED (Han 2026-10-16): fast progress
+         churns the liquid, a stall lets it settle. agit also feeds the CSS
+         fallback rock through the --agit variable. */
+      speedSm+=((rise>0?rise:0)-speedSm)*Math.min(1,dt*2.2);
+      agit=Math.max(0,Math.min(1,speedSm/55));
+      if(++agitTick>=9){ agitTick=0; try{ loader.style.setProperty('--agit', agit.toFixed(2)); }catch(e){} }
+      /* spring chain, two substeps */
+      for(var s=0;s<2;s++){
+        var dts=dt/2, a=[], c;
+        for(c=0;c<N;c++){
+          var left=c>0?h[c-1]:h[c], right=c<N-1?h[c+1]:h[c];
+          a[c]=-K*h[c]-C*v[c]+COUPLE*(left+right-2*h[c]);
+        }
+        for(c=0;c<N;c++){
+          var nx=(c/(N-1))*2-1;
+          v[c]+=(a[c]-drive*820*nx)*dts;
+          h[c]+=v[c]*dts;
+        }
+      }
+      if(rise>50){ /* pouring in fast: the surface gets thrown around */
+        for(var r2=0;r2<4;r2++){ var rc=Math.floor(Math.random()*N); v[rc]-=rise*0.55*Math.random(); }
+        if(Math.random()<0.75) spawnDrop(Math.random()*W, baseY, -(200+Math.random()*200)*energy, (Math.random()*70-35), 1.7+Math.random()*2.2);
+      }
+      /* crest ejection: fast-rising crests throw droplets */
+      budget+=dt*(2+9*agit);
+      for(var c2=2;c2<N-2;c2++){
+        if(budget>=1 && v[c2]<-80*energy && h[c2]<=h[c2-1] && h[c2]<=h[c2+1] && Math.random()<0.6){
+          budget-=1;
+          spawnDrop((c2+0.5)/N*W, baseY+h[c2]-2, v[c2]*1.05-(110+Math.random()*120), ((c2/(N-1))*2-1)*58+(Math.random()*76-38), 2+Math.random()*2.6);
+        }
+      }
+      /* bubbles inside the liquid: rise, wobble, pop at the surface */
+      if(bubbles.length<7 && Math.random()<dt*3.2) bubbles.push({x:26+Math.random()*(W-52), y:H-8, r:1.4+Math.random()*2.2, vy:-(16+Math.random()*22), seed:Math.random()*6.28});
+      for(var bi=bubbles.length-1;bi>=0;bi--){
+        var bb=bubbles[bi]; bb.y+=bb.vy*dt; bb.x+=Math.sin(now/300+bb.seed)*7*dt;
+        if(bb.y<=surfY(bb.x)+3){ v[colAt(bb.x)]-=16; bubbles.splice(bi,1); }
+      }
+      /* droplets under gravity; landing pushes a ripple into the surface */
+      for(var di=drops.length-1;di>=0;di--){
+        var d=drops[di];
+        d.vy+=GRAV*dt; d.x+=d.vx*dt; d.y+=d.vy*dt;
+        if(d.x<2){ d.x=2; d.vx=Math.abs(d.vx)*0.5; }
+        if(d.x>W-2){ d.x=W-2; d.vx=-Math.abs(d.vx)*0.5; }
+        if(d.vy>0 && d.y>=surfY(d.x)){
+          v[colAt(d.x)]+=d.vy*0.20;
+          if(d.vy>300){ /* hard landing: a small crown splash */
+            spawnDrop(d.x, surfY(d.x)-2, -(70+Math.random()*80), (Math.random()*50-25), 1.2+Math.random()*1.4);
+            spawnDrop(d.x, surfY(d.x)-2, -(55+Math.random()*60), (Math.random()*50-25), 1+Math.random()*1.2);
+          } else if(Math.random()<0.3) spawnDrop(d.x, surfY(d.x)-2, -(50+Math.random()*70), (Math.random()*44-22), 1+Math.random()*1.2);
+          drops.splice(di,1);
+        } else if(d.y>H+10){ drops.splice(di,1); }
+      }
+      /* ---- render ---- */
+      ctx.clearRect(0,0,W,H);
+      var grad=ctx.createLinearGradient(0,Math.max(0,baseY-30),0,H);
+      for(var gs=0;gs<stops.length;gs++){ var st=stops[gs]; grad.addColorStop(st[0],'rgba('+st[1]+','+st[2]+','+st[3]+','+st[4]+')'); }
+      ctx.beginPath();
+      ctx.moveTo(-4,H+4);
+      for(var px=0;px<N;px++) ctx.lineTo((px+0.5)/N*W, baseY+h[px]);
+      ctx.lineTo(W+4,H+4);
+      ctx.closePath();
+      ctx.fillStyle=grad; ctx.fill();
+      /* luminous sheen pooled in the upper liquid, so it glows in the glass */
+      var sheen=ctx.createLinearGradient(0,Math.max(0,baseY-8),0,Math.min(H,baseY+64));
+      sheen.addColorStop(0,'rgba(255,255,232,0.36)');
+      sheen.addColorStop(1,'rgba(255,255,232,0)');
+      ctx.fillStyle=sheen; ctx.fill();
+      /* surface glint along the simulated line */
+      ctx.beginPath();
+      for(var gx=0;gx<N;gx++){ var gy=baseY+h[gx]; if(gx===0) ctx.moveTo((gx+0.5)/N*W,gy); else ctx.lineTo((gx+0.5)/N*W,gy); }
+      ctx.strokeStyle='rgba(245,255,220,0.75)'; ctx.lineWidth=2; ctx.stroke();
+      /* bubbles */
+      ctx.strokeStyle='rgba(255,255,255,0.45)'; ctx.lineWidth=1;
+      for(var bu=0;bu<bubbles.length;bu++){ var q=bubbles[bu]; ctx.beginPath(); ctx.arc(q.x,q.y,q.r,0,6.2832); ctx.stroke(); }
+      /* droplets */
+      for(var dr=0;dr<drops.length;dr++){
+        var o=drops[dr];
+        ctx.beginPath(); ctx.arc(o.x,o.y,o.r,0,6.2832);
+        ctx.fillStyle='rgba(250,255,224,0.95)'; ctx.fill();
+        ctx.beginPath(); ctx.arc(o.x-o.r*0.3,o.y-o.r*0.3,o.r*0.38,0,6.2832);
+        ctx.fillStyle='rgba(255,255,255,0.9)'; ctx.fill();
+      }
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  })();
+  };
+  </script>
 </body>
 </html>
