@@ -2511,6 +2511,77 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(on!==espilTilesApplied){ espilTilesApplied=on; espilTilesSweep(on); espilTilesSweepAt=now; }
       else if(on&&now-espilTilesSweepAt>1000){ espilTilesSweep(true); espilTilesSweepAt=now; }
     }
+    /* ============ ESPIL CHAT + SPEECH BUBBLE (2026-10-15, per Han:
+       chat must work in the map and a text bubble must appear over
+       the character). Local display only - no multiplayer chat
+       server exists yet. Enter opens/sends, Esc closes. ============ */
+    (function(){
+      var style=document.createElement('style');
+      style.textContent=
+        '#espil-chat{position:fixed;left:14px;bottom:120px;width:min(350px,74vw);z-index:55;display:none;pointer-events:none;}'+
+        '#espil-chat-log{display:flex;flex-direction:column;justify-content:flex-end;gap:3px;max-height:168px;overflow:hidden;margin-bottom:6px;}'+
+        '.espil-chat-line{align-self:flex-start;max-width:100%;background:rgba(6,12,18,.66);border:1px solid rgba(134,238,228,.16);border-radius:9px;padding:3px 8px;font-size:12.5px;line-height:1.35;color:#eaf6f3;word-break:break-word;}'+
+        '.espil-chat-line b{color:#6ee7d8;font-weight:600;}'+
+        '.espil-chat-line.sys{opacity:.75;font-style:italic;}'+
+        '#espil-chat-input{width:100%;box-sizing:border-box;background:rgba(6,12,18,.85);border:1px solid rgba(134,238,228,.45);border-radius:9px;padding:7px 9px;font-size:13px;color:#fff;outline:none;pointer-events:auto;display:none;}'+
+        '#espil-bubble{position:fixed;z-index:56;transform:translate(-50%,-115%);background:rgba(255,255,255,.96);color:#12242b;border-radius:12px;padding:6px 10px;font-size:13px;line-height:1.35;max-width:230px;word-break:break-word;display:none;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.35);}'+
+        '#espil-bubble:after{content:"";position:absolute;left:50%;bottom:-6px;transform:translateX(-50%);border:6px solid transparent;border-top-color:rgba(255,255,255,.96);border-bottom:0;}';
+      document.head.appendChild(style);
+      var wrap=document.createElement('div'); wrap.id='espil-chat';
+      var log=document.createElement('div'); log.id='espil-chat-log';
+      var input=document.createElement('input'); input.id='espil-chat-input';
+      input.type='text'; input.maxLength=200; input.placeholder='Message - Enter to send, Esc to close';
+      input.setAttribute('aria-label','Chat message');
+      wrap.appendChild(log); wrap.appendChild(input);
+      document.body.appendChild(wrap);
+      var bubble=document.createElement('div'); bubble.id='espil-bubble';
+      document.body.appendChild(bubble);
+      var typing=false, welcomed=false, bubbleUntil=0;
+      function addLine(name,text,sys){
+        var d=document.createElement('div'); d.className='espil-chat-line'+(sys?' sys':'');
+        if(name){ var b=document.createElement('b'); b.textContent=name+' '; d.appendChild(b); }
+        d.appendChild(document.createTextNode(text));
+        log.appendChild(d);
+        while(log.children.length>30)log.removeChild(log.firstChild);
+      }
+      function openChat(){
+        typing=true; input.style.display='block'; input.value='';
+        setTimeout(function(){ try{input.focus();}catch(e){} },0);
+      }
+      function closeChat(){ typing=false; input.style.display='none'; try{input.blur();}catch(e){} }
+      function sendChat(){
+        var text=input.value.trim(); closeChat();
+        if(!text)return;
+        addLine('Keeper',text,false);
+        bubble.textContent=text;
+        bubbleUntil=performance.now()+4500;
+      }
+      input.addEventListener('keydown',function(e){
+        e.stopPropagation();
+        if(e.key==='Enter'){ e.preventDefault(); sendChat(); }
+        else if(e.key==='Escape'){ e.preventDefault(); closeChat(); }
+      });
+      input.addEventListener('keyup',function(e){ e.stopPropagation(); });
+      document.addEventListener('keydown',function(e){
+        if(!cityPhaseActive||typing)return;
+        if(e.key==='Enter'){ e.preventDefault(); openChat(); }
+      });
+      var _v=new THREE.Vector3();
+      setInterval(function(){
+        var inCity=!!cityPhaseActive;
+        wrap.style.display=inCity?'block':'none';
+        if(inCity&&!welcomed){ welcomed=true; addLine('','Chat ready - press Enter to type.',true); }
+        if(!inCity){ bubble.style.display='none'; if(typing)closeChat(); return; }
+        if(performance.now()<bubbleUntil&&walkPlayer&&mapCamera){
+          _v.set(walkPlayer.pos.x,walkPlayer.pos.y+2.15,walkPlayer.pos.z).project(mapCamera);
+          if(_v.z<1&&_v.z>-1&&Math.abs(_v.x)<1.1&&Math.abs(_v.y)<1.1){
+            bubble.style.left=((_v.x*.5+.5)*window.innerWidth)+'px';
+            bubble.style.top=((-_v.y*.5+.5)*window.innerHeight)+'px';
+            bubble.style.display='block';
+          } else bubble.style.display='none';
+        } else bubble.style.display='none';
+      },50);
+    })();
     /* Real-time navigation-style traffic engine — DATA ONLY (Han 2026-10-05).
        No visual overlay. Segment flow values simulate for navigation use. */
     var trafficSegs=[];
@@ -2800,11 +2871,11 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       try{
         var src=JUMP_SFX_SRC[kind]||JUMP_SFX_SRC.land;
         if(!jumpSfxCache[kind]){
-          var a=new Audio(src); a.preload='auto'; a.volume=.5;
+          var a=new Audio(src); a.preload='auto'; a.volume=.5*(window.espilUserVol?window.espilUserVol():1);
           jumpSfxCache[kind]=a;
         }
         /* Clone for overlap (double-jump chains, quick landings). */
-        var c=jumpSfxCache[kind].cloneNode(); c.volume=.5; c.play().catch(function(){});
+        var c=jumpSfxCache[kind].cloneNode(); c.volume=.5*(window.espilUserVol?window.espilUserVol():1); c.play().catch(function(){});
       }catch(e){}
     }
     /* Footstep SFX — Han 2026-10-10: walk/run replaced with pavement steps
@@ -2814,11 +2885,11 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     function ensureStepAudio(){
       if(!stepAudioWalk){
         stepAudioWalk=new Audio('assets/sfx/movement/walk_pavement.wav');
-        stepAudioWalk.preload='auto'; stepAudioWalk.volume=.5;
+        stepAudioWalk.preload='auto'; stepAudioWalk.volume=.5*(window.espilUserVol?window.espilUserVol():1);
       }
       if(!stepAudioRun){
         stepAudioRun=new Audio('assets/sfx/movement/run_pavement.wav');
-        stepAudioRun.preload='auto'; stepAudioRun.volume=.5;
+        stepAudioRun.preload='auto'; stepAudioRun.volume=.5*(window.espilUserVol?window.espilUserVol():1);
       }
     }
     function playFootstep(running){
@@ -6863,7 +6934,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         o.frequency.setValueAtTime(880,t);
         o.frequency.exponentialRampToValueAtTime(660,t+.05);
         g.gain.setValueAtTime(.0001,t);
-        g.gain.exponentialRampToValueAtTime(.16,t+.008);
+        g.gain.exponentialRampToValueAtTime(.16*userVol,t+.008);
         g.gain.exponentialRampToValueAtTime(.0001,t+.07);
         o.connect(g);g.connect(actx.destination);
         o.start(t);o.stop(t+.08);
@@ -6881,16 +6952,29 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         o.frequency.setValueAtTime(540,t);
         o.frequency.exponentialRampToValueAtTime(150,t+.11);
         g.gain.setValueAtTime(.0001,t);
-        g.gain.exponentialRampToValueAtTime(.45,t+.012);
+        g.gain.exponentialRampToValueAtTime(.45*userVol,t+.012);
         g.gain.exponentialRampToValueAtTime(.0001,t+.17);
         o.connect(g);g.connect(actx.destination);
         o.start(t);o.stop(t+.19);
       }catch(e){}
     }
+    /* User volume (Han, 2026-10-15): one slider scales every game
+       sound - BGM fades land on target*userVol, the synth blips and
+       the HTMLAudio SFX read the same value. Persisted per browser. */
+    var userVol=1;
+    try{ var _uv=parseFloat(localStorage.getItem('espil-volume')); if(_uv>=0&&_uv<=1)userVol=_uv; }catch(e){}
+    window.espilUserVol=function(){ return userVol; };
+    window.espilSetUserVol=function(v){
+      userVol=Math.max(0,Math.min(1,v));
+      try{ localStorage.setItem('espil-volume',String(userVol)); }catch(e){}
+      if(audio&&!audio.paused&&!fadeTimer){ try{ audio.volume=.5*userVol; }catch(e){} }
+      if(cityAudio&&!cityAudio.paused&&!cityFadeTimer){ try{ cityAudio.volume=.5*userVol; }catch(e){} }
+    };
     /* Volume fade helper (~1.2s): slow fade-out on city enter, slow fade-in on return. */
     var fadeTimer=null;
     function fadeTo(target,done){
       if(!audio)return;
+      target=target*userVol;
       if(fadeTimer){clearInterval(fadeTimer);fadeTimer=null;}
       var step=(target-audio.volume)/20;
       if(Math.abs(step)<.004){try{audio.volume=target;}catch(e){} if(done)done(); return;}
@@ -6940,6 +7024,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     function cityFadeTo(target,done){
       var a=cityAudio;
       if(!a){ if(done)done(); return; }
+      target=target*userVol;
       if(cityFadeTimer){clearInterval(cityFadeTimer);cityFadeTimer=null;}
       var steps=Math.max(1,Math.round(CITY_FADE_MS/60));
       var step=(target-a.volume)/steps;
@@ -7025,6 +7110,25 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     };
     if(toggle)toggle.addEventListener('click',function(e){e.stopPropagation();window.EspilAudio.toggle();});
     paintToggle();paintBgmCard();
+    /* Volume slider inside the BGM card (Han, 2026-10-15). */
+    (function(){
+      var card=document.getElementById('bgm-card');
+      if(!card)return;
+      var row=document.createElement('div');
+      row.className='bgm-card-row';
+      row.style.marginTop='8px';
+      row.innerHTML='<span style="font-size:11px;letter-spacing:.08em;opacity:.85">VOLUME</span>';
+      var slider=document.createElement('input');
+      slider.type='range'; slider.min='0'; slider.max='100'; slider.step='1';
+      slider.value=Math.round(userVol*100);
+      slider.setAttribute('aria-label','Volume');
+      slider.style.cssText='flex:1;accent-color:#6ee7d8;cursor:pointer;';
+      slider.addEventListener('input',function(){ window.espilSetUserVol(slider.value/100); });
+      slider.addEventListener('click',function(e){ e.stopPropagation(); });
+      slider.addEventListener('pointerdown',function(e){ e.stopPropagation(); });
+      row.appendChild(slider);
+      card.appendChild(row);
+    })();
     /* Hover/focus card: song info in a Genshin-styled caption box (2026-10-06 QA #2). */
     (function(){
       var card=document.getElementById('bgm-card');
