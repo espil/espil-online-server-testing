@@ -16,9 +16,14 @@ const http = require('http'), fs = require('fs'), path = require('path'), https 
 const ROOT = __dirname;
 const PORT = 8920, ASSET_ID = '2275207';
 const TTL = 45 * 60 * 1000, BUDGET = 40;
+let tokenSource = '';
 function loadToken() {
-  if (process.env.CESIUM_ION_TOKEN) return process.env.CESIUM_ION_TOKEN.trim();
-  try { const m = fs.readFileSync(path.join(ROOT, '.env'), 'utf8').match(/^\s*CESIUM_ION_TOKEN\s*=\s*(\S+)\s*$/m); if (m) return m[1]; } catch (e) {}
+  if (process.env.CESIUM_ION_TOKEN) { tokenSource = 'env var'; return process.env.CESIUM_ION_TOKEN.trim(); }
+  try { const m = fs.readFileSync(path.join(ROOT, '.env'), 'utf8').match(/^\s*CESIUM_ION_TOKEN\s*=\s*(\S+)\s*$/m); if (m) { tokenSource = './.env'; return m[1]; } } catch (e) {}
+  /* Reuse the prototype's local credential files if they are already on
+     this machine - no new setup needed (both are gitignored locals). */
+  try { const m = fs.readFileSync(path.join(ROOT, 'tiles-prototype', '.env'), 'utf8').match(/^\s*CESIUM_ION_TOKEN\s*=\s*(\S+)\s*$/m); if (m) { tokenSource = 'tiles-prototype/.env'; return m[1]; } } catch (e) {}
+  try { const m = fs.readFileSync(path.join(ROOT, 'tiles-prototype', 'token.local.js'), 'utf8').match(/CESIUM_ION_TOKEN\s*=\s*'([^']+)'/); if (m) { tokenSource = 'tiles-prototype/token.local.js'; return m[1]; } } catch (e) {}
   return '';
 }
 const TOKEN = loadToken();
@@ -61,4 +66,4 @@ http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' });
     res.end(data);
   });
-}).listen(PORT, () => console.log(`integrated build local server: http://localhost:${PORT}/vancouver (ion token: ${TOKEN ? 'set' : 'NOT set - see ./.env'})`));
+}).listen(PORT, () => console.log(`integrated build local server: http://localhost:${PORT}/vancouver (ion token: ${TOKEN ? 'set, from ' + tokenSource : 'NOT set - see ./.env'})`));

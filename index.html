@@ -2592,6 +2592,9 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(flow>.3)return 'heavy';
       return 'stopped';
     }
+    var syncTrafficCarsFn=null; /* set by buildWalkMapOnce: syncTrafficCars is
+       defined in that scope (it closes over the car pool), so it is exposed
+       through this handle instead of being called across scopes. */
     function updateTraffic(dt){
       if(!trafficSegs.length)return;
       trafficTimer+=dt;
@@ -2612,7 +2615,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         if(s.flow>1)s.flow=1;
         /* Data-only: flow value simulates; no visual update (Han 2026-10-05). */
       }
-      syncTrafficCars(); /* 2D car placeholders mirror the new flow levels */
+      if(syncTrafficCarsFn)syncTrafficCarsFn(); /* 2D car placeholders mirror the new flow levels */
       syncIncidentMarkers();
     }
     /* Han 2026-10-10: incident hazard markers — flashing amber triangles above
@@ -3563,6 +3566,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           }
         }
       }
+      syncTrafficCarsFn=syncTrafficCars; /* expose the nested def to updateTraffic */
       updateTrafficCars=function(dt){
         /* Reusable temporaries (avoid per-car allocation) */
         if(!updateTrafficCars._cr)updateTrafficCars._cr=new THREE.Vector3();
