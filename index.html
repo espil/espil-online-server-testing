@@ -2454,9 +2454,10 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        crawl up building walls. Walls are the game's own building
        colliders (downtown list + nearby chunk lists); the tile layer
        stays visual only. Walking into a wall attaches; ArrowUp climbs
-       at 1.0 m/s, ArrowLeft/Right move along the wall at 0.6 m/s,
-       ArrowDown slides down at 1.5 m/s; Space or pushing away from
-       the wall detaches; the top steps onto the roof. Colliders under
+       at the character's ground run speed, ArrowLeft/Right move
+       along the wall at 0.6 of that, ArrowDown slides down at the
+       same speed; Space jumps off the wall, pushing away detaches;
+       the top steps onto the roof. Colliders under
        4 m tall or thinner than 1.5 m are not walls. The Meshy climb
        clip wires in as the 'climb' action when the asset room
        delivers it; the step prefers it automatically. --- */
@@ -2508,6 +2509,12 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       p.velY=pop?7.5:0; p.onGround=false;
     }
     function espilClimbStep(p,dt){
+      /* wall-jump outward drift (set by the jump branch below) */
+      if(p._espilWallDrift){
+        var wd=p._espilWallDrift; wd.t-=dt;
+        p.pos.x+=wd.nx*5.5*dt; p.pos.z+=wd.nz*5.5*dt;
+        if(wd.t<=0)p._espilWallDrift=null;
+      }
       var ix=0,iz=0;
       if(walkKeys['arrowup'])iz-=1; if(walkKeys['arrowdown'])iz+=1;
       if(walkKeys['arrowleft'])ix-=1; if(walkKeys['arrowright'])ix+=1;
@@ -2520,7 +2527,15 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         if(p.onGround&&!p.swimming&&!p._espilDescend&&(ix||iz))espilTryAttachClimb(p,mx,mz);
         return;
       }
-      if(walkKeys[' ']){ espilClimbDetach(p,true); return; }
+      if(walkKeys[' ']){
+        /* Han 2026-10-16: a real JUMP off the wall - the game's own
+           jump velocity plus an outward drift, one air jump left. */
+        var jv=(typeof moveSpeeds==='function')?moveSpeeds().jumpV:9;
+        espilClimbDetach(p,false);
+        p.velY=jv; p.jumps=1; p.onGround=false;
+        p._espilWallDrift={nx:cl.nx,nz:cl.nz,t:.22};
+        return;
+      }
       /* Detach-away must not eat the slide-down input: with the camera
          behind the character, ArrowDown points away from the wall AND
          means slide. Away-detach therefore requires an up-input (the
@@ -2528,13 +2543,18 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
          near-pure sideways push away. */
       var away=mx*cl.nx+mz*cl.nz;
       if((away>.6&&iz<0)||(away>.8&&iz===0)){ espilClimbDetach(p,false); return; }
-      if(iz<0)cl.h+=1.0*dt; else if(iz>0)cl.h-=1.5*dt;
+      /* Han 2026-10-16: climb speed = the character's actual ground
+         movement speed (moveSpeeds().run - the one run mode), lateral
+         at the draft's 0.6 ratio, slide capped at the same speed. This
+         supersedes the 2026-10-16 option-3 value of 1.0 m/s. */
+      var spd=(typeof moveSpeeds==='function')?moveSpeeds().run:12;
+      if(iz<0)cl.h+=spd*dt; else if(iz>0)cl.h-=spd*dt;
       /* Screen-right mapped onto the wall: the tangent is the
          character's right hand while facing into the wall. */
       var txv=cl.nz, tzv=-cl.nx, side=mx*txv+mz*tzv;
       if(side){
         var along=(cl.axis==='x')?p.pos.z:p.pos.x;
-        along=Math.max(cl.lo+.3,Math.min(cl.hi-.3,along+side*0.6*dt));
+        along=Math.max(cl.lo+.3,Math.min(cl.hi-.3,along+side*(spd*.6)*dt));
         if(cl.axis==='x')p.pos.z=along; else p.pos.x=along;
       }
       if(cl.base+cl.h>=cl.top-.25){
@@ -5900,7 +5920,17 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         if(typeof updateWalkCamera==='function')updateWalkCamera(dt);
         return;
       }
-      p._tileBase=espilTileBase(p.pos.x,p.pos.z); /* ESPIL TILES BRIDGE */
+      /* ESPIL TILES BRIDGE: the tile base under the collision point.
+         Han 2026-10-16 (collision point reset): while grounded, a probe
+         hit far ABOVE the current base is a ledge/overhang at the point,
+         not ground the character stepped onto - adopting it lifted the
+         collision point into the facade volume and left him floating
+         inside dark geometry. Hold the current base instead; real
+         climbs go through the climb system, and roofs are reached by
+         jumping/falling, whose airborne frames re-probe freely. */
+      var rawTileBase=espilTileBase(p.pos.x,p.pos.z);
+      if(rawTileBase!==null&&p.onGround&&!p._espilDescend&&!p._espilClimb&&p._tileBase!==null&&p._tileBase!==undefined&&rawTileBase>p._tileBase+.6)rawTileBase=p._tileBase;
+      p._tileBase=rawTileBase;
       updateDnaImprint(dt);
       /* --- input: keys + touch stick, relative to camera yaw --- */
       var ix=0,iz=0;

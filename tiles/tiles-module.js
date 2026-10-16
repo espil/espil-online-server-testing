@@ -270,70 +270,9 @@ async function buildTiles() {
   occluderRoot.add(tiles.group);
 }
 
-/* ---------- occlusion fade (tile meshes on the sightline ghost) ---------- */
-const fadeMap = new Map();
-let lastScan = 0;
-const _rc = new THREE.Raycaster();
-const _from = new THREE.Vector3(), _to = new THREE.Vector3(), _dir = new THREE.Vector3();
-function isChainVisible(o) {
-  for (let n = o; n; n = n.parent) if (!n.visible) return false;
-  return true;
-}
-function scanOcclusion(camPos, headPos) {
-  _from.copy(camPos); _to.copy(headPos);
-  _dir.subVectors(_to, _from);
-  const dist = _dir.length();
-  _rc.set(_from, _dir.normalize());
-  _rc.far = Math.max(0, dist - 1.2);
-  _rc.near = 0.1;
-  const hits = _rc.intersectObject(occluderRoot, true);
-  /* Han 2026-10-15: ONLY what stands between the camera and the
-     character may fade. The surface the character stands on must
-     never fade - the old scan counted the ground tile the sightline
-     crosses just in front of the character, so the chunk under his
-     feet ghosted. A hit now counts only if it crosses the sightline
-     meaningfully ABOVE the character's standing surface. */
-  const probed = probeSurfaceY(_to.x, _to.z);
-  const surfY = (probed !== null && probed !== undefined) ? probed : (_to.y - 1.1);
-  const blocked = new Set();
-  for (const h of hits) if (isChainVisible(h.object) && h.point.y > surfY + 1.0) blocked.add(h.object);
-  /* camera inside a near building: its walls never cross the ray */
-  const box = new THREE.Box3(), sph = new THREE.Sphere();
-  occluderRoot.traverse((o) => {
-    if (!o.isMesh || !o.geometry) return;
-    o.geometry.computeBoundingSphere();
-    sph.copy(o.geometry.boundingSphere).applyMatrix4(o.matrixWorld);
-    if (sph.center.distanceTo(camPos) > 90) return;
-    box.setFromObject(o);
-    if (box.max.y <= surfY + 1.0) return; /* ground-level mesh: never an occluder */
-    if (box.containsPoint(camPos) && isChainVisible(o)) blocked.add(o);
-  });
-  for (const mesh of blocked) {
-    let f = fadeMap.get(mesh);
-    if (!f) {
-      const orig = mesh.material;
-      const clone = orig.clone();
-      patchBendMaterial(clone);
-      clone.transparent = true; clone.depthWrite = true; clone.opacity = 1;
-      f = { orig, clone, target: 0.10 };
-      mesh.material = clone;
-      fadeMap.set(mesh, f);
-    }
-    f.target = 0.10;
-  }
-  for (const [mesh, f] of fadeMap) if (!blocked.has(mesh)) f.target = 1;
-}
-function stepFades(dt) {
-  const k = Math.min(1, dt * 7);
-  for (const [mesh, f] of fadeMap) {
-    f.clone.opacity += (f.target - f.clone.opacity) * k;
-    if (f.target === 1 && f.clone.opacity > 0.995) {
-      mesh.material = f.orig;
-      f.clone.dispose();
-      fadeMap.delete(mesh);
-    }
-  }
-}
+/* Occlusion fade REMOVED (Han 2026-10-16): the sightline ghosting
+   darkened the whole view around the character. Tile meshes are
+   never material-swapped or faded by this module anymore. */
 
 /* ---------- ground probe (module -> game, via state) ---------- */
 const _prc = new THREE.Raycaster();
@@ -398,7 +337,6 @@ function loop() {
     tiles.group.visible = active;
     canvas.style.display = active ? 'block' : 'none';
     attrBar.style.display = active ? 'flex' : 'none';
-    if (!active) { for (const [mesh, f] of fadeMap) { mesh.material = f.orig; f.clone.dispose(); } fadeMap.clear(); }
   }
   if (!active) return;
 
@@ -414,13 +352,6 @@ function loop() {
   scene.fog.near = cs.fogNear; scene.fog.far = cs.fogFar;
 
   sweepBend(performance.now());
-  if (performance.now() - lastScan > 200) {
-    lastScan = performance.now();
-    _from.set(cs.px, cs.py, cs.pz);
-    _to.set(cs.charX, (cs.charY || 0) + 1.1, cs.charZ);
-    scanOcclusion(_from, _to);
-  }
-  stepFades(dt);
 
   tiles.setCamera(camera);
   tiles.setResolutionFromRenderer(camera, renderer);
