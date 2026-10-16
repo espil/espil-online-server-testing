@@ -2648,6 +2648,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(!walkPlayer)return false;
       if(!(walkPlayer.av&&walkPlayer.av.ready))return false;
       if(typeof osmCityBuilt==='undefined'||!osmCityBuilt)return false;
+      if(!espilDistrictBuilt)return false; /* ESPIL DISTRICT BUILD: stored collision map + polygons in */
       if(espilEntrySpawn&&typeof chunkMap!=='undefined'&&chunkMap){
         var k=Math.floor(espilEntrySpawn.x/CHUNK_SIZE)+','+Math.floor(espilEntrySpawn.z/CHUNK_SIZE);
         /* The hand-built downtown core (|x|,|z| < 135) never appears
@@ -2661,8 +2662,9 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     function espilCityProgress(){
       var f=0;
       if(walkPlayer&&walkPlayer.av&&walkPlayer.av.ready)f+=.3;
-      if(typeof osmCityBuilt!=='undefined'&&osmCityBuilt)f+=.7;
-      else if(typeof osmChunks!=='undefined'&&osmChunks)f+=.35;
+      if(typeof osmCityBuilt!=='undefined'&&osmCityBuilt)f+=.35;
+      else if(typeof osmChunks!=='undefined'&&osmChunks)f+=.17;
+      if(espilDistrictBuilt)f+=.35;
       return Math.min(1,f);
     }
     /* The game's OWN ground law at a point: 0 plus the highest
@@ -2685,6 +2687,150 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       }
       return best;
     }
+    /* ============ ESPIL DISTRICT BUILD (sample district, 2026-10-16) ============
+       Han's approved plan: the sample district (downtown core + first
+       OSM ring) is rebuilt from TRUE polygon footprints, and its
+       collision comes from the PREBUILT stored map
+       (assets/osm/vancouver_collision.json - 9-class mask + roof
+       height layer + collider strips, made offline by
+       tools/build_collision.py). The game loads the stored map and
+       probes/registers it; it never generates masks at runtime.
+       The hand-built core square keeps its own colliders and meshes
+       in this sample; the ring is fully polygon + stored-map driven. */
+    var espilDistrict=null, espilCollision=null, espilDistrictBuilt=false, espilDistrictLoading=false;
+    function espilInCoreSq(x,z){ return Math.abs(x)<135&&Math.abs(z)<135; }
+    function espilB64ToU8(b64){ var bin=atob(b64), out=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++)out[i]=bin.charCodeAt(i); return out; }
+    function loadEspilDistrict(){
+      if(espilDistrict||espilDistrictLoading)return; espilDistrictLoading=true;
+      Promise.all([
+        fetch('assets/osm/vancouver_district_sample.json').then(function(r){return r.json();}),
+        fetch('assets/osm/vancouver_collision.json').then(function(r){return r.json();})
+      ]).then(function(res){
+        espilDistrict=res[0]; espilCollision=res[1];
+        espilCollision.cls=espilB64ToU8(espilCollision.classes_b64);
+        espilCollision.roof=new Uint16Array(espilB64ToU8(espilCollision.roof_dm_b64).buffer);
+        var nStrips=0, strips=espilCollision.colliders||[];
+        for(var i=0;i<strips.length;i++){
+          var st=strips[i];
+          if(espilInCoreSq(st[0],st[1]))continue; /* core keeps its hand-built colliders */
+          walkColliders.push({x0:st[0]-st[2],x1:st[0]+st[2],z0:st[1]-st[3],z1:st[1]+st[3],bottom:0,top:st[4],espilStrip:true});
+          nStrips++;
+        }
+        espilBuildDistrictMeshes();
+        espilDistrictBuilt=true;
+        console.log('[District] sample built: '+espilDistrict.buildings.length+' polygon buildings in file, '+nStrips+' stored collision strips registered');
+      }).catch(function(e){ console.warn('[District] load failed, will retry:',e); espilDistrictLoading=false; });
+    }
+    /* Probe the stored collision map (class + rules + roof height). */
+    window.__espilCollisionProbe=function(x,z){
+      if(!espilCollision||!espilCollision.cls)return null;
+      var c=espilCollision, cx=Math.floor((x-c.origin[0])/c.cell), cz=Math.floor((z-c.origin[1])/c.cell);
+      if(cx<0||cz<0||cx>=c.w||cz>=c.h)return null;
+      var i=cz*c.w+cx, pal=c.palette[c.cls[i]]||{};
+      return {cls:pal.name||c.cls[i], walkable:!!pal.walkable, blocked:!!pal.blocked, swimmable:!!pal.swimmable, roofH:(c.roof[i]||0)/10};
+    };
+    function espilBuildDistrictMeshes(){
+      if(!espilDistrict||typeof mapScene==='undefined'||!mapScene)return;
+      var palette=[0xd9b678,0xd4b183,0xcf9f6b,0xdbbd8a,0xd6a86f];
+      var roofCol={tower:0x4c4a48,midrise:0x5a4636,lowrise:0x8a6f4d,warehouse:0x55584e,house:0x7a5b40};
+      var wallAcc={}, roofAcc={pos:[],nor:[],col:[]};
+      function accFor(k){ if(!wallAcc[k])wallAcc[k]={pos:[],nor:[],col:[],uv:[]}; return wallAcc[k]; }
+      function tri(acc,ax,ay,az,bx,by,bz,cx,cy,cz,nx,ny,nz,r,g,b,uvs){
+        acc.pos.push(ax,ay,az,bx,by,bz,cx,cy,cz);
+        acc.nor.push(nx,ny,nz,nx,ny,nz,nx,ny,nz);
+        acc.col.push(r,g,b,r,g,b,r,g,b);
+        if(acc.uv&&uvs)acc.uv.push(uvs[0],uvs[1],uvs[2],uvs[3],uvs[4],uvs[5]);
+      }
+      var blds=espilDistrict.buildings;
+      for(var bi=0;bi<blds.length;bi++){
+        var b=blds[bi], ring=b.p, h=b.h;
+        if(!ring||ring.length<3||h<=0)continue;
+        var cx=0,cz=0,mnx=1e9,mxx=-1e9,mnz=1e9,mxz=-1e9,area2=0;
+        for(var i0=0;i0<ring.length;i0++){ var q=ring[i0]; cx+=q[0]; cz+=q[1];
+          if(q[0]<mnx)mnx=q[0]; if(q[0]>mxx)mxx=q[0]; if(q[1]<mnz)mnz=q[1]; if(q[1]>mxz)mxz=q[1]; }
+        var npt=ring.length-((ring[0][0]===ring[ring.length-1][0]&&ring[0][1]===ring[ring.length-1][1])?1:0);
+        cx/=npt; cz/=npt;
+        if(espilInCoreSq(cx,cz))continue; /* the hand-built core stays as-is in the sample */
+        for(var i1=0;i1<ring.length-1;i1++)area2+=ring[i1][0]*ring[i1+1][1]-ring[i1+1][0]*ring[i1][1];
+        var area=Math.abs(area2)/2, bw=mxx-mnx, bd=mxz-mnz;
+        var kind=h>=60?'tower':(h>=25?'midrise':(h>=12?'lowrise':(area>=300?'warehouse':'house')));
+        var tint=new THREE.Color(palette[(bi*7)%palette.length]);
+        var tv=.82+((bi*37)%20)/100;
+        var wr=tint.r*tv*.55+.45*tv, wg=tint.g*tv*.55+.44*tv, wb=tint.b*tv*.55+.42*tv;
+        /* walls: one quad per polygon edge, facade UVs tiled ~25 m */
+        var acc=accFor(kind), cum=0;
+        for(var ei=0;ei<ring.length-1;ei++){
+          var ax=ring[ei][0],az=ring[ei][1],bx2=ring[ei+1][0],bz2=ring[ei+1][1];
+          var ex=bx2-ax,ez=bz2-az,el=Math.hypot(ex,ez); if(el<.01)continue;
+          var mxp=(ax+bx2)/2-cx,mzp=(az+bz2)/2-cz,ml=Math.hypot(mxp,mzp)||1;
+          var nx=mxp/ml,nz=mzp/ml;
+          var u0=cum/25,u1=(cum+el)/25; cum+=el;
+          tri(acc, ax,0,az, bx2,0,bz2, bx2,h,bz2, nx,0,nz, wr,wg,wb, [u0,0, u1,0, u1,1]);
+          tri(acc, ax,0,az, bx2,h,bz2, ax,h,az, nx,0,nz, wr,wg,wb, [u0,0, u1,1, u0,1]);
+        }
+        /* roof */
+        var rc=new THREE.Color(roofCol[kind]), rv=.9+((bi*29)%16)/100;
+        var rr=rc.r*rv,rg=rc.g*rv,rb=rc.b*rv;
+        var flatTop=(h>=12||area>=400);
+        if(flatTop){
+          var shape=new THREE.Shape();
+          for(var si=0;si<npt;si++){ var sp=ring[si]; if(si===0)shape.moveTo(sp[0],-sp[1]); else shape.lineTo(sp[0],-sp[1]); }
+          shape.closePath();
+          var sg=new THREE.ShapeGeometry(shape); sg.rotateX(-Math.PI/2); sg.translate(0,h,0);
+          var sp2=sg.toNonIndexed(), pa=sp2.getAttribute('position'), na=sp2.getAttribute('normal');
+          for(var vi=0;vi<pa.count;vi++){ roofAcc.pos.push(pa.getX(vi),pa.getY(vi),pa.getZ(vi)); roofAcc.nor.push(na.getX(vi),na.getY(vi),na.getZ(vi)); roofAcc.col.push(rr,rg,rb); }
+          sp2.dispose(); sg.dispose();
+          /* parapet rim */
+          for(var pi=0;pi<ring.length-1;pi++){
+            var pax=ring[pi][0],paz=ring[pi][1],pbx=ring[pi+1][0],pbz=ring[pi+1][1];
+            var pmx=(pax+pbx)/2-cx,pmz=(paz+pbz)/2-cz,pl=Math.hypot(pmx,pmz)||1,pnx=pmx/pl,pnz=pmz/pl;
+            var dr=rr*.72,dg=rg*.72,db=rb*.72;
+            tri(roofAcc, pax,h-.05,paz, pbx,h-.05,pbz, pbx,h+.5,pbz, pnx,0,pnz, dr,dg,db, null);
+            tri(roofAcc, pax,h-.05,paz, pbx,h+.5,pbz, pax,h+.5,paz, pnx,0,pnz, dr,dg,db, null);
+          }
+          /* rooftop penthouse on taller blocks */
+          if(h>=25){
+            var pw=Math.min(bw*.34,14), pd=Math.min(bd*.34,14), ph=2.3;
+            var bg=new THREE.BoxGeometry(pw,ph,pd); bg.translate(cx,h+ph/2,cz);
+            var bp=bg.toNonIndexed(), bpa=bp.getAttribute('position'), bna=bp.getAttribute('normal');
+            for(var bvi=0;bvi<bpa.count;bvi++){ roofAcc.pos.push(bpa.getX(bvi),bpa.getY(bvi),bpa.getZ(bvi)); roofAcc.nor.push(bna.getX(bvi),bna.getY(bvi),bna.getZ(bvi)); roofAcc.col.push(rr*.85,rg*.85,rb*.85); }
+            bp.dispose(); bg.dispose();
+          }
+        }else{
+          /* shallow hip roof for houses / small lowrise */
+          var apexH=h+Math.min(2.2,.28*Math.min(bw,bd));
+          for(var hi2=0;hi2<ring.length-1;hi2++){
+            var hax=ring[hi2][0],haz=ring[hi2][1],hbx=ring[hi2+1][0],hbz=ring[hi2+1][1];
+            var ux=hbx-hax,uz=hbz-haz,vx=cx-hax,vz=cz-haz;
+            var fnx=-(uz*(apexH-h))+0, fny=ux*vz-uz*vx, fnz=(ux*(apexH-h));
+            var fnl=Math.hypot(fnx,fny,fnz)||1; fnx/=fnl; fny/=fnl; fnz/=fnl; if(fny<0){fnx*=-1;fny*=-1;fnz*=-1;}
+            tri(roofAcc, hax,h,haz, hbx,h,hbz, cx,apexH,cz, fnx,fny,fnz, rr,rg,rb, null);
+          }
+        }
+      }
+      function finishMesh(acc,mat){
+        var g=new THREE.BufferGeometry();
+        g.setAttribute('position',new THREE.Float32BufferAttribute(acc.pos,3));
+        g.setAttribute('normal',new THREE.Float32BufferAttribute(acc.nor,3));
+        g.setAttribute('color',new THREE.Float32BufferAttribute(acc.col,3));
+        if(acc.uv)g.setAttribute('uv',new THREE.Float32BufferAttribute(acc.uv,2));
+        var m=new THREE.Mesh(g,mat); m.castShadow=true; m.receiveShadow=true; m.userData.espilDistrict=1;
+        mapScene.add(m); return m;
+      }
+      for(var kind2 in wallAcc){
+        if(!wallAcc[kind2].pos.length)continue;
+        var tex=facadeTexture(kind2);
+        var tex2=tex.clone(); tex2.wrapS=THREE.RepeatWrapping; tex2.needsUpdate=true;
+        var wmat=new THREE.MeshLambertMaterial({map:tex2,vertexColors:true,side:THREE.DoubleSide});
+        if(typeof curvePatch==='function')curvePatch(wmat);
+        finishMesh(wallAcc[kind2],wmat);
+      }
+      if(roofAcc.pos.length){
+        var rmat=new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide});
+        if(typeof curvePatch==='function')curvePatch(rmat);
+        finishMesh(roofAcc,rmat);
+      }
+    }
     function espilShowMapLoader(){
       var el=document.getElementById('loader'); if(!el)return;
       el.classList.remove('done'); el.classList.add('show');
@@ -2698,6 +2844,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(window.__espilStartLoaderPhysics)window.__espilStartLoaderPhysics();
       if(espilLoaderIv)clearInterval(espilLoaderIv);
       espilLoaderIv=setInterval(function(){
+        if(!espilDistrictBuilt)loadEspilDistrict();
         window.__espilCityProgress01=espilCityProgress();
         if(espilCitySettled())window.__espilCitySettledFlag=true;
       },120);
@@ -2812,7 +2959,24 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       }
       if(!best)return false;
       var F=best.F;
-      p._espilClimb={nx:F.nx,nz:F.nz,axis:F.axis,plane:F.plane,lo:F.lo,hi:F.hi,base:base,top:best.eTop,h:0};
+      /* Widen the face span across coplanar seams: the stored-map
+         strips segment one real wall into many boxes, and the climb
+         must travel the whole wall, not one strip. */
+      var wLo=F.lo,wHi=F.hi,widened=true,guard=0;
+      while(widened&&guard++<24){
+        widened=false;
+        for(var wi=0;wi<list.length;wi++){
+          var wc=list[wi];
+          var wTop=off+wc.top;
+          if(Math.abs(wTop-best.eTop)>.15)continue;
+          var wPlane=(F.axis==='x')?((F.nx<0)?wc.x0:wc.x1):((F.nz<0)?wc.z0:wc.z1);
+          if(Math.abs(wPlane-F.plane)>.03)continue;
+          var wlo=(F.axis==='x')?wc.z0:wc.x0, whi=(F.axis==='x')?wc.z1:wc.x1;
+          if(wlo<wLo+.01&&whi>wLo-2.3){wLo=wlo;widened=true;}
+          if(whi>wHi-.01&&wlo<wHi+2.3){wHi=whi;widened=true;}
+        }
+      }
+      p._espilClimb={nx:F.nx,nz:F.nz,axis:F.axis,plane:F.plane,lo:wLo,hi:wHi,base:base,top:best.eTop,h:0};
       if(F.axis==='x')p.pos.x=F.plane+F.nx*(PLAYER_R+.02); else p.pos.z=F.plane+F.nz*(PLAYER_R+.02);
       return true;
     }
@@ -2838,7 +3002,11 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       var mx=fx*(-iz)+rx*ix, mz=fz*(-iz)+rz*ix;
       var cl=p._espilClimb;
       if(!cl){
-        if(p.onGround&&!p.swimming&&!p._espilDescend&&(ix||iz))espilTryAttachClimb(p,mx,mz);
+        /* Han 2026-10-16: climbing starts ONLY from airborne wall
+           contact - jump or fall into a wall while pressing toward
+           it. Grounded walk-in contact just blocks (collideCircleAxis
+           handles it); the old grounded grapple is discarded. */
+        if(!p.onGround&&!p.swimming&&!p._espilDescend&&(ix||iz))espilTryAttachClimb(p,mx,mz);
         return;
       }
       if(walkKeys[' ']){
@@ -3556,6 +3724,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(mapBuilt)return;mapBuilt=true;
       /* #8: Start loading OSM real building data */
       if(typeof loadOsmChunks==='function')loadOsmChunks();
+      if(typeof loadEspilDistrict==='function')loadEspilDistrict(); /* ESPIL DISTRICT BUILD */
       /* Han 2026-10-10 rebuild: Build OSM city when data ready */
       var osmBuildTimer=setInterval(function(){
         if(typeof osmChunks!=='undefined'&&osmChunks&&typeof buildOsmCity==='function'){
@@ -4738,9 +4907,15 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           /* Skip tiny sheds */
           if(bw<3||bd<3)continue;
           var col=palette[(i*7)%palette.length];
-          items.push({x:bx,z:bz,w:bw,d:bd,h:bh,color:col});
-          /* Collider */
-          walkColliders.push({x0:bx-bw/2,x1:bx+bw/2,z0:bz-bd/2,z1:bz+bd/2,bottom:0,top:bh});
+          /* ESPIL DISTRICT BUILD: ring buildings are drawn by the
+             polygon builder and collide via the stored collision
+             strips - no AABB instance or AABB collider for them. */
+          var espilRingB=Math.hypot(bx-19,bz+57)<=550&&!(Math.abs(bx)<140&&Math.abs(bz)<140);
+          if(!espilRingB){
+            items.push({x:bx,z:bz,w:bw,d:bd,h:bh,color:col});
+            /* Collider */
+            walkColliders.push({x0:bx-bw/2,x1:bx+bw/2,z0:bz-bd/2,z1:bz+bd/2,bottom:0,top:bh});
+          }
           /* Proximity */
           if(typeof mapBuildings!=='undefined'){
             mapBuildings.push({x:bx,z:bz,w:bw,d:bd,h:bh,name:null,osm:true});
