@@ -41,7 +41,8 @@ const KILLED = /[?&]tiles=off\b/.test(location.search) ||
   (() => { try { return localStorage.getItem('espil-tiles') === 'off'; } catch (e) { return false; } })();
 
 const state = window.__espilTilesState ||
-  (window.__espilTilesState = { active: false, ready: false, gated: false, streamedMB: 0, probe: null });
+  (window.__espilTilesState = { active: false, ready: false, gated: false, streamedMB: 0, probe: null,
+    failed: false, rendered: false, loadProgress: 0, settled: false });
 
 /* ---------- streamed-bytes metering ----------
    The prototype's counter read 0.0 MB in real runs: tile responses
@@ -367,6 +368,22 @@ function loop() {
   const cacheBytes = (tiles && tiles.lruCache && tiles.lruCache.cachedBytes) || 0;
   if (cacheBytes > streamedBytes) streamedBytes = cacheBytes;
   state.streamedMB = streamedBytes / 1048576;
+
+  /* Entry-settle signals for the game's map loading screen (Han
+     2026-10-16): failed / rendered / loadProgress / settled are how
+     the bridge knows the tile side of loading is done. settled means
+     the entry no longer needs to wait on tiles: they failed, they are
+     rendering, the device gate keeps them off, or the character is
+     far outside the gated area where nothing will stream. */
+  state.failed = failed;
+  if (tiles && tiles.stats) {
+    const st = tiles.stats;
+    const pend = st.queued + st.downloading + st.parsing;
+    if (st.loaded > 0) state.loadProgress = st.loaded / Math.max(1, st.loaded + pend);
+    if (state.active && st.loaded > 0) state.rendered = true;
+  }
+  state.settled = failed || !deviceAllowsTiles() || (state.active && state.rendered)
+    || (cs && !insideBoundary(cs.charX || 0, cs.charZ || 0, 1.25));
   if (++attrTick % 30 === 0) {
     try {
       const list = [];

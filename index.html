@@ -942,8 +942,204 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
   </style>
   <!-- Leaflet for 3-stage map (QA #7, 2026-10-09) -->
   <link rel="stylesheet" href="assets/leaflet/leaflet.css" />
+<style id="espil-map-loader-css">
+/* Standard water-glass loading screen (UI room component, han.espil.online
+   v4 + glass-plus) - applied to the MAP/TILE loading interval by the
+   ESPIL TILES BRIDGE (Han 2026-10-16). It starts hidden and is shown
+   only while the map loads; the bridge driver lives with the bridge. */
+    @property --p{syntax:"<number>"; inherits:true; initial-value:0}
+    #loader{
+      position:fixed; inset:0; z-index:200; display:flex; flex-direction:column;
+      align-items:center; justify-content:center; gap:22px;
+      /* Han 2026-10-15: richer gradients, stronger spherical reflections, and
+         slosh that grows with progress — --rock/--sway/--bob scale with --p,
+         so the liquid sloshes harder the closer loading gets to done. */
+      --rock:calc(1.1deg + var(--p,0) * .052deg);
+      --sway:calc(.7px + var(--p,0) * .045px);
+      --bob:calc(.6px + var(--p,0) * .02px);
+      background:
+        radial-gradient(340px 340px at 50% 42%, rgba(190,242,100,.09), rgba(190,242,100,0) 70%),
+        radial-gradient(ellipse at 50% 40%, #0d2030 0%, #050d16 70%, #02060b 100%);
+      overflow:hidden; transition:opacity .6s ease, visibility .6s;
+    }
+    #loader.done{opacity:0; visibility:hidden; pointer-events:none}
+    #loader .glass{
+      position:relative; width:98px; height:98px; border-radius:50%;
+      overflow:hidden; isolation:isolate;
+      background:
+        radial-gradient(circle at 32% 26%, rgba(255,255,255,.13), rgba(255,255,255,0) 56%),
+        linear-gradient(165deg, rgba(255,255,255,.06), rgba(255,255,255,0) 42%, rgba(120,200,255,.05) 78%, rgba(190,242,100,.06)),
+        rgba(240,238,233,.02);
+      border:none;
+      box-shadow:
+        inset 0 0 0 1px rgba(240,238,233,.16),
+        inset 0 10px 18px rgba(255,255,255,.07),
+        inset 0 -16px 24px rgba(0,0,0,.3),
+        inset 0 0 17px rgba(240,238,233,.07),
+        0 12px 30px rgba(0,0,0,.4);
+      filter:drop-shadow(0 16px 16px rgba(0,0,0,.35));
+      -webkit-backdrop-filter:blur(1px); backdrop-filter:blur(1px);
+    }
+    /* Spherical rim light (Han 2026-10-15): a thin ring whose brightness varies
+       around the circle, so the edge reads as curved glass catching light. */
+    #loader .glass::before{
+      content:""; position:absolute; inset:0; border-radius:50%; z-index:4; pointer-events:none;
+      background:conic-gradient(from 215deg, rgba(255,255,255,.4), rgba(255,255,255,.06) 20%, rgba(255,255,255,0) 38%, rgba(255,255,255,0) 74%, rgba(190,242,100,.16) 90%, rgba(255,255,255,.3));
+      -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+      mask:radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+    }
+    /* Bounce light pooled at the bottom inside of the glass. */
+    #loader .glass::after{
+      content:""; position:absolute; left:10%; right:10%; bottom:4px; height:18px; border-radius:50%; z-index:2; pointer-events:none;
+      background:radial-gradient(ellipse at 50% 100%, rgba(216,252,170,.22), rgba(216,252,170,0) 70%);
+    }
+    /* The liquid mass: everything wet lives in .slosh and rocks as one body,
+       pivoting low in the glass — the fill stays put, the liquid moves. */
+    #loader .slosh{
+      position:absolute; inset:-6px; z-index:1; /* oversized so a hard rock never pulls a corner clear of the glass */
+      transform-origin:50% 88%;
+      animation:espilSloshRock 3.4s ease-in-out infinite alternate;
+    }
+    @keyframes espilSloshRock{
+      from{transform:rotate(calc(var(--rock) * -1)) translateX(calc(var(--sway) * -1))}
+      to{transform:rotate(var(--rock)) translateX(var(--sway))}
+    }
+    #loader .water{
+      position:absolute; left:0; right:0; bottom:0; height:calc(var(--p,0)*1%);
+      background:
+        linear-gradient(100deg, rgba(255,255,255,.12), rgba(255,255,255,0) 36%, rgba(255,255,255,.07) 60%, rgba(255,255,255,0) 82%),
+        linear-gradient(180deg, rgba(236,255,178,.58), rgba(190,242,100,.5) 16%, rgba(134,239,120,.44) 36%, rgba(52,185,90,.48) 60%, rgba(21,128,61,.56) 82%, rgba(9,80,38,.68));
+      transition:height .12s linear; /* JS tick already eases; a long CSS transition makes the water trail the % counter */
+      z-index:1;
+    }
+    #loader .water::before{ /* caustic glow pooled at the bottom of the glass */
+      content:""; position:absolute; left:6%; right:6%; bottom:2px; height:34%;
+      background:radial-gradient(ellipse at 50% 100%, rgba(210,255,180,.28), rgba(210,255,180,0) 70%);
+    }
+    #loader .water::after{ /* a slow light streak travelling through the liquid */
+      content:""; position:absolute; inset:0;
+      background:linear-gradient(105deg, transparent 28%, rgba(255,255,255,.14) 45%, rgba(255,255,255,.03) 55%, transparent 68%);
+      background-size:260% 100%;
+      animation:espilStreakSlide 5.5s ease-in-out infinite alternate;
+    }
+    @keyframes espilStreakSlide{from{background-position:110% 0}to{background-position:-30% 0}}
+    /* The surface: an ellipse the light catches — reads as liquid in a round glass */
+    #loader .surface{
+      position:absolute; left:-4%; right:-4%; top:-7px; height:14px; border-radius:50%;
+      background:radial-gradient(ellipse at 50% 42%, rgba(236,255,205,.85), rgba(196,244,120,.34) 55%, rgba(196,244,120,0) 74%);
+      animation:espilSurfaceBob 1.7s ease-in-out infinite alternate;
+    }
+    @keyframes espilSurfaceBob{
+      from{transform:translateY(calc(var(--bob) * -1)) rotate(calc(var(--rock) * -.5))}
+      to{transform:translateY(var(--bob)) rotate(calc(var(--rock) * .5))}
+    }
+    #loader .wave{
+      position:absolute; left:0; top:-7px; width:200%; height:8px;
+      background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 14' preserveAspectRatio='none'%3E%3Cpath d='M0 8 Q 15 1 30 8 T 60 8 T 90 8 T 120 8 V14 H0 Z' fill='%23bef264' fill-opacity='0.42'/%3E%3C/svg%3E") repeat-x;
+      background-size:120px 8px;
+      animation:espilWaveMove1 2.6s linear infinite;
+    }
+    #loader .wave.back{top:-6px; opacity:.22; animation:espilWaveMove2 4.4s linear infinite}
+    #loader .wave.deep{top:-5px; opacity:.15; background-size:170px 10px; height:10px; animation:espilWaveMove3 7s linear infinite}
+    @keyframes espilWaveMove1{
+      0%{transform:translate(0,0)}
+      50%{transform:translate(-60px, calc(.9px + var(--p,0) * .028px))}
+      100%{transform:translate(-120px,0)}
+    }
+    @keyframes espilWaveMove2{
+      0%{transform:translate(-120px, calc(.8px + var(--p,0) * .02px))}
+      50%{transform:translate(-60px,-1px)}
+      100%{transform:translate(0, calc(.8px + var(--p,0) * .02px))}
+    }
+    @keyframes espilWaveMove3{
+      0%{transform:translate(0,0)}
+      50%{transform:translate(-85px, calc(1.2px + var(--p,0) * .03px))}
+      100%{transform:translate(-170px,0)}
+    }
+    /* Swirl: a slow rotating light-disc inside the liquid, clipped to the water's own box */
+    #loader .swirl{
+      position:absolute; left:0; right:0; bottom:0; height:calc(var(--p,0)*1%);
+      overflow:hidden; z-index:2; transition:height .12s linear; pointer-events:none;
+    }
+    #loader .swirl i{
+      position:absolute; left:50%; top:50%; width:220px; height:220px; margin:-110px 0 0 -110px;
+      border-radius:50%;
+      background:conic-gradient(from 0deg, transparent 0deg, rgba(255,244,150,.3) 40deg, transparent 95deg, rgba(255,255,255,.16) 165deg, transparent 215deg, rgba(190,242,100,.26) 300deg, transparent 345deg);
+      animation:espilSwirlSpin 6s linear infinite;
+    }
+    @keyframes espilSwirlSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+    #loader .bubble{
+      position:absolute; bottom:8px; border-radius:50%; z-index:3;
+      background:radial-gradient(circle at 32% 32%, rgba(255,255,255,.95), rgba(255,255,255,.15) 65%);
+      animation:espilBubbleRise 3.2s ease-in infinite;
+    }
+    #loader .bubble.b1{left:38%; width:5px; height:5px; animation-delay:0s}
+    #loader .bubble.b2{left:55%; width:3px; height:3px; animation-delay:1.1s}
+    #loader .bubble.b3{left:47%; width:6px; height:6px; animation-delay:2s}
+    #loader .bubble.b4{left:63%; width:4px; height:4px; animation-delay:.6s}
+    #loader .bubble.b5{left:29%; width:3.5px; height:3.5px; animation-delay:1.7s}
+    @keyframes espilBubbleRise{
+      0%{transform:translate(0,0); opacity:0}
+      12%{opacity:.85}
+      38%{transform:translate(calc(var(--sway) * -.8),-28px)}
+      62%{transform:translate(calc(var(--sway) * .75),-50px)}
+      88%{opacity:.7}
+      100%{transform:translate(calc(var(--sway) * -.35),-74px); opacity:0}
+    }
+    #loader .glass-shade{
+      position:absolute; inset:0; border-radius:50%; z-index:3; pointer-events:none;
+      box-shadow:inset -14px -12px 26px rgba(0,0,0,.24), inset 12px 14px 22px rgba(255,255,255,.06), inset 0 -22px 30px rgba(0,0,0,.16), inset -6px 4px 14px rgba(140,220,255,.05);
+    }
+    #loader .glass-shine{
+      position:absolute; inset:0; border-radius:50%; z-index:4; pointer-events:none;
+      background:
+        radial-gradient(64px 36px at 30% 15%, rgba(255,255,255,.55), rgba(255,255,255,0) 62%),
+        radial-gradient(26px 13px at 24% 11%, rgba(255,255,255,.5), rgba(255,255,255,0) 70%),
+        radial-gradient(100px 100px at 78% 88%, rgba(255,255,255,.13), rgba(255,255,255,0) 55%),
+        radial-gradient(76px 30px at 50% 97%, rgba(216,252,170,.18), rgba(216,252,170,0) 70%),
+        linear-gradient(115deg, transparent 30%, rgba(255,255,255,.13) 46%, rgba(255,255,255,.03) 54%, transparent 66%);
+      background-size:auto, auto, auto, auto, 260% 100%;
+      animation:espilSheenSweep 7s ease-in-out infinite alternate;
+    }
+    @keyframes espilSheenSweep{
+      from{background-position:0 0, 0 0, 0 0, 0 0, 115% 0}
+      to{background-position:0 0, 0 0, 0 0, 0 0, -35% 0}
+    }
+    #loader .pct{
+      position:absolute; inset:0; z-index:5; display:flex; align-items:center; justify-content:center;
+      font-family:"Manrope",sans-serif; font-weight:800; font-size:15px; color:rgba(255,255,255,.72);
+      text-shadow:0 1px 6px rgba(0,0,0,.3); letter-spacing:.01em;
+      filter:url(#espil-fisheye); /* Han 2026-10-14 edit #3: spherical warp */
+    }
+    #loader .pct small{font-size:8px; margin-left:1px; margin-top:4px}
+    #loader .loader-status{
+      position:relative; font-family:"Manrope",sans-serif; font-size:11px; font-weight:700;
+      letter-spacing:.26em; text-transform:uppercase; color:#f0eee9; opacity:.85; text-align:center;
+    }
+    body.loading{overflow:hidden}
+    @media (prefers-reduced-motion: reduce){
+      #loader .wave, #loader .bubble, #loader .swirl i, #loader .slosh, #loader .surface, #loader .water::after, #loader .glass-shine{animation:none}
+      #loader{transition:opacity .2s}
+    }
+#loader{display:none}
+#loader.show{display:flex}
+</style>
 </head>
 <body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs><filter id="espil-fisheye" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB"><feImage href="data:image/svg+xml;utf8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='100'%20height='100'%3E%3Cdefs%3E%3ClinearGradient%20id='gx'%20x1='0'%20y1='0'%20x2='1'%20y2='0'%3E%3Cstop%20offset='0'%20stop-color='rgb%280,128,0%29'/%3E%3Cstop%20offset='1'%20stop-color='rgb%28255,128,0%29'/%3E%3C/linearGradient%3E%3ClinearGradient%20id='gy'%20x1='0'%20y1='0'%20x2='0'%20y2='1'%3E%3Cstop%20offset='0'%20stop-color='rgb%28128,0,0%29'/%3E%3Cstop%20offset='1'%20stop-color='rgb%28128,255,0%29'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width='100'%20height='100'%20fill='url%28%23gx%29'/%3E%3Crect%20width='100'%20height='100'%20fill='url%28%23gy%29'%20opacity='0.55'/%3E%3C/svg%3E" x="0" y="0" width="100" height="100" preserveAspectRatio="none" result="map"/><feDisplacementMap in="SourceGraphic" in2="map" scale="10" xChannelSelector="R" yChannelSelector="G"/></filter></defs></svg>
+  <div id="loader" role="status" aria-label="Loading Espil Online">
+    <div class="glass" aria-hidden="true">
+      <div class="slosh">
+        <div class="water"><div class="surface"></div><div class="wave"></div><div class="wave back"></div><div class="wave deep"></div></div>
+        <div class="swirl"><i></i></div>
+        <span class="bubble b1"></span><span class="bubble b2"></span><span class="bubble b3"></span><span class="bubble b4"></span><span class="bubble b5"></span>
+      </div>
+      <div class="glass-shade"></div>
+      <div class="glass-shine"></div>
+      <div class="pct"><span id="loader-pct">0</span><small>%</small></div>
+    </div>
+    <div class="loader-status" id="loader-status">Opening the world</div>
+  </div>
   <div class="intro" id="intro" role="button" tabindex="0" aria-label="Enter Espil Online">
     <canvas class="intro-stars" id="intro-stars" aria-hidden="true"></canvas>
     <div class="intro-logo" id="intro-logo" aria-label="Espil Online">
@@ -2381,6 +2577,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       document.body.classList.add('espil-ui-pre');
       p.pos.x=tx; p.pos.z=tz;
       var base=espilTileBase(tx,tz);
+      if(base===null)base=espilOwnSurfaceY(tx,tz); /* own-city surface (tiles shelved) */
       p._espilDescend={surf:base,probeAt:0,startedAt:performance.now()};
       p.pos.y=(base!==null?base:0)+160;
       p.velY=0; p.onGround=false;
@@ -2391,7 +2588,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     function espilDescentStep(p,dt){
       var d=p._espilDescend; if(!d)return;
       var now=performance.now();
-      if(now-d.probeAt>150){ d.probeAt=now; var y=espilTileBase(p.pos.x,p.pos.z); if(y!==null)d.surf=y; }
+      if(now-d.probeAt>150){ d.probeAt=now; var y=espilTileBase(p.pos.x,p.pos.z); if(y===null)y=espilOwnSurfaceY(p.pos.x,p.pos.z); if(y!==null)d.surf=y; }
       if((d.surf===null||d.surf===undefined)&&now-d.startedAt>4000)d.surf=0; /* tiles unavailable: land on the flat frame */
       var ground=(d.surf!==null&&d.surf!==undefined)?d.surf:0;
       var h=p.pos.y-ground;
@@ -2418,14 +2615,106 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         espilUiRise();
       }
     }
+    /* --- map loading screen (Han 2026-10-16): the standard water-
+       glass loader covers the map loading interval. Sequence: the
+       loader shows at entry and closes at the moment the descent
+       starts, and the descent itself waits for own-city readiness -
+       so the loader and the sky descent never overlap, and the
+       descent never plays over an unbuilt city. Progress is driven
+       by measured signals only: the avatar being ready and the OSM
+       city build state. A 25 s hard cap keeps it from ever trapping
+       the player. (Han 2026-10-16: re-pointed from the shelved
+       tiles layer to the own city.) */
+    var espilEntrySpawn=null, espilLoaderShownAt=0, espilLoaderIv=null, espilLoaderShown=0;
+    /* Own-city readiness (Han 2026-10-16, self-replication pivot -
+       the shelved tiles layer plays no part in entry anymore): the
+       avatar is in, the OSM city build has run, and the procedural
+       chunk at the entry point exists. */
+    function espilCitySettled(){
+      if(!walkPlayer)return false;
+      if(!(walkPlayer.av&&walkPlayer.av.ready))return false;
+      if(typeof osmCityBuilt==='undefined'||!osmCityBuilt)return false;
+      if(espilEntrySpawn&&typeof chunkMap!=='undefined'&&chunkMap){
+        var k=Math.floor(espilEntrySpawn.x/CHUNK_SIZE)+','+Math.floor(espilEntrySpawn.z/CHUNK_SIZE);
+        /* The hand-built downtown core (|x|,|z| < 135) never appears
+           in chunkMap - generateChunk skips it by design; the core
+           counts as built (buildWalkMapOnce ran before entry). */
+        var inCore=Math.abs(espilEntrySpawn.x)<135&&Math.abs(espilEntrySpawn.z)<135;
+        if(!chunkMap[k]&&!inCore)return false;
+      }
+      return true;
+    }
+    function espilCityProgress(){
+      var f=0;
+      if(walkPlayer&&walkPlayer.av&&walkPlayer.av.ready)f+=.3;
+      if(typeof osmCityBuilt!=='undefined'&&osmCityBuilt)f+=.7;
+      else if(typeof osmChunks!=='undefined'&&osmChunks)f+=.35;
+      return Math.min(1,f);
+    }
+    /* The game's OWN ground law at a point: 0 plus the highest
+       building collider top whose footprint holds the point - the
+       same surfaces the walker stands on. Used by the descent now
+       that the tile probe is shelved. */
+    function espilOwnSurfaceY(x,z){
+      var best=0;
+      var scan=function(list){
+        if(!list)return;
+        for(var i=0;i<list.length;i++){
+          var c=list[i];
+          if(x>=c.x0&&x<=c.x1&&z>=c.z0&&z<=c.z1&&c.top>best)best=c.top;
+        }
+      };
+      scan(walkColliders);
+      if(typeof chunkColliders!=='undefined'&&chunkColliders){
+        var cx=Math.floor(x/CHUNK_SIZE),cz=Math.floor(z/CHUNK_SIZE);
+        for(var i=-1;i<=1;i++)for(var j=-1;j<=1;j++)scan(chunkColliders[(cx+i)+','+(cz+j)]);
+      }
+      return best;
+    }
+    function espilShowMapLoader(){
+      var el=document.getElementById('loader'); if(!el)return;
+      el.classList.remove('done'); el.classList.add('show');
+      espilLoaderShownAt=Date.now(); espilLoaderShown=0;
+      var pct=document.getElementById('loader-pct'), st=document.getElementById('loader-status');
+      if(espilLoaderIv)clearInterval(espilLoaderIv);
+      espilLoaderIv=setInterval(function(){
+        var target=10+Math.round(85*espilCityProgress());
+        if(espilCitySettled())target=100;
+        espilLoaderShown+=(target-espilLoaderShown)*.18;
+        if(target-espilLoaderShown<.5)espilLoaderShown=target;
+        el.style.setProperty('--p',espilLoaderShown);
+        if(pct)pct.textContent=Math.floor(espilLoaderShown);
+        if(st)st.textContent=espilLoaderShown<35?'Opening the map':(espilLoaderShown<65?'Pouring the water':(espilLoaderShown<90?'Building the city':'Setting the ground'));
+      },100);
+    }
+    function espilHideMapLoader(){
+      var el=document.getElementById('loader'); if(!el)return;
+      if(espilLoaderIv){ clearInterval(espilLoaderIv); espilLoaderIv=null; }
+      el.style.setProperty('--p',100);
+      var pct=document.getElementById('loader-pct'); if(pct)pct.textContent='100';
+      setTimeout(function(){ el.classList.add('done'); el.classList.remove('show'); },250);
+    }
+    function espilWatchLoaderSettle(){
+      var t0=Date.now();
+      (function w(){
+        if(espilCitySettled()&&Date.now()-espilLoaderShownAt>=800){ espilHideMapLoader(); return; }
+        if(Date.now()-t0>25000){ espilHideMapLoader(); return; }
+        setTimeout(w,250);
+      })();
+    }
     function espilEntryStart(){
       var p=walkPlayer; if(!p)return;
       var last=null; try{ last=loadLastPos(); }catch(e){}
       var target=null;
       if(last){
         /* Returning player INSIDE the downtown boundary: resume at the
-           saved spot, no descent (unchanged). */
-        if(espilInBoundary(last.x,last.z,1))return;
+           saved spot, no descent (unchanged). The loader still covers
+           the tile loading interval and closes on settle. */
+        if(espilInBoundary(last.x,last.z,1)){
+          espilEntrySpawn={x:last.x,z:last.z};
+          espilShowMapLoader(); espilWatchLoaderSettle();
+          return;
+        }
         /* Han 2026-10-15 (option B): a saved position OUTSIDE the
            boundary is treated as a fresh entry - resolve to the
            nearest boundary land point and re-run the full descent
@@ -2442,11 +2731,17 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       espilInjectStyle();
       document.body.classList.add('espil-ui-pre');
       p.pos.x=target.x; p.pos.z=target.z; p.pos.y=160;
+      espilEntrySpawn={x:target.x,z:target.z};
+      espilShowMapLoader();
       var tries=0;
       (function beginWhenReady(){
         if(!walkPlayer)return;
-        if(walkPlayer.av&&walkPlayer.av.ready){ espilBeginDescent(target.x,target.z); return; }
-        if(++tries>60){ espilBeginDescent(target.x,target.z); return; } /* ~12 s failsafe */
+        /* Han 2026-10-16: the descent starts only when the own
+           city is ready (avatar in, OSM city built, spawn chunk
+           present) - the loader closes on this same tick, so the
+           fall is the first thing seen. */
+        if(espilCitySettled()){ espilHideMapLoader(); espilBeginDescent(target.x,target.z); return; }
+        if(++tries>125){ espilHideMapLoader(); espilBeginDescent(target.x,target.z); return; } /* 25 s failsafe */
         setTimeout(beginWhenReady,200);
       })();
     }
@@ -4761,7 +5056,10 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       /* 5km city: load initial chunks around spawn. */
       if(walkPlayer)updateChunks(walkPlayer.pos.x,walkPlayer.pos.z);
       cityPhaseActive=true;
-      if(window.__espilCamState)window.__espilCamState.tilesRequested=true; /* ESPIL TILES BRIDGE */
+      /* ESPIL TILES BRIDGE - SHELVED (Han 2026-10-16): the tiles
+         layer is parked; it activates only on an explicit ?tiles=on
+         re-enable. The own city is the map now. */
+      if(window.__espilCamState)window.__espilCamState.tilesRequested=/[?&]tiles=on\b/.test(location.search);
       espilEntryStart(); /* ESPIL TILES BRIDGE: fresh entries arrive by sky descent */
       targetDistance=1.34; /* continue the entry dive (2026-10-06 QA #3) */
       citySky.visible=false;
