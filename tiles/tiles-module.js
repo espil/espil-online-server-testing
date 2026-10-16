@@ -106,6 +106,15 @@ function toastOnce(msg) {
   toastEl.style.display = 'block';
   setTimeout(() => { toastEl.style.display = 'none'; }, 4200);
 }
+/* Persistent plain-language status line (2026-10-15: tile state must
+   never fail silently - the player always sees whether the 3D tiles
+   are on, starting, or off and why, in ordinary words). */
+const statusEl = document.createElement('div');
+statusEl.style.cssText = 'position:fixed;left:50%;bottom:64px;transform:translateX(-50%);z-index:58;display:none;' +
+  'background:rgba(10,14,20,.78);color:#dfe9f2;padding:5px 12px;border-radius:9px;' +
+  'font:500 .76rem "Manrope",sans-serif;pointer-events:none;white-space:nowrap;';
+document.body.appendChild(statusEl);
+let failText = '';
 
 /* ---------- renderer / scene ---------- */
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -206,18 +215,25 @@ function failTiles(reason) {
   state.ready = false;
   canvas.style.display = 'none';
   attrBar.style.display = 'none';
-  toastOnce(reason || '3D tiles unavailable - showing the regular city.');
-  console.warn('[EspilTiles] OFF:', reason || 'load error');
+  const r = String(reason || '');
+  if (r.indexOf('no_token') >= 0) failText = '3D tiles are off: no map token on the local server.';
+  else if (r.indexOf('session') >= 0 || r.indexOf('handshake') >= 0) failText = '3D tiles are off: the map session could not start.';
+  else failText = '3D tiles are off: the map data could not be loaded.';
+  toastOnce('3D tiles unavailable - showing the regular city.');
+  console.warn('[EspilTiles] OFF:', r || 'load error');
 }
 async function buildTiles() {
   if (tilesBuilt || KILLED) return;
   tilesBuilt = true;
-  let session = null;
+  let session = null, sessionErr = 'session';
   try {
     const r = await fetch(SESSION_URL);
     if (r.ok) session = await r.json();
+    else {
+      try { const j = await r.json(); if (j && j.error) sessionErr = 'session ' + j.error; } catch (e) {}
+    }
   } catch (e) { /* handled below */ }
-  if (!session || !session.tilesetUrl) { failTiles(); return; }
+  if (!session || !session.tilesetUrl) { failTiles(sessionErr); return; }
   const key = new URL(session.tilesetUrl).searchParams.get('key');
   tiles = new TilesRenderer();
   tiles.rootURL = session.tilesetUrl;
@@ -349,6 +365,14 @@ function loop() {
     if (!deviceAllowsTiles()) { state.gated = true; return; }
     buildTiles();
   }
+  /* persistent status line (plain words, never silent) */
+  if (!cs.cityPhase) statusEl.style.display = 'none';
+  else if (failed) { statusEl.textContent = failText; statusEl.style.display = 'block'; }
+  else if (state.gated) { statusEl.textContent = '3D tiles are off on this device.'; statusEl.style.display = 'block'; }
+  else if (state.active) { statusEl.textContent = '3D tiles · ' + state.streamedMB.toFixed(1) + ' MB'; statusEl.style.display = 'block'; }
+  else if (want && !tilesBuilt) { statusEl.textContent = '3D tiles: starting...'; statusEl.style.display = 'block'; }
+  else if (want && tilesBuilt) { statusEl.textContent = '3D tiles: available in the downtown core.'; statusEl.style.display = 'block'; }
+  else statusEl.style.display = 'none';
   if (!tiles || failed) { state.active = false; return; }
 
   const inGate = insideBoundary(cs.px, cs.pz, gateOn ? 1.1 : 1.0);
