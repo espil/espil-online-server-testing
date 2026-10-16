@@ -2729,17 +2729,55 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       var i=cz*c.w+cx, pal=c.palette[c.cls[i]]||{};
       return {cls:pal.name||c.cls[i], walkable:!!pal.walkable, blocked:!!pal.blocked, swimmable:!!pal.swimmable, roofH:(c.roof[i]||0)/10};
     };
+    /* Texture-ready material registry (Han 2026-10-16): district
+       materials are created ONCE per archetype and referenced by the
+       merged meshes in two slots (wall / roof). Swapping a texture
+       later is a pure map change on a registry entry - geometry is
+       never rebuilt. Roof materials start on a 1x1 white placeholder
+       map so the slot (and its shader) exists from day one; the
+       baked vertex colors act as the tint layer under any future
+       map. Exposed for tooling as window.__espilDistrictMaterials. */
+    var espilDistrictMats=null;
+    var ESPIL_TILE={tower:[28.8,72],midrise:[21.6,42],lowrise:[18,18],warehouse:[14.4,9],house:[10.8,12]};
+    var ESPIL_ROOF_BASE={tower:0x4c4a48,midrise:0x5a4636,lowrise:0x8a6f4d,warehouse:0x55584e,house:0x7a5b40};
+    function espilDistrictMaterials(){
+      if(espilDistrictMats)return espilDistrictMats;
+      var wc=document.createElement('canvas'); wc.width=wc.height=1;
+      var wg2=wc.getContext('2d'); wg2.fillStyle='#ffffff'; wg2.fillRect(0,0,1,1);
+      var whiteTex=new THREE.CanvasTexture(wc);
+      var reg={};
+      for(var k in ESPIL_ROOF_BASE){
+        var tex=facadeTexture(k), tex2=tex.clone();
+        tex2.wrapS=THREE.RepeatWrapping; tex2.wrapT=THREE.RepeatWrapping; tex2.needsUpdate=true;
+        var wm=new THREE.MeshLambertMaterial({map:tex2,vertexColors:true,side:THREE.DoubleSide});
+        var rm=new THREE.MeshLambertMaterial({map:whiteTex,vertexColors:true,side:THREE.DoubleSide});
+        if(typeof curvePatch==='function'){curvePatch(wm);curvePatch(rm);}
+        reg[k]={wall:wm,roof:rm};
+      }
+      espilDistrictMats=reg; window.__espilDistrictMaterials=reg;
+      return reg;
+    }
     function espilBuildDistrictMeshes(){
       if(!espilDistrict||typeof mapScene==='undefined'||!mapScene)return;
+      var mats=espilDistrictMaterials();
       var palette=[0xd9b678,0xd4b183,0xcf9f6b,0xdbbd8a,0xd6a86f];
-      var roofCol={tower:0x4c4a48,midrise:0x5a4636,lowrise:0x8a6f4d,warehouse:0x55584e,house:0x7a5b40};
-      var wallAcc={}, roofAcc={pos:[],nor:[],col:[]};
-      function accFor(k){ if(!wallAcc[k])wallAcc[k]={pos:[],nor:[],col:[],uv:[]}; return wallAcc[k]; }
+      var wallAcc={}, roofAcc={};
+      function accFor(store,k){ if(!store[k])store[k]={pos:[],nor:[],col:[],uv:[]}; return store[k]; }
       function tri(acc,ax,ay,az,bx,by,bz,cx,cy,cz,nx,ny,nz,r,g,b,uvs){
         acc.pos.push(ax,ay,az,bx,by,bz,cx,cy,cz);
         acc.nor.push(nx,ny,nz,nx,ny,nz,nx,ny,nz);
         acc.col.push(r,g,b,r,g,b,r,g,b);
-        if(acc.uv&&uvs)acc.uv.push(uvs[0],uvs[1],uvs[2],uvs[3],uvs[4],uvs[5]);
+        acc.uv.push(uvs[0],uvs[1],uvs[2],uvs[3],uvs[4],uvs[5]);
+      }
+      function srcGeom(acc,geom,r,g,b){
+        var g2=geom.toNonIndexed(), pa=g2.getAttribute('position'), na=g2.getAttribute('normal');
+        for(var vi=0;vi<pa.count;vi++){
+          acc.pos.push(pa.getX(vi),pa.getY(vi),pa.getZ(vi));
+          acc.nor.push(na.getX(vi),na.getY(vi),na.getZ(vi));
+          acc.col.push(r,g,b);
+          acc.uv.push(pa.getX(vi)/10,pa.getZ(vi)/10); /* world-scale roof UV */
+        }
+        g2.dispose();
       }
       var blds=espilDistrict.buildings;
       for(var bi=0;bi<blds.length;bi++){
@@ -2754,22 +2792,25 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         for(var i1=0;i1<ring.length-1;i1++)area2+=ring[i1][0]*ring[i1+1][1]-ring[i1+1][0]*ring[i1][1];
         var area=Math.abs(area2)/2, bw=mxx-mnx, bd=mxz-mnz;
         var kind=h>=60?'tower':(h>=25?'midrise':(h>=12?'lowrise':(area>=300?'warehouse':'house')));
+        var tile=ESPIL_TILE[kind];
         var tint=new THREE.Color(palette[(bi*7)%palette.length]);
         var tv=.82+((bi*37)%20)/100;
         var wr=tint.r*tv*.55+.45*tv, wg=tint.g*tv*.55+.44*tv, wb=tint.b*tv*.55+.42*tv;
-        /* walls: one quad per polygon edge, facade UVs tiled ~25 m */
-        var acc=accFor(kind), cum=0;
+        /* walls: one quad per polygon edge, world-scale facade UVs */
+        var acc=accFor(wallAcc,kind), cum=0;
         for(var ei=0;ei<ring.length-1;ei++){
           var ax=ring[ei][0],az=ring[ei][1],bx2=ring[ei+1][0],bz2=ring[ei+1][1];
           var ex=bx2-ax,ez=bz2-az,el=Math.hypot(ex,ez); if(el<.01)continue;
           var mxp=(ax+bx2)/2-cx,mzp=(az+bz2)/2-cz,ml=Math.hypot(mxp,mzp)||1;
           var nx=mxp/ml,nz=mzp/ml;
-          var u0=cum/25,u1=(cum+el)/25; cum+=el;
-          tri(acc, ax,0,az, bx2,0,bz2, bx2,h,bz2, nx,0,nz, wr,wg,wb, [u0,0, u1,0, u1,1]);
-          tri(acc, ax,0,az, bx2,h,bz2, ax,h,az, nx,0,nz, wr,wg,wb, [u0,0, u1,1, u0,1]);
+          var u0=cum/tile[0],u1=(cum+el)/tile[0]; cum+=el;
+          var v1=h/tile[1];
+          tri(acc, ax,0,az, bx2,0,bz2, bx2,h,bz2, nx,0,nz, wr,wg,wb, [u0,0, u1,0, u1,v1]);
+          tri(acc, ax,0,az, bx2,h,bz2, ax,h,az, nx,0,nz, wr,wg,wb, [u0,0, u1,v1, u0,v1]);
         }
-        /* roof */
-        var rc=new THREE.Color(roofCol[kind]), rv=.9+((bi*29)%16)/100;
+        /* roof slot: cap + parapet + penthouse (flat) or hip (small) */
+        var racc=accFor(roofAcc,kind);
+        var rc=new THREE.Color(ESPIL_ROOF_BASE[kind]), rv=.9+((bi*29)%16)/100;
         var rr=rc.r*rv,rg=rc.g*rv,rb=rc.b*rv;
         var flatTop=(h>=12||area>=400);
         if(flatTop){
@@ -2777,34 +2818,30 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           for(var si=0;si<npt;si++){ var sp=ring[si]; if(si===0)shape.moveTo(sp[0],-sp[1]); else shape.lineTo(sp[0],-sp[1]); }
           shape.closePath();
           var sg=new THREE.ShapeGeometry(shape); sg.rotateX(-Math.PI/2); sg.translate(0,h,0);
-          var sp2=sg.toNonIndexed(), pa=sp2.getAttribute('position'), na=sp2.getAttribute('normal');
-          for(var vi=0;vi<pa.count;vi++){ roofAcc.pos.push(pa.getX(vi),pa.getY(vi),pa.getZ(vi)); roofAcc.nor.push(na.getX(vi),na.getY(vi),na.getZ(vi)); roofAcc.col.push(rr,rg,rb); }
-          sp2.dispose(); sg.dispose();
-          /* parapet rim */
+          srcGeom(racc,sg,rr,rg,rb); sg.dispose();
+          var pcum=0;
           for(var pi=0;pi<ring.length-1;pi++){
             var pax=ring[pi][0],paz=ring[pi][1],pbx=ring[pi+1][0],pbz=ring[pi+1][1];
+            var pel=Math.hypot(pbx-pax,pbz-paz); if(pel<.01)continue;
             var pmx=(pax+pbx)/2-cx,pmz=(paz+pbz)/2-cz,pl=Math.hypot(pmx,pmz)||1,pnx=pmx/pl,pnz=pmz/pl;
             var dr=rr*.72,dg=rg*.72,db=rb*.72;
-            tri(roofAcc, pax,h-.05,paz, pbx,h-.05,pbz, pbx,h+.5,pbz, pnx,0,pnz, dr,dg,db, null);
-            tri(roofAcc, pax,h-.05,paz, pbx,h+.5,pbz, pax,h+.5,paz, pnx,0,pnz, dr,dg,db, null);
+            var pu0=pcum/10,pu1=(pcum+pel)/10; pcum+=pel;
+            tri(racc, pax,h-.05,paz, pbx,h-.05,pbz, pbx,h+.5,pbz, pnx,0,pnz, dr,dg,db, [pu0,(h-.05)/10, pu1,(h-.05)/10, pu1,(h+.5)/10]);
+            tri(racc, pax,h-.05,paz, pbx,h+.5,pbz, pax,h+.5,paz, pnx,0,pnz, dr,dg,db, [pu0,(h-.05)/10, pu1,(h+.5)/10, pu0,(h+.5)/10]);
           }
-          /* rooftop penthouse on taller blocks */
           if(h>=25){
             var pw=Math.min(bw*.34,14), pd=Math.min(bd*.34,14), ph=2.3;
             var bg=new THREE.BoxGeometry(pw,ph,pd); bg.translate(cx,h+ph/2,cz);
-            var bp=bg.toNonIndexed(), bpa=bp.getAttribute('position'), bna=bp.getAttribute('normal');
-            for(var bvi=0;bvi<bpa.count;bvi++){ roofAcc.pos.push(bpa.getX(bvi),bpa.getY(bvi),bpa.getZ(bvi)); roofAcc.nor.push(bna.getX(bvi),bna.getY(bvi),bna.getZ(bvi)); roofAcc.col.push(rr*.85,rg*.85,rb*.85); }
-            bp.dispose(); bg.dispose();
+            srcGeom(racc,bg,rr*.85,rg*.85,rb*.85); bg.dispose();
           }
         }else{
-          /* shallow hip roof for houses / small lowrise */
           var apexH=h+Math.min(2.2,.28*Math.min(bw,bd));
           for(var hi2=0;hi2<ring.length-1;hi2++){
             var hax=ring[hi2][0],haz=ring[hi2][1],hbx=ring[hi2+1][0],hbz=ring[hi2+1][1];
             var ux=hbx-hax,uz=hbz-haz,vx=cx-hax,vz=cz-haz;
             var fnx=-(uz*(apexH-h))+0, fny=ux*vz-uz*vx, fnz=(ux*(apexH-h));
             var fnl=Math.hypot(fnx,fny,fnz)||1; fnx/=fnl; fny/=fnl; fnz/=fnl; if(fny<0){fnx*=-1;fny*=-1;fnz*=-1;}
-            tri(roofAcc, hax,h,haz, hbx,h,hbz, cx,apexH,cz, fnx,fny,fnz, rr,rg,rb, null);
+            tri(racc, hax,h,haz, hbx,h,hbz, cx,apexH,cz, fnx,fny,fnz, rr,rg,rb, [hax/10,haz/10, hbx/10,hbz/10, cx/10,cz/10]);
           }
         }
       }
@@ -2813,23 +2850,12 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         g.setAttribute('position',new THREE.Float32BufferAttribute(acc.pos,3));
         g.setAttribute('normal',new THREE.Float32BufferAttribute(acc.nor,3));
         g.setAttribute('color',new THREE.Float32BufferAttribute(acc.col,3));
-        if(acc.uv)g.setAttribute('uv',new THREE.Float32BufferAttribute(acc.uv,2));
+        g.setAttribute('uv',new THREE.Float32BufferAttribute(acc.uv,2));
         var m=new THREE.Mesh(g,mat); m.castShadow=true; m.receiveShadow=true; m.userData.espilDistrict=1;
         mapScene.add(m); return m;
       }
-      for(var kind2 in wallAcc){
-        if(!wallAcc[kind2].pos.length)continue;
-        var tex=facadeTexture(kind2);
-        var tex2=tex.clone(); tex2.wrapS=THREE.RepeatWrapping; tex2.needsUpdate=true;
-        var wmat=new THREE.MeshLambertMaterial({map:tex2,vertexColors:true,side:THREE.DoubleSide});
-        if(typeof curvePatch==='function')curvePatch(wmat);
-        finishMesh(wallAcc[kind2],wmat);
-      }
-      if(roofAcc.pos.length){
-        var rmat=new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide});
-        if(typeof curvePatch==='function')curvePatch(rmat);
-        finishMesh(roofAcc,rmat);
-      }
+      for(var kind2 in wallAcc){ if(wallAcc[kind2].pos.length)finishMesh(wallAcc[kind2],mats[kind2].wall); }
+      for(var kind3 in roofAcc){ if(roofAcc[kind3].pos.length)finishMesh(roofAcc[kind3],mats[kind3].roof); }
     }
     function espilShowMapLoader(){
       var el=document.getElementById('loader'); if(!el)return;
@@ -4910,7 +4936,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           /* ESPIL DISTRICT BUILD: ring buildings are drawn by the
              polygon builder and collide via the stored collision
              strips - no AABB instance or AABB collider for them. */
-          var espilRingB=Math.hypot(bx-19,bz+57)<=550&&!(Math.abs(bx)<140&&Math.abs(bz)<140);
+          var espilRingB=Math.hypot(bx-19,bz+57)<=1000&&!(Math.abs(bx)<140&&Math.abs(bz)<140); /* radius matches tools/extract_district.py (1000 m since the 2026-10-16 expansion) */
           if(!espilRingB){
             items.push({x:bx,z:bz,w:bw,d:bd,h:bh,color:col});
             /* Collider */

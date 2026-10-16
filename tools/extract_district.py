@@ -7,7 +7,7 @@ import json, math, os
 
 SRC = os.path.join(os.path.dirname(__file__), '..', 'game', 'assets', 'osm', 'vancouver_5km.json')
 OUT = os.path.join(os.path.dirname(__file__), '..', 'game', 'assets', 'osm', 'vancouver_district_sample.json')
-SX, SZ, R = 19.0, -57.0, 550.0
+SX, SZ, R = 19.0, -57.0, 1000.0  # expansion step 2026-10-16: 550 -> 1000 m (was the approved sample radius)
 M = 60.0  # bbox margin for roads/waters crossing the rim
 
 def centroid(p):
@@ -22,7 +22,7 @@ def touches(p):
 
 d = json.load(open(SRC))
 out = {
-    'meta': {'district': 'downtown core + first OSM ring (sample)', 'center': [SX, SZ], 'radius': R,
+    'meta': {'district': 'downtown core + OSM rings to 1000 m (expanded district)', 'center': [SX, SZ], 'radius': R,
              'source': 'vancouver_5km.json (OSM, polygon footprints)'},
     'buildings': [b for b in d['buildings'] if near(b['p'], R)],
     'roads': [r for r in d['roads'] if touches(r['p'])],

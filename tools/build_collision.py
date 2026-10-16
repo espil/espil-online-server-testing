@@ -25,7 +25,7 @@ PALETTE = [
     {'id': 7, 'name': 'medical_land',    'walkable': True,  'blocked': False, 'swimmable': False, 'buildable': True},
     {'id': 8, 'name': 'roof',            'walkable': False, 'blocked': True,  'swimmable': False, 'buildable': False},
 ]
-OX, OZ, CELL, W, H = -640.0, -640.0, 2.0, 640, 640
+OX, OZ, CELL, W, H = -1024.0, -1024.0, 2.0, 1024, 1024  # 2048 m grid for the 1000 m district
 LAND, WATER, ROAD, BUILDING = 5, 0, 3, 4
 
 cls = bytearray([LAND]) * (W * H)
