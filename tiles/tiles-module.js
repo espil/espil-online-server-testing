@@ -189,7 +189,12 @@ function sweepBend(now) {
 let boundaryPoly = null;
 fetch('tiles/downtown-boundary.json')
   .then((r) => r.json())
-  .then((j) => { boundaryPoly = j.polygon || j; })
+  .then((j) => {
+    /* The boundary file stores vertices as {lat,lng,x,z} objects;
+       the gate math wants [x,z] pairs - normalize at load. */
+    const raw = j.vertices || j.polygon || j;
+    boundaryPoly = (raw && raw.map) ? raw.map((v) => Array.isArray(v) ? v : [v.x, v.z]) : raw;
+  })
   .catch(() => { boundaryPoly = null; /* radius fallback below */ });
 function pointInPoly(x, z, poly) {
   let inside = false;

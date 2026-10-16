@@ -2283,7 +2283,12 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        boundary plays there; outside resolves to the nearest boundary
        land point; water is always nudged to land; no geo = downtown. --- */
     var espilBoundary=null;
-    try{ fetch('tiles/downtown-boundary.json').then(function(r){return r.json();}).then(function(j){espilBoundary=j.polygon||j;}).catch(function(){}); }catch(e){}
+    try{ fetch('tiles/downtown-boundary.json').then(function(r){return r.json();}).then(function(j){
+      /* The boundary file stores vertices as {lat,lng,x,z} objects;
+         the spawn/gate math wants [x,z] pairs - normalize at load. */
+      var raw=j.vertices||j.polygon||j;
+      espilBoundary=(raw&&raw.map)?raw.map(function(v){return Array.isArray(v)?v:[v.x,v.z];}):raw;
+    }).catch(function(){}); }catch(e){}
     function espilInBoundary(x,z,scale){
       if(!espilBoundary)return Math.hypot(x,z)<1500*(scale||1);
       var px=x/(scale||1),pz=z/(scale||1),inside=false,poly=espilBoundary;
@@ -2416,7 +2421,18 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     function espilEntryStart(){
       var p=walkPlayer; if(!p)return;
       var last=null; try{ last=loadLastPos(); }catch(e){}
-      if(last)return; /* returning player: no descent; the support logic grounds them */
+      if(last){
+        /* Returning player INSIDE the downtown boundary: resume at the
+           saved spot, no descent (unchanged). */
+        if(espilInBoundary(last.x,last.z,1))return;
+        /* Han 2026-10-15 (option B): a saved position OUTSIDE the
+           boundary is treated as a fresh entry - resolve to the
+           nearest boundary land point and re-run the full descent
+           (geolocation pre-prompt included) over it. */
+        var pt=espilResolveSpawn({x:last.x,z:last.z});
+        espilBeginDescent(pt.x,pt.z);
+        return;
+      }
       espilBeginDescent(p.pos.x,p.pos.z);
     }
     /* --- pin navigation (prototype rules, on the game's Leaflet map):
