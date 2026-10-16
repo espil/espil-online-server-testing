@@ -16,17 +16,41 @@ const http = require('http'), fs = require('fs'), path = require('path'), https 
 const ROOT = __dirname;
 const PORT = 8920, ASSET_ID = '2275207';
 const TTL = 45 * 60 * 1000, BUDGET = 40;
-let tokenSource = '';
-function loadToken() {
-  if (process.env.CESIUM_ION_TOKEN) { tokenSource = 'env var'; return process.env.CESIUM_ION_TOKEN.trim(); }
-  try { const m = fs.readFileSync(path.join(ROOT, '.env'), 'utf8').match(/^\s*CESIUM_ION_TOKEN\s*=\s*(\S+)\s*$/m); if (m) { tokenSource = './.env'; return m[1]; } } catch (e) {}
-  /* Reuse the prototype's local credential files if they are already on
-     this machine - no new setup needed (both are gitignored locals). */
-  try { const m = fs.readFileSync(path.join(ROOT, 'tiles-prototype', '.env'), 'utf8').match(/^\s*CESIUM_ION_TOKEN\s*=\s*(\S+)\s*$/m); if (m) { tokenSource = 'tiles-prototype/.env'; return m[1]; } } catch (e) {}
-  try { const m = fs.readFileSync(path.join(ROOT, 'tiles-prototype', 'token.local.js'), 'utf8').match(/CESIUM_ION_TOKEN\s*=\s*'([^']+)'/); if (m) { tokenSource = 'tiles-prototype/token.local.js'; return m[1]; } } catch (e) {}
-  return '';
+/* Token sources, in priority order. A token can be PRESENT but stale
+   (Cesium ion answers 401), so at startup every source found is
+   fingerprinted (hash only - the value is never printed), mismatches
+   are warned about, and the chosen token is self-checked once
+   against the ion endpoint so a bad token fails HERE, in plain
+   words, instead of silently in the game. */
+const crypto = require('crypto');
+const fp = (v) => crypto.createHash('sha256').update(v).digest('hex').slice(0, 8);
+function readEnvFile(p) { try { const m = fs.readFileSync(p, 'utf8').match(/^\s*CESIUM_ION_TOKEN\s*=\s*(\S+)\s*$/m); return m ? m[1] : null; } catch (e) { return null; } }
+function readTokenJs(p) { try { const m = fs.readFileSync(p, 'utf8').match(/CESIUM_ION_TOKEN\s*=\s*'([^']+)'/); return m ? m[1] : null; } catch (e) { return null; } }
+const tokenCandidates = [];
+if (process.env.CESIUM_ION_TOKEN) tokenCandidates.push({ source: 'env var CESIUM_ION_TOKEN', value: process.env.CESIUM_ION_TOKEN.trim() });
+{ const v = readEnvFile(path.join(ROOT, '.env')); if (v) tokenCandidates.push({ source: './.env', value: v }); }
+{ const v = readEnvFile(path.join(ROOT, 'tiles-prototype', '.env')); if (v) tokenCandidates.push({ source: 'tiles-prototype/.env', value: v }); }
+{ const v = readTokenJs(path.join(ROOT, 'tiles-prototype', 'token.local.js')); if (v) tokenCandidates.push({ source: 'tiles-prototype/token.local.js', value: v }); }
+const TOKEN = tokenCandidates.length ? tokenCandidates[0].value : '';
+const tokenSource = tokenCandidates.length ? tokenCandidates[0].source : '';
+function tokenReport() {
+  if (!tokenCandidates.length) return 'ion token: NOT set (no source found)';
+  const lines = tokenCandidates.map((c, i) => `  ${i === 0 ? '-> using' : '   found'} ${c.source} (fingerprint ${fp(c.value)})`);
+  const distinct = new Set(tokenCandidates.map((c) => fp(c.value)));
+  let warn = '';
+  if (distinct.size > 1) warn = '\n  WARNING: the token files do NOT all hold the same token. The first one wins. If the game reports a session failure (ion 401), a stale token in an earlier file is the likely cause - keep the token in exactly ONE file.';
+  return `ion token: set, from ${tokenSource} (fingerprint ${fp(TOKEN)})\n${lines.join('\n')}${warn}`;
 }
-const TOKEN = loadToken();
+function selfCheck() {
+  if (!TOKEN) return;
+  const req = https.request({ hostname: 'api.cesium.com', path: `/v1/assets/${ASSET_ID}/endpoint`, method: 'GET', headers: { Authorization: `Bearer ${TOKEN}` } }, (res) => {
+    res.resume();
+    if (res.statusCode === 200) console.log('[tiles-session] self-check: ion accepted the token (HTTP 200). Sessions will work.');
+    else console.log(`[tiles-session] self-check: ion REJECTED the token (HTTP ${res.statusCode}). The token in ${tokenSource} is not valid for this asset - issue a fresh token in the ion console and keep it in exactly one file.`);
+  });
+  req.on('error', (e) => console.log('[tiles-session] self-check could not reach ion:', e.message));
+  req.end();
+}
 let cache = null, day = new Date().toDateString(), used = 0;
 function fetchIon() {
   return new Promise((resolve, reject) => {
@@ -66,4 +90,4 @@ http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' });
     res.end(data);
   });
-}).listen(PORT, () => console.log(`integrated build local server: http://localhost:${PORT}/vancouver (ion token: ${TOKEN ? 'set, from ' + tokenSource : 'NOT set - see ./.env'})`));
+}).listen(PORT, () => { console.log(`integrated build local server: http://localhost:${PORT}/vancouver\n${tokenReport()}`); selfCheck(); });
