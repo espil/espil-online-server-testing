@@ -4957,7 +4957,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           /* ESPIL DISTRICT BUILD: ring buildings are drawn by the
              polygon builder and collide via the stored collision
              strips - no AABB instance or AABB collider for them. */
-          var espilRingB=Math.hypot(bx-19,bz+57)<=1000&&!(Math.abs(bx)<140&&Math.abs(bz)<140); /* radius matches tools/extract_district.py (1000 m since the 2026-10-16 expansion) */
+          var espilRingB=Math.hypot(bx-19,bz+57)<=2000&&!(Math.abs(bx)<140&&Math.abs(bz)<140); /* radius matches tools/extract_district.py (2000 m since the 2026-10-16 expansion) */
           if(!espilRingB){
             items.push({x:bx,z:bz,w:bw,d:bd,h:bh,color:col});
             /* Collider */
