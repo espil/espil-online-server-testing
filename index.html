@@ -3132,23 +3132,21 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
               new THREE.GLTFLoader().load('tiles/male_dive_land_2.glb',function(gltf){
                 var cs=gltf.animations||[]; if(!cs.length)return;
                 var full=cs[0],hipsTrack=null,ti,ii;
-                /* RETARGET (found in integration testing): the Meshy
-                   export names its bones plainly (Hips, Spine01, neck)
-                   while the game rig is Mixamo-prefixed (mixamorigHips,
-                   mixamorigSpine1, mixamorigNeck) - unrenamed, the clip's
-                   tracks bind to NOTHING and the actions play empty.
-                   Rename via the map, and keep only the Hips position
-                   track (pose lives in the quaternions; per-bone
-                   positions are bind offsets the rig already has - the
-                   same shape as the working male_walk_casual clip). */
-                var NAME_MAP={Hips:'mixamorigHips',Spine:'mixamorigSpine',Spine01:'mixamorigSpine1',Spine02:'mixamorigSpine2',neck:'mixamorigNeck',Head:'mixamorigHead',LeftShoulder:'mixamorigLeftShoulder',LeftArm:'mixamorigLeftArm',LeftForeArm:'mixamorigLeftForeArm',LeftHand:'mixamorigLeftHand',RightShoulder:'mixamorigRightShoulder',RightArm:'mixamorigRightArm',RightForeArm:'mixamorigRightForeArm',RightHand:'mixamorigRightHand',LeftUpLeg:'mixamorigLeftUpLeg',LeftLeg:'mixamorigLeftLeg',LeftFoot:'mixamorigLeftFoot',LeftToeBase:'mixamorigLeftToeBase',RightUpLeg:'mixamorigRightUpLeg',RightLeg:'mixamorigRightLeg',RightFoot:'mixamorigRightFoot',RightToeBase:'mixamorigRightToeBase'};
+                /* 2026-10-16 (asset room verified retarget): this GLB is
+                   no longer the raw Meshy export - it was rebuilt on the
+                   game skeleton with world-space delta retargeting, so
+                   its tracks already carry game-rig names AND game-rig
+                   rotation axes (world-delta error 0.01-0.06 deg). The
+                   old NAME_MAP rename must NOT be applied: renaming the
+                   raw export had left rotations in the source rig's
+                   axes and the dive pose played broken (~100 deg avg,
+                   180 worst). Keep every rotation track plus the Hips
+                   position track; drop other position/scale tracks
+                   (per-bone positions are bind offsets the rig has). */
                 full.tracks=full.tracks.filter(function(t){
-                  var m=t.name.match(/^(.+)\.(position|quaternion|scale)$/);
-                  if(!m||!NAME_MAP[m[1]])return false;
-                  if(m[2]==='scale')return false;
-                  if(m[2]==='position'&&m[1]!=='Hips')return false;
-                  t.name=NAME_MAP[m[1]]+'.'+m[2];
-                  return true;
+                  if(/\.quaternion$/.test(t.name))return true;
+                  if(t.name==='mixamorigHips.position')return true;
+                  return false;
                 });
                 for(ti=0;ti<full.tracks.length;ti++){
                   if(full.tracks[ti].name==='mixamorigHips.position'){hipsTrack=full.tracks[ti];break;}
