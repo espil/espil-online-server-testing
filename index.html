@@ -2738,7 +2738,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        baked vertex colors act as the tint layer under any future
        map. Exposed for tooling as window.__espilDistrictMaterials. */
     var espilDistrictMats=null;
-    var ESPIL_TILE={tower:[28.8,72],midrise:[21.6,42],lowrise:[18,18],warehouse:[14.4,9],house:[10.8,12]};
+    var ESPIL_TILE={tower:[28.8,24],midrise:[21.6,24],lowrise:[18,24],warehouse:[14.4,12],house:[10.8,12]}; /* sized to the building_texture kit facades (tools/compose_facades.py) */
     var ESPIL_ROOF_BASE={tower:0x4c4a48,midrise:0x5a4636,lowrise:0x8a6f4d,warehouse:0x55584e,house:0x7a5b40};
     function espilDistrictMaterials(){
       if(espilDistrictMats)return espilDistrictMats;
@@ -2755,6 +2755,26 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         reg[k]={wall:wm,roof:rm};
       }
       espilDistrictMats=reg; window.__espilDistrictMaterials=reg;
+      /* Han 2026-10-16: the wall slots take the building_texture kit
+         facades (assets/facades/facade_<archetype>.png, composed by
+         tools/compose_facades.py from pixel_facades_100 - tower:
+         modern, midrise: art_deco, lowrise: limestone, warehouse:
+         warehouse, house: brownstone). This is the swap the registry
+         was built for: map only, no geometry is rebuilt. Until a
+         file lands (or if it fails) the canvas facade stays. The kit
+         has no roof textures, so the roof slots keep their
+         placeholder map + tint for now. */
+      try{
+        var kitLoader=new THREE.TextureLoader();
+        for(var kk in reg){ (function(entry){
+          kitLoader.load('assets/facades/facade_'+entry+'.png',function(tx){
+            tx.wrapS=THREE.RepeatWrapping; tx.wrapT=THREE.RepeatWrapping;
+            if('colorSpace' in tx)tx.colorSpace=THREE.SRGBColorSpace;
+            tx.needsUpdate=true;
+            reg[entry].wall.map=tx; reg[entry].wall.needsUpdate=true;
+          });
+        })(kk); }
+      }catch(e){ console.warn('[District] kit facade load skipped:',e); }
       return reg;
     }
     function espilBuildDistrictMeshes(){
@@ -2795,7 +2815,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         var tile=ESPIL_TILE[kind];
         var tint=new THREE.Color(palette[(bi*7)%palette.length]);
         var tv=.82+((bi*37)%20)/100;
-        var wr=tint.r*tv*.55+.45*tv, wg=tint.g*tv*.55+.44*tv, wb=tint.b*tv*.55+.42*tv;
+        var wr=tv, wg=tv*.995, wb=tv*.98; /* neutral tint: the kit facade colors read true; the sandy palette tint survives on the roof slot */
         /* walls: one quad per polygon edge, world-scale facade UVs */
         var acc=accFor(wallAcc,kind), cum=0;
         for(var ei=0;ei<ring.length-1;ei++){
@@ -2854,8 +2874,9 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         var m=new THREE.Mesh(g,mat); m.castShadow=true; m.receiveShadow=true; m.userData.espilDistrict=1;
         mapScene.add(m); return m;
       }
-      for(var kind2 in wallAcc){ if(wallAcc[kind2].pos.length)finishMesh(wallAcc[kind2],mats[kind2].wall); }
-      for(var kind3 in roofAcc){ if(roofAcc[kind3].pos.length)finishMesh(roofAcc[kind3],mats[kind3].roof); }
+      window.__espilDistrictMeshes=[];
+      for(var kind2 in wallAcc){ if(wallAcc[kind2].pos.length)window.__espilDistrictMeshes.push(finishMesh(wallAcc[kind2],mats[kind2].wall)); }
+      for(var kind3 in roofAcc){ if(roofAcc[kind3].pos.length)window.__espilDistrictMeshes.push(finishMesh(roofAcc[kind3],mats[kind3].roof)); }
     }
     function espilShowMapLoader(){
       var el=document.getElementById('loader'); if(!el)return;
