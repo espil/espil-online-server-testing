@@ -2450,6 +2450,106 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         setTimeout(beginWhenReady,200);
       })();
     }
+    /* --- wall climbing (Han 2026-10-15, approved draft): a slow
+       crawl up building walls. Walls are the game's own building
+       colliders (downtown list + nearby chunk lists); the tile layer
+       stays visual only. Walking into a wall attaches; ArrowUp climbs
+       at 1.0 m/s, ArrowLeft/Right move along the wall at 0.6 m/s,
+       ArrowDown slides down at 1.5 m/s; Space or pushing away from
+       the wall detaches; the top steps onto the roof. Colliders under
+       4 m tall or thinner than 1.5 m are not walls. The Meshy climb
+       clip wires in as the 'climb' action when the asset room
+       delivers it; the step prefers it automatically. --- */
+    function espilClimbCandidates(p){
+      var out=[];
+      for(var i=0;i<walkColliders.length;i++)out.push(walkColliders[i]);
+      var pcx=Math.floor(p.pos.x/CHUNK_SIZE),pcz=Math.floor(p.pos.z/CHUNK_SIZE);
+      for(var ox=-1;ox<=1;ox++)for(var oz=-1;oz<=1;oz++){
+        var arr=chunkColliders[(pcx+ox)+','+(pcz+oz)];
+        if(arr)for(var j=0;j<arr.length;j++)out.push(arr[j]);
+      }
+      return out;
+    }
+    function espilClimbTileOff(p){ return (p._tileBase!==null&&p._tileBase!==undefined)?(p._tileBase-.05):0; }
+    function espilTryAttachClimb(p,mx,mz){
+      var off=espilClimbTileOff(p), base=p.pos.y, list=espilClimbCandidates(p), best=null;
+      for(var i=0;i<list.length;i++){
+        var c=list[i];
+        if((c.x1-c.x0)<1.5||(c.z1-c.z0)<1.5)continue;
+        var eTop=off+c.top, eBot=off+c.bottom;
+        if(eTop-base<4)continue;
+        if(eBot>base+.8)continue;
+        var faces=[
+          {nx:-1,nz:0,plane:c.x0,axis:'x',lo:c.z0,hi:c.z1},
+          {nx:1,nz:0,plane:c.x1,axis:'x',lo:c.z0,hi:c.z1},
+          {nx:0,nz:-1,plane:c.z0,axis:'z',lo:c.x0,hi:c.x1},
+          {nx:0,nz:1,plane:c.z1,axis:'z',lo:c.x0,hi:c.x1}
+        ];
+        for(var f=0;f<4;f++){
+          var F=faces[f];
+          var along=(F.axis==='x')?p.pos.z:p.pos.x;
+          if(along<F.lo+.1||along>F.hi-.1)continue;
+          var d=(F.axis==='x')?(p.pos.x-F.plane)*F.nx:(p.pos.z-F.plane)*F.nz;
+          if(d<PLAYER_R-.05||d>PLAYER_R+.45)continue;
+          if(-(mx*F.nx+mz*F.nz)<.45)continue;
+          if(!best||d<best.d)best={F:F,d:d,eTop:eTop};
+        }
+      }
+      if(!best)return false;
+      var F=best.F;
+      p._espilClimb={nx:F.nx,nz:F.nz,axis:F.axis,plane:F.plane,lo:F.lo,hi:F.hi,base:base,top:best.eTop,h:0};
+      if(F.axis==='x')p.pos.x=F.plane+F.nx*(PLAYER_R+.02); else p.pos.z=F.plane+F.nz*(PLAYER_R+.02);
+      return true;
+    }
+    function espilClimbDetach(p,pop){
+      var cl=p._espilClimb; if(!cl)return;
+      p._espilClimb=null;
+      p.pos.x+=cl.nx*.35; p.pos.z+=cl.nz*.35;
+      p.velY=pop?7.5:0; p.onGround=false;
+    }
+    function espilClimbStep(p,dt){
+      var ix=0,iz=0;
+      if(walkKeys['arrowup'])iz-=1; if(walkKeys['arrowdown'])iz+=1;
+      if(walkKeys['arrowleft'])ix-=1; if(walkKeys['arrowright'])ix+=1;
+      if(window.__joyVec){ix+=window.__joyVec.x;iz+=window.__joyVec.y;}
+      var fx=-Math.sin(walkCamYaw),fz=-Math.cos(walkCamYaw);
+      var rx=-fz,rz=fx;
+      var mx=fx*(-iz)+rx*ix, mz=fz*(-iz)+rz*ix;
+      var cl=p._espilClimb;
+      if(!cl){
+        if(p.onGround&&!p.swimming&&!p._espilDescend&&(ix||iz))espilTryAttachClimb(p,mx,mz);
+        return;
+      }
+      if(walkKeys[' ']){ espilClimbDetach(p,true); return; }
+      /* Detach-away must not eat the slide-down input: with the camera
+         behind the character, ArrowDown points away from the wall AND
+         means slide. Away-detach therefore requires an up-input (the
+         camera is on the wall side and screen-up walks away) or a
+         near-pure sideways push away. */
+      var away=mx*cl.nx+mz*cl.nz;
+      if((away>.6&&iz<0)||(away>.8&&iz===0)){ espilClimbDetach(p,false); return; }
+      if(iz<0)cl.h+=1.0*dt; else if(iz>0)cl.h-=1.5*dt;
+      /* Screen-right mapped onto the wall: the tangent is the
+         character's right hand while facing into the wall. */
+      var txv=cl.nz, tzv=-cl.nx, side=mx*txv+mz*tzv;
+      if(side){
+        var along=(cl.axis==='x')?p.pos.z:p.pos.x;
+        along=Math.max(cl.lo+.3,Math.min(cl.hi-.3,along+side*0.6*dt));
+        if(cl.axis==='x')p.pos.z=along; else p.pos.x=along;
+      }
+      if(cl.base+cl.h>=cl.top-.25){
+        if(cl.axis==='x')p.pos.x=cl.plane-cl.nx*(PLAYER_R+.5); else p.pos.z=cl.plane-cl.nz*(PLAYER_R+.5);
+        p.pos.y=cl.top; p.velY=0; p.onGround=true; p._espilClimb=null;
+        return;
+      }
+      if(cl.h<=0&&iz>0){ p.pos.y=cl.base; p.velY=0; p.onGround=true; p._espilClimb=null; return; }
+      if(cl.h<0)cl.h=0;
+      p.pos.y=cl.base+cl.h;
+      p.velY=0; p.onGround=false; p.jumps=0;
+      p.faceY=Math.atan2(cl.nx,cl.nz);
+      p.moving=!!(ix||iz);
+      if(p.av&&p.av.ready&&p.av.actions.climb&&p.av.curAnim!=='climb')p.av.playAnim('climb');
+    }
     /* --- pin navigation (prototype rules, on the game's Leaflet map):
        on the LARGE stage a click drops a destination pin (water clicks
        nudged to land); a dashed guidance line + readout track it, an
@@ -3008,6 +3108,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           /* Male: replace built-ins with new versions, add new states */
           loadAnimClip('male_idle.glb','idle',true);
           loadAnimClip('male_walk.glb','walk',true); /* 2026-10-15 (Han feedback 2): the casual conversion corrupted bone rotations (asset room numeric audit) - replaced with the original rigged file's built-in Walking, extracted verbatim by the asset room */
+          loadAnimClip('male_climb.glb','climb',true); /* 2026-10-15 (Han feedback 6): Meshy 444 retargeted by the asset room (bones 23/23, world-delta retarget) */
           loadAnimClip('male_run_charge.glb','run',true);
           loadAnimClip('male_stop.glb','stop',false);
           loadAnimClip('male_swim.glb','swim',true);
@@ -5811,6 +5912,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(walkKeys['arrowright'])ix+=1;
       if(window.__joyVec){ix+=window.__joyVec.x;iz+=window.__joyVec.y;}
       if(p._espilLanding){ix=0;iz=0;} /* ESPIL TILES BRIDGE: the land clip owns input until it settles */
+      if(p._espilClimb){ix=0;iz=0;} /* ESPIL CLIMB: the climb step owns movement while attached */
       var il=Math.sqrt(ix*ix+iz*iz);
       if(il>1){ix/=il;iz/=il;}
       var fx=-Math.sin(walkCamYaw),fz=-Math.cos(walkCamYaw);
@@ -5867,6 +5969,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         p.pos.x+=cu.x-cu.px;p.pos.z+=cu.z-cu.pz;
       }
       if(p._espilDescend)espilDescentStep(p,dt); /* ESPIL TILES BRIDGE */
+      espilClimbStep(p,dt); /* ESPIL CLIMB */
       /* --- avatar pose --- */
       var g=p.av.group;
       g.position.copy(p.pos);
@@ -5880,7 +5983,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       g.rotation.y=p.faceY;
       /* Animation state machine: idle / walk / run / swim follow movement state.
          While a one-shot (jump, doubleJump, attack, etc.) is playing, don't override it. */
-      if(p.av.ready&&['jump','doubleJump','attack','stop','checkout','chat','dive','land'].indexOf(p.av.curAnim)<0){
+      if(p.av.ready&&['jump','doubleJump','attack','stop','checkout','chat','dive','land','climb'].indexOf(p.av.curAnim)<0){
         var wantAnim;
         if(p.swimming){
           wantAnim=!p.moving?'swimIdle':'swim';
