@@ -2941,6 +2941,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       return {x:19,z:-57};
     }
     function espilResolveSpawn(geo){
+      if(!espilCityCfg().core){ var sp=espilCityCfg().spawn; return {x:sp.x,z:sp.z}; } /* offset city: every fresh entry starts at its entry point (phase 1) */
       if(!geo)return {x:19,z:-57};
       if(espilInBoundary(geo.x,geo.z,1))return espilNudgeToLand(geo.x,geo.z);
       /* nearest point on the boundary polygon edges */
@@ -3069,6 +3070,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     function espilCitySettled(){
       if(!walkPlayer)return false;
       if(!(walkPlayer.av&&walkPlayer.av.ready))return false;
+      if(!espilCityCfg().core)return !!espilDistrictBuilt; /* offset city: avatar + its district only */
       if(typeof osmCityBuilt==='undefined'||!osmCityBuilt)return false;
       if(!espilDistrictBuilt)return false; /* ESPIL DISTRICT BUILD: stored collision map + polygons in */
       if(espilEntrySpawn&&typeof chunkMap!=='undefined'&&chunkMap){
@@ -3084,6 +3086,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     function espilCityProgress(){
       var f=0;
       if(walkPlayer&&walkPlayer.av&&walkPlayer.av.ready)f+=.3;
+      if(!espilCityCfg().core){ if(espilDistrictBuilt)f+=.7; return Math.min(1,f); }
       if(typeof osmCityBuilt!=='undefined'&&osmCityBuilt)f+=.35;
       else if(typeof osmChunks!=='undefined'&&osmChunks)f+=.17;
       if(espilDistrictBuilt)f+=.35;
@@ -3154,11 +3157,39 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(!espilStripHash)return null;
       return espilStripHash[Math.floor(x/ESPIL_STRIP_CELL)+','+Math.floor(z/ESPIL_STRIP_CELL)]||null;
     }
+    /* --- Playable cities (2026-10-16): Vancouver (origin) and the
+       Auckland Queen Street corridor, isolated at world offset
+       (10000, 0) - outside the chunk-generation radius and the
+       hand-built core, inside the 15 km world bound. One district
+       loads per page session; the landing sets window.__espilCityKey
+       at entry and a city switch reloads (see startCityEntry). --- */
+    var ESPIL_CITIES={
+      vancouver:{district:'assets/osm/vancouver_district_sample.json',collision:'assets/osm/vancouver_collision.json',ox:0,oz:0,core:true,spawn:{x:19,z:-57}},
+      auckland:{district:'assets/osm/auckland_district.json',collision:'assets/osm/auckland_collision.json',ox:10000,oz:0,core:false,spawn:{x:10302.9,z:-1001.9},bounds:{x0:9243,z0:-1595,x1:11024,z1:1080}}
+    };
+    function espilCityKey(){ var k=window.__espilCityKey||'vancouver'; return ESPIL_CITIES[k]?k:'vancouver'; }
+    function espilCityCfg(){ return ESPIL_CITIES[espilCityKey()]; }
+    /* Ground for offset cities (Auckland phase 1): a land plane under
+       the district plus a harbour plane north of the waterfront
+       street. Gameplay reads the stored collision map; these planes
+       are the visual surface only. */
+    function espilBuildCityGround(cfg){
+      if(typeof mapScene==='undefined'||!mapScene)return;
+      var gmat=new THREE.MeshLambertMaterial({color:0x707a63}); curvePatch(gmat);
+      var ground=new THREE.Mesh(new THREE.PlaneGeometry(2600,3200,32,32),gmat);
+      ground.rotation.x=-Math.PI/2; ground.position.set(cfg.ox+140,-0.02,cfg.oz-250);
+      ground.receiveShadow=true; ground.frustumCulled=false; mapScene.add(ground);
+      var wmat=new THREE.MeshLambertMaterial({color:0x2a6a9e,transparent:true,opacity:.92}); curvePatch(wmat);
+      var water=new THREE.Mesh(new THREE.PlaneGeometry(3600,1750,32,8),wmat);
+      water.rotation.x=-Math.PI/2; water.position.set(cfg.ox+140,0.02,cfg.oz-990-875);
+      water.receiveShadow=true; water.frustumCulled=false; mapScene.add(water);
+    }
     function loadEspilDistrict(){
       if(espilDistrict||espilDistrictLoading)return; espilDistrictLoading=true;
+      var cfg=espilCityCfg(); window.__espilLoadedCityKey=espilCityKey();
       Promise.all([
-        fetch('assets/osm/vancouver_district_sample.json').then(function(r){return r.json();}),
-        fetch('assets/osm/vancouver_collision.json').then(function(r){return r.json();})
+        fetch(cfg.district).then(function(r){return r.json();}),
+        fetch(cfg.collision).then(function(r){return r.json();})
       ]).then(function(res){
         espilDistrict=res[0]; espilCollision=res[1];
         espilCollision.cls=espilB64ToU8(espilCollision.classes_b64);
@@ -3167,12 +3198,13 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         espilStripHash={};
         for(var i=0;i<strips.length;i++){
           var st=strips[i];
-          if(espilInCoreSq(st[0],st[1]))continue; /* core keeps its hand-built colliders */
-          espilStripInsert({x0:st[0]-st[2],x1:st[0]+st[2],z0:st[1]-st[3],z1:st[1]+st[3],bottom:0,top:st[4],espilStrip:true});
+          if(cfg.core&&espilInCoreSq(st[0],st[1]))continue; /* core keeps its hand-built colliders */
+          espilStripInsert({x0:st[0]-st[2]+cfg.ox,x1:st[0]+st[2]+cfg.ox,z0:st[1]-st[3]+cfg.oz,z1:st[1]+st[3]+cfg.oz,bottom:0,top:st[4],espilStrip:true});
           nStrips++;
         }
         window.__espilStripCount=nStrips;
         espilBuildDistrictMeshes();
+        if(!cfg.core)espilBuildCityGround(cfg);
         espilDistrictBuilt=true;
         console.log('[District] sample built: '+espilDistrict.buildings.length+' polygon buildings in file, '+nStrips+' stored collision strips registered');
       }).catch(function(e){ console.warn('[District] load failed, will retry:',e); espilDistrictLoading=false; });
@@ -3180,6 +3212,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     /* Probe the stored collision map (class + rules + roof height). */
     window.__espilCollisionProbe=function(x,z){
       if(!espilCollision||!espilCollision.cls)return null;
+      var cfg=espilCityCfg(); x-=cfg.ox; z-=cfg.oz;
       var c=espilCollision, cx=Math.floor((x-c.origin[0])/c.cell), cz=Math.floor((z-c.origin[1])/c.cell);
       if(cx<0||cz<0||cx>=c.w||cz>=c.h)return null;
       var i=cz*c.w+cx, pal=c.palette[c.cls[i]]||{};
@@ -3277,7 +3310,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         var npt=ring.length-((ring[0][0]===ring[ring.length-1][0]&&ring[0][1]===ring[ring.length-1][1])?1:0);
         cx/=npt; cz/=npt;
         if(b.w)continue; /* stands on water (>=50% footprint): not built (Han 2026-10-16) */
-        if(espilInCoreSq(cx,cz))continue; /* the hand-built core stays as-is in the sample */
+        if(espilCityCfg().core&&espilInCoreSq(cx,cz))continue; /* the hand-built core stays as-is in the sample */
         for(var i1=0;i1<ring.length-1;i1++)area2+=ring[i1][0]*ring[i1+1][1]-ring[i1+1][0]*ring[i1][1];
         var area=Math.abs(area2)/2, bw=mxx-mnx, bd=mxz-mnz;
         var kind=h>=60?'tower':(h>=25?'midrise':(h>=12?'lowrise':(area>=300?'warehouse':'house')));
@@ -3346,6 +3379,8 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       window.__espilDistrictMeshes=[];
       for(var kind2 in wallAcc){ if(wallAcc[kind2].pos.length)window.__espilDistrictMeshes.push(finishMesh(wallAcc[kind2],mats[kind2].wall)); }
       for(var kind3 in roofAcc){ if(roofAcc[kind3].pos.length)window.__espilDistrictMeshes.push(finishMesh(roofAcc[kind3],mats[kind3].roof)); }
+      var dcfg=espilCityCfg();
+      if(dcfg.ox||dcfg.oz)for(var dmi=0;dmi<window.__espilDistrictMeshes.length;dmi++)window.__espilDistrictMeshes[dmi].position.set(dcfg.ox,0,dcfg.oz);
     }
     function espilShowMapLoader(){
       var el=document.getElementById('loader'); if(!el)return;
@@ -3386,13 +3421,15 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     }
     function espilEntryStart(){
       var p=walkPlayer; if(!p)return;
+      var cfg=espilCityCfg();
       var last=null; try{ last=loadLastPos(); }catch(e){}
       var target=null;
       if(last){
         /* Returning player INSIDE the downtown boundary: resume at the
            saved spot, no descent (unchanged). The loader still covers
            the tile loading interval and closes on settle. */
-        if(espilInBoundary(last.x,last.z,1)){
+        var inside=cfg.core?espilInBoundary(last.x,last.z,1):(cfg.bounds&&last.x>=cfg.bounds.x0&&last.x<=cfg.bounds.x1&&last.z>=cfg.bounds.z0&&last.z<=cfg.bounds.z1);
+        if(inside){
           espilEntrySpawn={x:last.x,z:last.z};
           espilShowMapLoader(); espilWatchLoaderSettle();
           return;
@@ -3403,7 +3440,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
            (geolocation pre-prompt included) over it. */
         target=espilResolveSpawn({x:last.x,z:last.z});
       } else {
-        target={x:p.pos.x,z:p.pos.z};
+        target=cfg.core?{x:p.pos.x,z:p.pos.z}:{x:cfg.spawn.x,z:cfg.spawn.z};
       }
       /* Han 2026-10-15: on a cold first load the descent scene was
          over before the world had finished loading (the character and
@@ -4474,16 +4511,20 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       }
       var facadeMatCache={};
       function facadeMats(file,roofColor){
-        var key=file+'_'+roofColor;
+        var key='plain_'+roofColor;
         var fm=facadeMatCache[key];
         if(!fm){
-          var ftex=new THREE.TextureLoader().load('assets/props/facades/'+file);
-          var fside=new THREE.MeshLambertMaterial({map:ftex});
-          /* Han 2026-10-09: slight emissive so buildings are visible at night
+          /* Han 2026-10-16 (PC verdict on the merged build): building
+             TEXTURES REMOVED - walls render as palette tint only, no
+             map and no emissive map is loaded or applied on any
+             building path. The facade file list and pickFacade stay
+             in place as dormant texture-ready structure. */
+          var wallCol=new THREE.Color(roofColor); wallCol.lerp(new THREE.Color(0xffffff),.25);
+          var fside=new THREE.MeshLambertMaterial({color:wallCol});
+          /* slight flat emissive so buildings stay visible at night
              (placeholder until real window lights are implemented) */
-          fside.emissive=new THREE.Color(0x3a4552);
-          fside.emissiveMap=ftex;
-          fside.emissiveIntensity=0.8;
+          fside.emissive=new THREE.Color(0x2a3442);
+          fside.emissiveIntensity=.5;
           curvePatch(fside);
           var froof=curvedMat(roofColor);
           fm=[fside,fside,froof,froof,fside,fside]; /* +x,-x,+y,-y,+z,-z */
@@ -5528,8 +5569,11 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         if(items.length>0){
           var bgeo=new THREE.BoxGeometry(1,1,1);
           bgeo.translate(0,.5,0); /* pivot at base */
-          /* Han 2026-10-10: MeshBasicMaterial (unlit) — always visible */
-          var bmat=new THREE.MeshBasicMaterial({map:new THREE.TextureLoader().load('assets/sprites/city/facade_midrise.png?v=2')});
+          /* Han 2026-10-10: MeshBasicMaterial (unlit) — always visible.
+             Han 2026-10-16: the facade sprite map is REMOVED - chunk
+             buildings render as flat palette tints (instance colors),
+             no texture on any building path. */
+          var bmat=new THREE.MeshBasicMaterial({color:0xffffff});
           EspilFader.patchInstanced(bmat);
           var inst=new THREE.InstancedMesh(bgeo,bmat,items.length);
           EspilFader.attachInstanced(inst);
@@ -7451,12 +7495,15 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     var infoPanel=document.getElementById('city-info'),infoImg=document.getElementById('city-info-img'),
         infoName=document.getElementById('city-info-name'),infoPop=document.getElementById('city-info-pop'),
         infoBrands=document.getElementById('city-info-brands');
-    /* TESTING BUILD (2026-10-06, per Han): only Vancouver entry works. */
+    /* TESTING BUILD (2026-10-06, per Han): only Vancouver entry works.
+       2026-10-16 (Han): Auckland Queen Street corridor joins as the
+       second playable city - entry opens for playable cities only. */
     var VANCOUVER_ONLY=true;
+    function espilPlayableCity(name){return name==='Vancouver'||name==='Auckland';}
     function showCityInfo(marker){
       infoShown=true;approachSlow=false;
       var facts=cityFacts[marker.userData.name]||{pop:'—',brands:[],img:''};
-      var canEnter=!VANCOUVER_ONLY||marker.userData.name==='Vancouver';
+      var canEnter=espilPlayableCity(marker.userData.name);
       if(infoEnter){
         infoEnter.disabled=!canEnter;
         infoEnter.classList.toggle('is-disabled',!canEnter);
@@ -7588,7 +7635,15 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     }
     function startCityEntry(){
       if(!selected||entryActive||cityPhaseActive)return;
-      if(VANCOUVER_ONLY&&selected.userData.name!=='Vancouver')return;
+      if(!espilPlayableCity(selected.userData.name))return;
+      var newCityKey=selected.userData.name==='Auckland'?'auckland':'vancouver';
+      if(window.__espilLoadedCityKey&&window.__espilLoadedCityKey!==newCityKey){
+        /* One district per page load: switching cities reloads and
+           re-selects the target city on boot (phase 1, 2026-10-16). */
+        try{sessionStorage.setItem('espil_pending_city',selected.userData.name);}catch(e){}
+        location.reload(); return;
+      }
+      window.__espilCityKey=newCityKey;
       entryActive=true;entryTypedDone=false;entrySubShown=false;entryStartedAt=performance.now();
       clearZoomStages();
       if(window.EspilAudio&&window.EspilAudio.pop)window.EspilAudio.pop();
@@ -8000,6 +8055,30 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       intro.classList.add('leaving');
       setTimeout(function(){if(intro.parentNode)intro.parentNode.removeChild(intro);},2600);
     }
+    /* City switch reload (2026-10-16): after the reload startCityEntry
+       requests, re-select the pending city and click through its
+       ENTER button so the switch lands back at the entry sequence. */
+    (function(){
+      var name=null;
+      try{ name=sessionStorage.getItem('espil_pending_city'); if(name)sessionStorage.removeItem('espil_pending_city'); }catch(e){}
+      if(!name)return;
+      var tries=0;
+      (function poll(){
+        if(++tries>120)return;
+        if(typeof markers==='undefined'||!markers.length){ setTimeout(poll,250); return; }
+        var m=null;
+        for(var i=0;i<markers.length;i++){ if(markers[i].userData&&markers[i].userData.name===name){m=markers[i];break;} }
+        if(!m)return;
+        selectCity(m);
+        var et=0;
+        (function clickEnter(){
+          if(++et>160)return;
+          var info=document.getElementById('city-info'),btn=document.getElementById('city-info-enter');
+          if(info&&btn&&getComputedStyle(info).display!=='none'&&!btn.disabled){ btn.click(); return; }
+          setTimeout(clickEnter,250);
+        })();
+      })();
+    })();
     function boot(){
       if(!intro)return;
       /* #6 (Han 2nd QA): Path routing. /vancouver skips landing → direct map entry.
@@ -8019,10 +8098,21 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         window.__directCityEntry={city:'Vancouver',storePlaceId:storePlaceId};
         /* Skip intro — go straight to map flow */
         if(document.body)document.body.classList.add('direct-entry');
-        /* Auto-trigger after markers are ready */
-        setTimeout(function(){
+        /* Auto-trigger after markers are ready. The original was a
+           single 2.5 s shot: on a slow device or connection the
+           markers are not built yet by then and the entry never
+           happens at all (found in VM QA, 2026-10-16). Poll until
+           ready instead, up to ~60 s. */
+        (function directEntryAttempt(n){
           try{
-            if(typeof markers!=='undefined'&&markers.length>0){
+            /* A pending city switch (Auckland phase 1) owns the
+               selection on this load - do not fight it. The hook
+               consumes the flag, so polling simply resumes after. */
+            var pending=null;
+            try{pending=sessionStorage.getItem('espil_pending_city');}catch(e){}
+            var ee=document.getElementById('city-entry');
+            if(ee&&ee.getAttribute('aria-hidden')==='false')return; /* entry already started */
+            if(!pending&&typeof markers!=='undefined'&&markers.length>0){
               var van=null;
               for(var i=0;i<markers.length;i++){
                 if(markers[i].userData&&markers[i].userData.name==='Vancouver'){van=markers[i];break;}
@@ -8034,10 +8124,12 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
                   var btn=document.getElementById('city-info-enter');
                   if(btn&&!btn.classList.contains('is-disabled'))btn.click();
                 },800);
+                return;
               }
             }
           }catch(e){console.warn('Direct entry failed:',e);}
-        },2500);
+          if(n<120)setTimeout(function(){directEntryAttempt(n+1);},500);
+        })(0);
       }
       sizeStars();initStars();
       requestAnimationFrame(drawStars);
