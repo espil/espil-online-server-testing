@@ -209,6 +209,8 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     #city-clock { display:none; }
     #city-loading { display:none !important; }
     #loader .pct { display:none; }
+    /* Fallback bubbles stay hidden until real fill (Han re-check #9). */
+    #loader .bubble { opacity:clamp(0, calc((var(--p, 0) - 30) / 6), 1); }
     /* 2026-10-11 (Han QA): the landing city-selection readout must not cover the
        sign-in modal (z-20) once a city is selected. Hidden during the entry gates. */
     #city-status.gate-hidden { display:none !important; }
@@ -490,36 +492,66 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        text stays legible, Enter activates input. Local single-player only.
        Han 2026-10-13 #10: raised above the 3-row hotbar to fix overlap.
        (Re-applied 2026-10-14 after the working-copy overwrite.) ---- */
+    /* Han re-check 2026-10-17 #6: chat layout copied from cauldron-test -
+       bottom-left panel, channel header, log, always-visible input. */
     .chat-window {
-      position:fixed; z-index:30; left:14px; bottom:calc(196px + env(safe-area-inset-bottom));
-      width:min(320px,calc(100vw - 28px));
+      position:fixed; z-index:30; left:16px; bottom:calc(18px + env(safe-area-inset-bottom));
+      width:min(360px,24vw,calc(100vw - 32px));
+      border:2px solid rgba(255,221,140,.34); border-radius:14px;
+      background:rgba(8,8,12,.28); color:#fff4cf; padding:12px;
+      backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px);
+      box-shadow:0 12px 24px rgba(0,0,0,.2);
       font-family:"Manrope",sans-serif; pointer-events:none;
+    }
+    .chat-window.typing {
+      border-color:rgba(115,217,255,.72); background:rgba(8,10,18,.48);
+      box-shadow:0 0 0 2px rgba(115,217,255,.14),0 16px 30px rgba(0,0,0,.28);
+    }
+    .chat-window.is-expanded { width:min(520px,60vw,calc(100vw - 32px)); }
+    .chat-head { display:flex; gap:6px; margin-bottom:7px; }
+    .chat-channel {
+      border:1px solid rgba(255,221,140,.38); border-radius:999px; background:rgba(0,0,0,.22);
+      color:rgba(255,244,207,.72); font-size:11px; font-weight:950; padding:4px 9px;
+      pointer-events:auto; cursor:pointer; font-family:inherit;
+    }
+    .chat-channel.is-active { background:rgba(255,221,140,.18); color:#fff4cf; }
+    .chat-expand {
+      margin-left:auto; pointer-events:auto; cursor:pointer; width:24px; height:24px;
+      border:1px solid rgba(255,221,140,.38); border-radius:8px; background:rgba(0,0,0,.22);
+      color:#fff4cf; font:950 13px/1 "Manrope",sans-serif; display:grid; place-items:center;
+    }
+    @media (pointer:coarse) and (orientation:landscape) {
+      .chat-window { left:12px; bottom:calc(170px + env(safe-area-inset-bottom)); width:min(320px,calc(100vw - 24px)); }
     }
     /* Han 2026-10-16 #10: chat window copies the cauldron-test design -
        gold frame, cream text, message bubbles (placement unchanged). */
     .chat-log {
-      max-height:168px; overflow-y:auto; display:flex; flex-direction:column; gap:5px;
-      padding:9px; margin:0 0 6px; border-radius:14px;
-      background:rgba(8,8,12,.34); backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px);
-      border:2px solid rgba(255,221,140,.34);
-      box-shadow:0 12px 24px rgba(0,0,0,.2);
+      min-height:92px; max-height:168px; overflow-y:auto; display:flex; flex-direction:column; gap:5px;
+      padding:2px 0 7px; margin:0;
       font-size:.72rem; line-height:1.45; color:#fff4cf; text-shadow:0 1px 4px #000;
     }
-    .chat-log:empty { display:none; }
+    .chat-window.is-expanded .chat-log { max-height:260px; }
     .chat-msg {
+      display:grid; grid-template-columns:22px 1fr; column-gap:7px; align-items:start;
       padding:6px 8px; border-radius:10px;
       border:1px solid rgba(255,221,140,.22); background:rgba(0,0,0,.22);
     }
+    .chat-msg::before {
+      content:""; width:22px; height:22px; border-radius:50%; grid-row:1 / span 2;
+      background:rgba(115,217,255,.18);
+    }
+    .chat-msg .who { grid-column:2; }
+    .chat-msg .txt { grid-column:2; }
     .chat-msg .who { color:#ffe8a0; font-weight:800; }
-    .chat-msg.sys { color:rgba(255,244,207,.62); font-style:italic; border-color:transparent; background:transparent; }
+    .chat-msg.sys { display:block; color:rgba(255,244,207,.62); font-style:italic; border-color:transparent; background:transparent; }
+    .chat-msg.sys::before { display:none; }
     .chat-input {
-      display:none; width:100%; box-sizing:border-box; pointer-events:auto;
+      display:block; width:100%; box-sizing:border-box; pointer-events:auto;
       padding:8px; border-radius:8px;
       border:1px solid rgba(255,221,140,.4); background:rgba(0,0,0,.28); color:#fff4cf;
       font:600 .75rem "Manrope",sans-serif; outline:none;
     }
     .chat-input:focus { border-color:rgba(115,217,255,.72); box-shadow:0 0 0 2px rgba(115,217,255,.14); }
-    .chat-window.typing .chat-input { display:block; }
     /* Han 2026-10-16 #11: speech bubble over the character with the sent text. */
     #chat-bubble {
       position:fixed; z-index:56; transform:translate(-50%,-115%);
@@ -791,26 +823,42 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     #item-row { display:flex; gap:5px; }
     #move-row { display:grid; grid-template-columns:repeat(4, 44px); gap:5px; }
     .kb-menu { display:grid; grid-template-columns:repeat(2, 44px); gap:5px; }
-    /* Han 2026-10-16 #9: menu shortcut slots copy the cauldron-test
-       quick-slot design (square, gold frame, key cap). Skill/item slots
-       keep the living-tree theme. */
-    .kb-menu .move-slot {
+    /* Han re-check 2026-10-17 #5: the quickbar copies the cauldron-test
+       layout - bottom-right, 5-column grid of 42px square gold slots.
+       (The cauldron hotkey strip is display:none there, so it is not used.) */
+    #quickbar {
+      position:fixed; z-index:30; right:16px; bottom:calc(18px + env(safe-area-inset-bottom));
+      display:grid; grid-template-columns:repeat(5,42px); gap:6px; padding:7px;
+      border-radius:12px; background:rgba(8,8,12,.3);
+      border:2px solid rgba(255,221,140,.42);
+      backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px);
+      box-shadow:0 12px 24px rgba(0,0,0,.22);
+      font-family:"Manrope",sans-serif;
+    }
+    body:not(.in-map) #quickbar { display:none !important; }
+    #quickbar .kb-main, #quickbar .kb-menu, #quickbar .kb-row { display:contents; }
+    #quickbar .move-slot {
+      position:relative; width:42px; height:42px; display:block; padding:0;
       border-radius:8px; border:1px solid rgba(255,221,140,.45);
       background:rgba(0,0,0,.36); color:#fff2bf;
       box-shadow:inset 0 0 14px rgba(255,210,110,.14);
+      font-weight:950; text-shadow:0 2px 4px rgba(0,0,0,.9);
     }
-    /* Han 2026-10-16 #9: the cauldron-test hotkey strip - one pill line of
-       bindings above the hotbar, in-map only. */
-    .hotkey-strip {
-      position:fixed; left:50%; bottom:calc(128px + env(safe-area-inset-bottom));
-      transform:translateX(-50%); z-index:29; pointer-events:none;
-      padding:7px 12px; border:2px solid rgba(58,36,22,.7); border-radius:999px;
-      background:rgba(14,11,9,.56); color:#fff4cf;
-      font:900 12px/1.3 "Manrope",sans-serif; letter-spacing:.02em;
-      backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); white-space:nowrap;
+    #quickbar .move-slot .key {
+      position:absolute; left:4px; top:2px; transform:none;
+      font-size:9px; font-weight:950; color:rgba(255,244,207,.72); text-shadow:none;
     }
-    body:not(.in-map) .hotkey-strip { display:none !important; }
-    @media (pointer:coarse) { .hotkey-strip { display:none !important; } }
+    #quickbar .move-slot .sicon {
+      position:absolute; inset:0; display:grid; place-items:center; font-size:17px; line-height:1;
+    }
+    #quickbar .move-slot .sicon img { width:24px; height:24px; }
+    #quickbar .move-slot .mn {
+      position:absolute; right:4px; bottom:2px; font-size:8px; font-weight:700; color:#ffe8a0; letter-spacing:0;
+    }
+    #quickbar .move-slot.is-locked { opacity:.5; border-style:dashed; }
+    @media (pointer:coarse) {
+      #quickbar { grid-template-columns:repeat(5,38px); right:12px; }
+    }
     /* Mobile: keep pre-hotbar layout (not keyboard, not single-row hotbar). */
     @media (pointer:coarse) {
       .skill-bar { display:block; left:12px; right:auto; transform:none; bottom:calc(12px + env(safe-area-inset-bottom)); padding:0; }
@@ -1706,11 +1754,6 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           <div class="pct"><span id="hp-pct">100</span><small>%</small></div>
         </div>
       </div>
-      <div class="kb-main">
-        <!-- QA #13 (UI room, 2026-10-06): 1234 item bar. -->
-        <div class="kb-row" id="item-row" aria-label="Item slots"></div>
-        <div class="kb-row" id="move-row" aria-label="Attack moves"></div>
-      </div>
       <!-- Han 2026-10-14: MP glass potion flask (right of the slot grid). -->
       <div class="flask-wrap" id="mp-flask-wrap">
         <div class="flask mp" aria-hidden="true">
@@ -1723,9 +1766,15 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           <div class="pct"><span id="mp-pct">100</span><small>%</small></div>
         </div>
       </div>
-      <div class="kb-menu" id="kb-menu" aria-label="Menu shortcuts"></div>
     </div>
-    <div class="hotkey-strip" id="hotkey-strip" aria-hidden="true">ESC: Close &#183; Arrow Keys: Move &#183; QWER/ASDF: Skills &#183; 1234: Items &#183; Shift: Jump &#183; Space: Interact &#183; K: Skill Tree &#183; M: Map</div>
+    <section id="quickbar" aria-label="Quick slots">
+      <div class="kb-main">
+        <!-- QA #13 (UI room, 2026-10-06): 1234 item bar. -->
+        <div class="kb-row" id="item-row" aria-label="Item slots"></div>
+        <div class="kb-row" id="move-row" aria-label="Attack moves"></div>
+      </div>
+      <div class="kb-menu" id="kb-menu" aria-label="Menu shortcuts"></div>
+    </section>
     <!-- Han 2026-10-14: city name, once, big and front-center on entry. -->
     <div id="city-intro" aria-hidden="true"><div><span class="ci-name" id="city-intro-name">Vancouver</span><span class="ci-sub">ESPIL ONLINE</span></div></div>
     <!-- Han 2026-10-14: settings panel — city selection lives in Options. -->
@@ -1747,6 +1796,12 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
          Enter activates input. Local single-player only (server = real multiplayer). -->
     <div id="chat-bubble" aria-hidden="true"></div>
     <div class="chat-window" id="chat-window" aria-hidden="true" aria-label="Chat">
+      <div class="chat-head">
+        <button type="button" class="chat-channel is-active">채널</button>
+        <button type="button" class="chat-channel">동네</button>
+        <button type="button" class="chat-channel">파티</button>
+        <button type="button" class="chat-expand" id="chat-expand" aria-label="Expand chat">+</button>
+      </div>
       <div class="chat-log" id="chat-log" aria-live="polite"></div>
       <input class="chat-input" id="chat-input" type="text" maxlength="200"
              placeholder="Press Enter to chat…" autocomplete="off" aria-label="Chat message" />
@@ -3179,7 +3234,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           if(x>=c.x0&&x<=c.x1&&z>=c.z0&&z<=c.z1&&c.top>best)best=c.top;
         }
       };
-      scan(walkColliders);
+      if(!ESPIL_P1)scan(walkColliders); /* MAPBOX PHASE 1: collision authority is the prebuilt store alone */
       /* District strips (spatial hash): a query point within PLAYER_R
          of a strip's edge still belongs to that roof - the strips are
          1 m scanline rows, and an edge descent or spawn must resolve
@@ -3192,7 +3247,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         var ddx=x-qx, ddz=z-qz;
         if(ddx*ddx+ddz*ddz<=PLAYER_R*PLAYER_R&&sc2.top>best)best=sc2.top;
       }
-      if(typeof chunkColliders!=='undefined'&&chunkColliders){
+      if(!ESPIL_P1&&typeof chunkColliders!=='undefined'&&chunkColliders){
         var cx=Math.floor(x/CHUNK_SIZE),cz=Math.floor(z/CHUNK_SIZE);
         for(var i=-1;i<=1;i++)for(var j=-1;j<=1;j++)scan(chunkColliders[(cx+i)+','+(cz+j)]);
       }
@@ -3537,13 +3592,15 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        delivers it; the step prefers it automatically. --- */
     function espilClimbCandidates(p){
       var out=[];
-      for(var i=0;i<walkColliders.length;i++)out.push(walkColliders[i]);
+      if(!ESPIL_P1)for(var i=0;i<walkColliders.length;i++)out.push(walkColliders[i]); /* MAPBOX PHASE 1: store only */
       var csb=espilStripBucketAt(p.pos.x,p.pos.z);
       if(csb)for(var ci2=0;ci2<csb.length;ci2++)out.push(csb[ci2]);
+      if(!ESPIL_P1){
       var pcx=Math.floor(p.pos.x/CHUNK_SIZE),pcz=Math.floor(p.pos.z/CHUNK_SIZE);
       for(var ox=-1;ox<=1;ox++)for(var oz=-1;oz<=1;oz++){
         var arr=chunkColliders[(pcx+ox)+','+(pcz+oz)];
         if(arr)for(var j=0;j<arr.length;j++)out.push(arr[j]);
+      }
       }
       return out;
     }
@@ -3765,6 +3822,128 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       var on=!!st.active;
       if(on!==espilTilesApplied){ espilTilesApplied=on; espilTilesSweep(on); espilTilesSweepAt=now; }
       else if(on&&now-espilTilesSweepAt>1000){ espilTilesSweep(true); espilTilesSweepAt=now; }
+    }
+    /* ============ MAPBOX MAIN LINE - PHASE 1 (Han 2026-10-17) ============
+       Han's ruling: the main line is the Cauldron (Mapbox) way. In this
+       build the Three.js building layers (district polygons, chunk
+       instances, hand-built core) and the textured ground system
+       (satellite, roads, grass/cobble) are set to opacity 0 - present
+       but invisible, one switch (ESPIL_P1) restores them. The map is a
+       Mapbox GL layer under the WebGL canvas, camera-synced to the
+       character. Buildings on the map come from OUR OSM footprints and
+       heights (the same source file the collision store was built
+       from) as a flat fill-extrusion layer, so the visible height IS
+       the collision height. Collision, rooftops and climbing run on
+       the prebuilt store alone: walkColliders and chunkColliders are
+       bypassed at every query while ESPIL_P1 is on. The token comes
+       from local-config.js (window.__ESPIL_LOCAL_CONFIG__.MAPBOX_TOKEN)
+       and is never tracked; with no token, or if the map library or
+       style fails to load, a visible guidance banner is shown instead
+       of a silent skip. */
+    var ESPIL_P1=true;
+    var espilP1={map:null,ready:false,failed:null,hiddenApplied:false,initTried:false,bannerEl:null,mapEl:null};
+    var ESPIL_P1_ANCHORS={vancouver:{lat:49.2827,lng:-123.1207},auckland:{lat:-36.8523,lng:174.7635}};
+    function espilP1Anchor(){ return ESPIL_P1_ANCHORS[espilCityKey()]||ESPIL_P1_ANCHORS.vancouver; }
+    function espilP1LngLat(x,z){
+      var cfg=espilCityCfg(), a=espilP1Anchor();
+      var lx=x-(cfg.ox||0), lz=z-(cfg.oz||0);
+      return [a.lng+lx/(111320*Math.cos(a.lat*Math.PI/180)), a.lat-lz/111320];
+    }
+    function espilP1Banner(msg){
+      if(!espilP1.bannerEl){
+        var d=document.createElement('div'); d.id='espil-map-guidance';
+        d.style.cssText='position:fixed;left:50%;top:84px;transform:translateX(-50%);z-index:30;max-width:min(92vw,560px);background:rgba(16,20,26,.92);color:#f3e9d2;border:1px solid rgba(243,233,210,.45);border-radius:12px;padding:12px 16px;font-size:14px;line-height:1.5;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.45);';
+        document.body.appendChild(d); espilP1.bannerEl=d;
+      }
+      espilP1.bannerEl.textContent=msg; espilP1.bannerEl.style.display='';
+    }
+    function espilP1FadeMat(m){
+      if(!m)return;
+      var mats=Array.isArray(m)?m:[m];
+      for(var i=0;i<mats.length;i++){ var mt=mats[i]; if(!mt||mt.__espilP1Faded)continue; mt.__espilP1Faded=true; mt.transparent=true; mt.opacity=0; mt.depthWrite=false; }
+    }
+    function espilP1Hide(){
+      if(espilP1.hiddenApplied||!mapScene)return;
+      var dm=window.__espilDistrictMeshes||[];
+      for(var i=0;i<dm.length;i++)espilP1FadeMat(dm[i].material);
+      if(typeof mapSkyDome!=='undefined'&&mapSkyDome)mapSkyDome.visible=false; /* its lower hemisphere would paint over the map */
+      mapScene.traverse(function(o){
+        if(!o.isMesh)return;
+        var g=o.geometry, hide=false;
+        if(o.isInstancedMesh)hide=true; /* chunk city */
+        else if(g&&g.type==='BoxGeometry')hide=true; /* hand-built core + OSM AABB meshes */
+        else if(g&&g.type==='PlaneGeometry'){
+          var mt=Array.isArray(o.material)?o.material[0]:o.material;
+          var img=mt&&mt.map?mt.map.image:null;
+          var isCanvas=!!(img&&img.tagName==='CANVAS');
+          var w=(g.parameters&&g.parameters.width)||0;
+          if(!isCanvas&&(w>=400||(mt&&mt.map)))hide=true; /* satellite, roads, grass/cobble, base + city ground planes */
+        }
+        if(hide)espilP1FadeMat(o.material);
+      });
+      espilP1.hiddenApplied=true;
+    }
+    function espilP1BuildingsGeoJSON(){
+      var feats=[], a=espilP1Anchor();
+      var mLat=111320, mLng=111320*Math.cos(a.lat*Math.PI/180);
+      var blds=(typeof espilDistrict!=='undefined'&&espilDistrict&&espilDistrict.buildings)||[];
+      for(var i=0;i<blds.length;i++){
+        var b=blds[i]; if(!b||b.w||!b.p||b.p.length<3)continue;
+        var n=b.p.length-((b.p[0][0]===b.p[b.p.length-1][0]&&b.p[0][1]===b.p[b.p.length-1][1])?1:0);
+        if(n<3)continue;
+        var ring=[];
+        for(var j=0;j<n;j++)ring.push([a.lng+b.p[j][0]/mLng, a.lat-b.p[j][1]/mLat]);
+        ring.push([ring[0][0],ring[0][1]]);
+        feats.push({type:'Feature',properties:{h:b.h},geometry:{type:'Polygon',coordinates:[ring]}});
+      }
+      return {type:'FeatureCollection',features:feats};
+    }
+    function espilP1Init(){
+      if(espilP1.initTried)return; espilP1.initTried=true;
+      var cfg=window.__ESPIL_LOCAL_CONFIG__||{};
+      var token=cfg.MAPBOX_TOKEN||cfg.MAPBOX_ACCESS_TOKEN||'';
+      if(typeof mapboxgl==='undefined'){ espilP1.failed='lib'; espilP1Banner('Mapbox 지도 라이브러리를 불러오지 못했습니다. 네트워크 연결을 확인해 주십시오. 이동과 충돌은 사전 구축 저장소 기준으로 동작합니다.'); return; }
+      if(!token){ espilP1.failed='token'; espilP1Banner('Mapbox 토큰이 없어 지도를 표시하지 못했습니다. local-config.js에 MAPBOX_TOKEN을 넣어 주십시오. 이동과 충돌은 사전 구축 저장소 기준으로 동작합니다.'); return; }
+      mapboxgl.accessToken=token;
+      var el=document.createElement('div'); el.id='espil-mapbox';
+      el.style.cssText='position:absolute;inset:0;z-index:0;';
+      var cv=document.getElementById('globe-canvas');
+      if(cv&&cv.parentNode){ cv.parentNode.insertBefore(el,cv); cv.style.zIndex='1'; }
+      else document.body.appendChild(el);
+      espilP1.mapEl=el;
+      try{
+        espilP1.map=new mapboxgl.Map({container:el,style:'mapbox://styles/mapbox/streets-v12',center:espilP1LngLat(19,-57),zoom:17.3,pitch:52,bearing:0,attributionControl:false,interactive:false});
+      }catch(e){ espilP1.failed='init'; espilP1Banner('Mapbox 지도를 시작하지 못했습니다. 토큰을 확인해 주십시오.'); return; }
+      espilP1.map.on('load',function(){
+        espilP1.ready=true;
+        try{
+          espilP1.map.addSource('espil-buildings',{type:'geojson',data:espilP1BuildingsGeoJSON()});
+          espilP1.map.addLayer({id:'espil-buildings-3d',type:'fill-extrusion',source:'espil-buildings',paint:{'fill-extrusion-color':'#cfc4b0','fill-extrusion-height':['get','h'],'fill-extrusion-base':0,'fill-extrusion-opacity':1}});
+        }catch(e){}
+      });
+      espilP1.map.on('error',function(){
+        if(!espilP1.ready){ espilP1.failed='maperror'; espilP1Banner('Mapbox 지도를 불러오지 못했습니다. 토큰 거부이거나 스타일에 접근할 수 없는 상태입니다.'); }
+      });
+    }
+    function espilP1Tick(){
+      if(!ESPIL_P1)return;
+      var cs=window.__espilCamState;
+      if(!cs||!cs.cityPhase){
+        if(espilP1.mapEl)espilP1.mapEl.style.display='none';
+        if(espilP1.bannerEl)espilP1.bannerEl.style.display='none';
+        return;
+      }
+      if(espilP1.mapEl)espilP1.mapEl.style.display='';
+      if(espilP1.bannerEl&&espilP1.failed)espilP1.bannerEl.style.display='';
+      if(!espilP1.initTried)espilP1Init();
+      if(window.__espilDistrictMeshesBuilt&&typeof mapBuilt!=='undefined'&&mapBuilt)espilP1Hide();
+      if(typeof renderer!=='undefined'&&renderer)renderer.setClearColor(0x000000,0);
+      if(espilP1.map&&espilP1.ready&&typeof walkPlayer!=='undefined'&&walkPlayer){
+        var ll=espilP1LngLat(walkPlayer.pos.x,walkPlayer.pos.z);
+        var brg=-walkCamYaw*180/Math.PI;
+        var zoom=17.3-Math.log2(Math.max(4,walkCamDist)/14)*0.6;
+        try{ espilP1.map.jumpTo({center:ll,bearing:brg,pitch:52,zoom:zoom}); }catch(e){}
+      }
     }
     /* ============ ESPIL CHAT + SPEECH BUBBLE (2026-10-15, per Han:
        chat must work in the map and a text bubble must appear over
@@ -6790,6 +6969,10 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         else if(e.key==='Escape'){e.preventDefault();setChatTyping(false);}
       });
       chatInput.addEventListener('blur',function(){setChatTyping(false);});
+      var chips=chatWindow.querySelectorAll('.chat-channel');
+      Array.prototype.forEach.call(chips,function(c){ c.addEventListener('click',function(){ Array.prototype.forEach.call(chips,function(x){x.classList.remove('is-active');}); c.classList.add('is-active'); }); });
+      var expBtn=document.getElementById('chat-expand');
+      if(expBtn)expBtn.addEventListener('click',function(){ chatWindow.classList.toggle('is-expanded'); expBtn.textContent=chatWindow.classList.contains('is-expanded')?'\u2212':'+'; });
     }
     function setChatTyping(on){
       chatTyping=!!on;
@@ -6806,7 +6989,8 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(sys){d.textContent=text;}
       else{
         var w=document.createElement('span');w.className='who';w.textContent=who+': ';
-        d.appendChild(w);d.appendChild(document.createTextNode(text));
+        var t=document.createElement('span');t.className='txt';t.textContent=text;
+        d.appendChild(w);d.appendChild(t);
       }
       chatLog.appendChild(d);
       while(chatLog.children.length>50)chatLog.removeChild(chatLog.firstChild);
@@ -6902,7 +7086,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           kbm.appendChild(b);
         });
       }
-      ['map-status','skill-bar','chat-window'].forEach(function(id){
+      ['map-status','skill-bar','chat-window','quickbar'].forEach(function(id){
         var el=document.getElementById(id);
         if(el)el.setAttribute('aria-hidden','false');
       });
@@ -6912,7 +7096,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     function hideSkillHud(){
       skillTreeOpen=false;inventoryOpen=false;characterOpen=false;
       setChatTyping(false);
-      ['map-status','skill-bar','skill-tree','inventory-panel','character-panel','chat-window'].forEach(function(id){
+      ['map-status','skill-bar','skill-tree','inventory-panel','character-panel','chat-window','quickbar'].forEach(function(id){
         var el=document.getElementById(id);
         if(el)el.setAttribute('aria-hidden','true');
       });
@@ -7060,10 +7244,12 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     if(jumpBtn)jumpBtn.addEventListener('pointerdown',function(e){e.preventDefault();tryJump();});
     function collideCircleAxis(p,axis){
       var r=PLAYER_R;
-      /* Check downtown colliders + nearby chunk colliders (spatial hash) + cars. */
-      var lists=[walkColliders,carColliders];
+      /* Check downtown colliders + nearby chunk colliders (spatial hash) + cars.
+         MAPBOX PHASE 1 (ESPIL_P1): walk/chunk colliders are bypassed -
+         the prebuilt store strips below are the only building collision. */
+      var lists=ESPIL_P1?[carColliders]:[walkColliders,carColliders];
       var pcx=Math.floor(p.pos.x/CHUNK_SIZE),pcz=Math.floor(p.pos.z/CHUNK_SIZE);
-      for(var ox=-1;ox<=1;ox++)for(var oz=-1;oz<=1;oz++){
+      if(!ESPIL_P1)for(var ox=-1;ox<=1;ox++)for(var oz=-1;oz<=1;oz++){
         var key=(pcx+ox)+','+(pcz+oz);
         if(chunkColliders[key])lists.push(chunkColliders[key]);
       }
@@ -7151,7 +7337,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         if(Math.abs(p.pos.z-cz)>PLAYER_R||Math.abs(p.pos.x-cx)>PLAYER_R)return;
         if(c.top<=p.pos.y+.55&&c.top>support){support=c.top;supportCar=c.car||null;}
       }
-      for(var i=0;i<walkColliders.length;i++)considerSupport(walkColliders[i]);
+      if(!ESPIL_P1)for(var i=0;i<walkColliders.length;i++)considerSupport(walkColliders[i]); /* MAPBOX PHASE 1: store only */
       for(var ci=0;ci<carColliders.length;ci++)considerSupport(carColliders[ci]);
       var ssb=espilStripBucketAt(p.pos.x,p.pos.z);
       if(ssb)for(var si2=0;si2<ssb.length;si2++)considerSupport(ssb[si2]); /* district strips via spatial hash (self-city port) */
@@ -7186,15 +7372,15 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         if(p.swimming){
           wantAnim=!p.moving?'swimIdle':'swim';
         }else{
-          /* Han 2026-10-16 (PC feedback #18): movement plays the WALK
-             clip. p.running still drives the movement SPEED (his
-             2026-10-12 one-run-mode ruling stands until he revisits
-             it); only the animation selection changes. */
-          wantAnim=!p.moving?'idle':'walk';
+          /* Han 2026-10-17 (re-check #8): movement plays the RUN
+             clip again - the 2026-10-16 #18 walk selection is
+             reversed by his ruling. Speed stays the single run
+             mode (2026-10-12). */
+          wantAnim=!p.moving?'idle':'run';
         }
-        /* Fallback to idle/walk if swim clips not loaded yet */
+        /* Fallback to idle/run if swim clips not loaded yet */
         if((wantAnim==='swim'||wantAnim==='swimIdle')&&!p.av.actions[wantAnim]){
-          wantAnim=!p.moving?'idle':'walk';
+          wantAnim=!p.moving?'idle':'run';
         }
         p.av.playAnim(wantAnim);
       }
@@ -8015,7 +8201,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         /* Walkable downtown map owns the frame. */
         updateWalkMap(dt,nowMs/1000);
         if(walkPlayer)curvePlayer.set(walkPlayer.pos.x,walkPlayer.pos.z);
-        espilTilesCamPush(); espilTilesApplyMode(nowMs); /* ESPIL TILES BRIDGE: state publish (tiles shelved - mode stays off) */
+        espilTilesCamPush(); espilTilesApplyMode(nowMs); espilP1Tick(); /* ESPIL TILES BRIDGE: state publish (tiles shelved - mode stays off) + MAPBOX PHASE 1 tick */
         if(typeof EspilFader!=='undefined')EspilFader.tick(dt,mapCamera,walkPlayer);
         updateMapSky();
         updateProps();
@@ -8635,7 +8821,9 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(tick) clearInterval(tick);
       tick=setInterval(function(){
         measure();
-        var target=Math.max(real, Math.min(92, (Date.now()-start)/55)); /* time floor, capped until truly loaded */
+        /* Map mode follows the bridge's published progress exactly - no
+           time floor, so the glass cannot race ahead of the real load. */
+        var target=mapMode? real : Math.max(real, Math.min(92, (Date.now()-start)/55));
         if(ready()) target=100;
         shown+=(target-shown)*0.14; if(target-shown<0.4) shown=target;
         render();
@@ -8692,7 +8880,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     var h=[], v=[], i;
     for(i=0;i<N;i++){ h.push(0); v.push(0); }
     var drops=[], bubbles=[];
-    var baseY=H+4, phase=0, budget=0, last=performance.now(), prevDrive=0, speedSm=0, agit=0.7, agitTick=0, running=false;
+    var baseY=H+4, phase=0, budget=0, last=performance.now(), prevDrive=0, speedSm=0, agit=0.35, agitTick=0, running=false, fillP=0;
     function progress(){
       var p=parseFloat(loader.style.getPropertyValue('--p'));
       return isNaN(p)?0:Math.max(0,Math.min(100,p));
@@ -8701,7 +8889,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     function surfY(x){ return baseY+h[colAt(x)]; }
     function spawnDrop(x,y,vy,vx,r){
       if(drops.length>=60) return;
-      if(y>H-16) return; /* no liquid body yet: the glass starts empty (Han 2026-10-16 #0) */
+      if(y>H-16||fillP<18) return; /* nothing flies before a real body of liquid (Han 2026-10-16 #0, re-check #9) */
       drops.push({x:x,y:y,vy:vy,vx:vx,r:r});
     }
     function frame(now){
@@ -8709,7 +8897,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       var dt=(now-last)/1000; last=now;
       if(dt>0.05) dt=0.05;
       if(dt<=0){ requestAnimationFrame(frame); return; }
-      var p=progress(), energy=0.3+0.7*agit;
+      var p=progress(), energy=0.3+0.7*agit; fillP=p;
       phase+=dt*1.85;
       var amp=(0.5+p*0.02+agit*(1.1+p*0.055))/9.1; /* rock fraction, speed-led */
       var drive=Math.cos(phase)*amp;
@@ -8756,7 +8944,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         }
       }
       /* bubbles inside the liquid: rise, wobble, pop at the surface */
-      if(bubbles.length<7 && p>6 && Math.random()<dt*3.2){ var bx=26+Math.random()*(W-52); if(surfY(bx)<H-18) bubbles.push({x:bx, y:Math.min(H-8, surfY(bx)+10+Math.random()*14), r:1.4+Math.random()*2.2, vy:-(16+Math.random()*22), seed:Math.random()*6.28}); } /* bubbles only inside real liquid, never as residue in the empty glass */
+      if(bubbles.length<7 && p>=35 && Math.random()<dt*3.2){ var bx=26+Math.random()*(W-52); if(surfY(bx)<H-55) bubbles.push({x:bx, y:Math.min(H-8, surfY(bx)+10+Math.random()*14), r:1.4+Math.random()*2.2, vy:-(16+Math.random()*22), seed:Math.random()*6.28}); } /* bubbles only in a substantially filled glass (Han re-check 2026-10-17 #9) */
       for(var bi=bubbles.length-1;bi>=0;bi--){
         var bb=bubbles[bi]; bb.y+=bb.vy*dt; bb.x+=Math.sin(now/300+bb.seed)*7*dt;
         if(bb.y<=surfY(bb.x)+3){ v[colAt(bb.x)]-=16; bubbles.splice(bi,1); }
