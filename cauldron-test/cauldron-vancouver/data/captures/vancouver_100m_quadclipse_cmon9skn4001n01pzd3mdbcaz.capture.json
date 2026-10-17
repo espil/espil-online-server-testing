@@ -1,0 +1,23 @@
+﻿{
+    "schema":  "cauldron.mapboxCapture.v0.1",
+    "city":  "Vancouver",
+    "center":  [
+                   -123.11498,
+                   49.260975
+               ],
+    "placeName":  "Vancouver, British Columbia, Canada",
+    "radiusMeters":  100,
+    "diameterMeters":  200,
+    "sizePixels":  [
+                       1280,
+                       1280
+                   ],
+    "metersPerPixel":  0.15625,
+    "zoom":  19.318574922649571,
+    "bearing":  0,
+    "style":  "mapbox://styles/quadclipse/cmon9skn4001n01pzd3mdbcaz",
+    "source":  "mapbox-style-html-edge-capture",
+    "imagePath":  "./cauldron-vancouver/data/captures/vancouver_100m_quadclipse_cmon9skn4001n01pzd3mdbcaz.png",
+    "generatedAt":  "2026-06-15T16:56:18.9509283Z"
+}
+
