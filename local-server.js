@@ -27,9 +27,14 @@ http.createServer((req, res) => {
   if (u === '/') u = '/index.html';
   const f = path.normalize(path.join(ROOT, u));
   if (!f.startsWith(ROOT)) { res.writeHead(403); res.end('forbidden'); return; }
-  fs.readFile(f, (e, data) => {
-    if (e) { res.writeHead(404); res.end('not found: ' + u); return; }
-    res.writeHead(200, { 'Content-Type': MIME[path.extname(f).toLowerCase()] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
-    res.end(data);
+  /* Directory requests serve their index.html (e.g. /cauldron-test/
+     and /cauldron-test both open the Cauldron test version). */
+  fs.stat(f, (se, st) => {
+    const file = (!se && st.isDirectory()) ? path.join(f, 'index.html') : f;
+    fs.readFile(file, (e, data) => {
+      if (e) { res.writeHead(404); res.end('not found: ' + u); return; }
+      res.writeHead(200, { 'Content-Type': MIME[path.extname(file).toLowerCase()] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
+      res.end(data);
+    });
   });
 }).listen(PORT, () => console.log('Espil merged build at http://localhost:' + PORT + '/vancouver'));
