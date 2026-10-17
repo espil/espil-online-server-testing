@@ -2559,6 +2559,8 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(saved){ enterWalkMap(); return; } /* already has a character: skip customization */
       var panel=document.getElementById('char-custom');
       var note=document.getElementById('char-bypass');
+      var csub=panel?panel.querySelector('.char-sub'):null;
+      if(csub)csub.textContent='Your traveler for '+(window.__espilCityKey==='auckland'?'Auckland':'Vancouver Downtown')+'.';
       setChosen('male');
       if(note)note.hidden=false;
       if(panel)panel.setAttribute('aria-hidden','false');
@@ -5347,7 +5349,19 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         var s=localStorage.getItem(LAST_POS_KEY);
         if(!s)return null;
         var d=JSON.parse(s);
-        /* Sanity: must be within playable bounds (5km radius). */
+        /* Sanity: must be within the ACTIVE city's playable bounds. The
+           old origin-centred 5 km box predates offset cities - Auckland
+           saves live near x=10000, so every one was discarded here and a
+           returning Auckland player could never resume (found in the
+           Auckland phase-1 verification, 2026-10-16). Offset cities use
+           their cfg bounds (with a small margin); the origin rule below
+           is unchanged for Vancouver. */
+        var cfg=null; try{ cfg=espilCityCfg(); }catch(e){}
+        if(cfg&&cfg.bounds){
+          var b=cfg.bounds;
+          if(d.x<b.x0-50||d.x>b.x1+50||d.z<b.z0-50||d.z>b.z1+50)return null;
+          return d;
+        }
         if(Math.abs(d.x)>5100||Math.abs(d.z)>5100)return null;
         return d;
       }catch(e){return null;}
@@ -5772,7 +5786,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         setTimeout(function(){ci.classList.remove('show');},2700);
       }
       citySky.visible=false;
-      cityPhaseName.textContent=selected?selected.userData.name:'Vancouver Downtown';
+      cityPhaseName.textContent=selected?selected.userData.name:(window.__espilCityKey==='auckland'?'Auckland':'Vancouver Downtown');
       var hint=document.getElementById('map-hint');
       var coarse=window.matchMedia&&window.matchMedia('(pointer:coarse)').matches;
       if(hint)hint.textContent=coarse?
@@ -5785,7 +5799,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       /* Landing/game separation (2026-10-07): hide city markers in 3D scene when in-game. */
       if(typeof markerGroup!=='undefined')markerGroup.visible=false;
       initSkillHud();
-      status.textContent=(selected?selected.userData.name:'Vancouver Downtown')+' \u2014 walk around';
+      status.textContent=(selected?selected.userData.name:(window.__espilCityKey==='auckland'?'Auckland':'Vancouver Downtown'))+' \u2014 walk around';
       startDnaImprint(); /* the Cauldron sticks its DNA on the city: it evolves */
       if(window.EspilAudio&&window.EspilAudio.onCitySelect)window.EspilAudio.onCitySelect();
       if(window.EspilAudio&&window.EspilAudio.onMapEnter)window.EspilAudio.onMapEnter('vancouver');
@@ -6892,7 +6906,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         var el=document.getElementById(id);
         if(el)el.setAttribute('aria-hidden','false');
       });
-      if(!chatWelcomed){chatWelcomed=true;addChatMsg('','— Vancouver Downtown —',true);addChatMsg('','Press Enter to chat.',true);}
+      if(!chatWelcomed){chatWelcomed=true;addChatMsg('','— '+(window.__espilCityKey==='auckland'?'Auckland':'Vancouver Downtown')+' —',true);addChatMsg('','Press Enter to chat.',true);}
       paintStatus();paintMoveSlots();paintCooldowns();
     }
     function hideSkillHud(){
