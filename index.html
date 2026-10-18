@@ -2975,6 +2975,14 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       var dx=x-curvePlayer.x,dz=z-curvePlayer.y;
       return Math.min((dx*dx*curveStrength.x+dz*dz*curveStrength.y)/120000,1000);
     }
+    /* Curve verification probe (map room, 2026-10-17): exposes the LIVE
+       law the game itself calls for object placement. The same
+       curveStrength object is handed to every curve-patched material's
+       shader uniform (curveShader assigns the reference, not a copy),
+       so this table is the shader path's table too. k reads 0.0014. */
+    window.__espilCurveK=curveStrength.x/120000;
+    window.__espilCurveProbe=function(x,z){ return curveDropAt(x,z); };
+    window.__espilCurveAnchor=function(){ return {x:curvePlayer.x,z:curvePlayer.y}; };
     /* ==== ESPIL TILES BRIDGE (isolated tiles module interface) ====
        The Google 3D Tiles layer lives in tiles/tiles-module.js (ES
        module, own three@0.186, own canvas UNDER the game canvas).
