@@ -3130,11 +3130,11 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           if(!isWaterAt(nx,nz))return {x:nx,z:nz};
         }
       }
-      return {x:19,z:-57};
+      return {x:3,z:31};
     }
     function espilResolveSpawn(geo){
       if(!espilCityCfg().core){ var sp=espilCityCfg().spawn; return {x:sp.x,z:sp.z}; } /* offset city: every fresh entry starts at its entry point (phase 1) */
-      if(!geo)return {x:19,z:-57};
+      if(!geo)return {x:3,z:31};
       if(espilInBoundary(geo.x,geo.z,1))return espilNudgeToLand(geo.x,geo.z);
       /* nearest point on the boundary polygon edges */
       var best=null,bd=1e18,poly=espilBoundary;
@@ -3147,7 +3147,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           if(dd<bd){bd=dd;best={x:px,z:pz};}
         }
       }
-      if(!best)best={x:19,z:-57};
+      if(!best)best={x:3,z:31};
       return espilNudgeToLand(best.x,best.z);
     }
     /* --- geolocation pre-prompt (fresh entries only, during the fall) --- */
@@ -3446,7 +3446,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        loads per page session; the landing sets window.__espilCityKey
        at entry and a city switch reloads (see startCityEntry). --- */
     var ESPIL_CITIES={
-      vancouver:{district:'assets/osm/vancouver_district_sample.json',collision:'assets/osm/vancouver_collision.json',ox:0,oz:0,core:true,spawn:{x:19,z:-57}},
+      vancouver:{district:'assets/osm/vancouver_district_sample.json',collision:'assets/osm/vancouver_collision.json',ox:0,oz:0,core:true,spawn:{x:3,z:31}}, /* first-summon place (Han 2026-10-18): the Vancouver Art Gallery's Robson Square plaza - gallery record bbox x[-46.9..52.9] z[-57.6..16.8], the point sits 14.2 m south of its south face on its centre axis, inside no footprint */
       auckland:{district:'assets/osm/auckland_district.json',collision:'assets/osm/auckland_collision.json',ox:10000,oz:0,core:false,spawn:{x:10302.9,z:-1001.9},bounds:{x0:9243,z0:-1595,x1:11024,z1:1080}}
     };
     function espilCityKey(){ var k=window.__espilCityKey||'vancouver'; return ESPIL_CITIES[k]?k:'vancouver'; }
@@ -4335,7 +4335,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       else document.body.appendChild(el);
       espilP1.mapEl=el;
       try{
-        espilP1.map=new mapboxgl.Map({container:el,style:'mapbox://styles/quadclipse/cmvdcpdor000901sq8xq57eab',center:espilP1LngLat(19,-57),zoom:17.3,pitch:52,bearing:0,attributionControl:false,interactive:false,projection:'mercator',maxZoom:22}); /* projection forced (Han 2026-10-17): the designated style declares lambertConformalConic, under which Mapbox skips ALL 3D drawing ("Drawing 3D models for lambertConformalConic projection is not yet implemented") - the custom layer and our extrusions vanished on Han's PC while the mercator stub could not reproduce it. The game's math is Mercator throughout. maxZoom = the Mapbox default 22 (custom cap removed on Han's order). */
+        espilP1.map=new mapboxgl.Map({container:el,style:'mapbox://styles/quadclipse/cmvdcpdor000901sq8xq57eab',center:espilP1LngLat(3,31),zoom:17.3,pitch:52,bearing:0,attributionControl:false,interactive:false,projection:'mercator',maxZoom:22}); /* projection forced (Han 2026-10-17): the designated style declares lambertConformalConic, under which Mapbox skips ALL 3D drawing ("Drawing 3D models for lambertConformalConic projection is not yet implemented") - the custom layer and our extrusions vanished on Han's PC while the mercator stub could not reproduce it. The game's math is Mercator throughout. maxZoom = the Mapbox default 22 (custom cap removed on Han's order). */
       }catch(e){ espilP1.failed='init'; window.__espilMapProgress01=1; espilP1Banner('Mapbox 지도를 시작하지 못했습니다. 토큰을 확인해 주십시오.'); return; }
       espilP1.map.on('load',function(){
         /* the loaded style re-imposes its declared projection - force
@@ -6010,8 +6010,8 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       /* The walker. */
       var av=buildWalkerAvatar(espilSavedGender());
       mapScene.add(av.group);mapScene.add(av.shadow);
-      walkPlayer={av:av,pos:new THREE.Vector3(19,.05,-57),velY:0,onGround:true,jumps:0,faceY:.5,bobT:0,moving:false,flying:false,vehicle:null};
-      av.shadow.position.set(19,.03,-57);
+      walkPlayer={av:av,pos:new THREE.Vector3(3,.05,31),velY:0,onGround:true,jumps:0,faceY:.5,bobT:0,moving:false,flying:false,vehicle:null};
+      av.shadow.position.set(3,.03,31);
     }
     /* Han 2026-10-10 #8: Fly vehicle (B key). Test version — will be paid feature.
        Simple airplane from primitives. WASD move, Space up, Ctrl down, B dismount. */
@@ -6525,7 +6525,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         walkPlayer.pos.set(last.x,last.y,last.z);
         if(typeof last.yaw==='number')walkCamYaw=last.yaw;
       }else{
-        walkPlayer.pos.set(19,.05,-57);
+        walkPlayer.pos.set(3,.05,31);
       }
       walkPlayer.velY=0;walkPlayer.onGround=true;
       walkPlayer.jumps=0;walkPlayer.faceY=.5;walkPlayer.bobT=0;
@@ -8878,7 +8878,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(!el)return;
       leafletMap=L.map('minimap',{zoomControl:false,attributionControl:false,doubleClickZoom:false,scrollWheelZoom:false});
       L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(leafletMap);
-      var ll0=gameToLatLng(19,-57);
+      var ll0=gameToLatLng(3,31);
       leafletMap.setView(ll0,CAULDRON_MINIMAP_LEVELS[minimapLevelIdx].zoom);
       playerMarker=L.marker(ll0,{interactive:false,icon:L.divIcon({className:'',
         html:'<div style="width:16px;height:16px;border-radius:50%;background:#4f7ed9;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.5);"></div>',
