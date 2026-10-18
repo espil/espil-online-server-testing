@@ -4003,7 +4003,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        style fails to load, a visible guidance banner is shown instead
        of a silent skip. */
     var ESPIL_P1=true;
-    var espilP1={map:null,ready:false,failed:null,hiddenApplied:false,initTried:false,bannerEl:null,mapEl:null};
+    var espilP1={map:null,ready:false,failed:null,hiddenApplied:false,initTried:false,bannerEl:null,mapEl:null,layerAdded:false,layerLive:false,layerRenderer:null,layerCam:null,gameCanvasHidden:false,layerSignaled:false};
     espilP1.envReady=false;
     (window.__ESPIL_ENV_READY__||Promise.resolve()).then(function(){espilP1.envReady=true;},function(){espilP1.envReady=true;});
     function espilP1Token(){
@@ -4109,6 +4109,68 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         espilP1.buildingsAdded=true;
       }catch(e){}
     }
+    /* ============ CUSTOM-LAYER INTEGRATION (CarInMap method, Han
+       2026-10-17) ============
+       The game scene renders INSIDE the map's own WebGL context as a
+       Mapbox custom layer: one context, one pipeline. The slave
+       canvas overlay, the second context and the sync-compositing
+       retire; the map camera is set from the game camera each frame
+       (espilP1Tick) and the map's render pass draws our scene through
+       this layer with the map's projection, so map buildings and game
+       objects share one depth buffer (true occlusion both ways).
+       Placement: our world metres sit on the city anchor via the
+       Mercator bridge - T(anchor) x S(s,-s,s) x Rx(90deg) maps our
+       (x east, y up, z south) onto Mercator (x east, y south, z up).
+       If anything in this path fails, layerLive stays false and the
+       game renders on its own canvas exactly as before. */
+    function espilP1GameLayer(){
+      return {
+        id:'espil-game-layer', type:'custom', renderingMode:'3d',
+        onAdd:function(map, gl){
+          espilP1.layerCam=new THREE.Camera();
+          try{
+            espilP1.layerRenderer=new THREE.WebGLRenderer({canvas:map.getCanvas(), context:gl, antialias:false, alpha:true});
+          }catch(e){ espilP1.layerRenderer=null; return; }
+          espilP1.layerRenderer.autoClear=false;
+          espilP1.layerRenderer.autoClearColor=false;
+          espilP1.layerRenderer.autoClearDepth=false;
+          espilP1.layerRenderer.autoClearStencil=false;
+          espilP1.layerLive=true;
+        },
+        render:function(gl, matrix){
+          var r=espilP1.layerRenderer; if(!r||!espilP1.layerCam||!espilP1.map)return;
+          var cv=espilP1.map.getCanvas();
+          if(r.domElement.width!==cv.width||r.domElement.height!==cv.height){
+            try{ r.setSize(cv.width, cv.height, false); }catch(e){}
+          }
+          var a=espilP1Anchor();
+          var mc=mapboxgl.MercatorCoordinate.fromLngLat({lng:a.lng, lat:a.lat}, 0);
+          var s=mc.meterInMercatorCoordinateUnits();
+          var l=new THREE.Matrix4()
+            .makeTranslation(mc.x, mc.y, mc.z)
+            .scale(new THREE.Vector3(s, -s, s))
+            .multiply(new THREE.Matrix4().makeRotationX(Math.PI/2));
+          var m=new THREE.Matrix4().fromArray(matrix);
+          espilP1.layerCam.projectionMatrix=m.multiply(l);
+          try{ r.render(mapScene, espilP1.layerCam); }catch(e){}
+          try{ r.state.reset(); }catch(e){}
+          /* Loader contract under the conversion: the continuous
+             repaint loop means the map may never go 'idle', so the
+             signal completes on the layer's first real render - the
+             same meaning (the map pipeline is drawing the game). */
+          if(!espilP1.layerSignaled){ espilP1.layerSignaled=true; if(window.__espilMapProgress01<1)window.__espilMapProgress01=1; }
+        },
+        onRemove:function(){ espilP1.layerLive=false; }
+      };
+    }
+    function espilP1AddLayer(){
+      if(!espilP1.map||espilP1.layerAdded)return;
+      try{
+        if(espilP1.map.getLayer('espil-game-layer')){ espilP1.layerAdded=true; return; }
+        espilP1.map.addLayer(espilP1GameLayer());
+        espilP1.layerAdded=true;
+      }catch(e){}
+    }
     function espilP1Preload(){
       /* Map preload (Han, 2026-10-17): start Mapbox init in parallel with
          the entry sequence (the city preload window) instead of waiting
@@ -4146,6 +4208,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           try{ var ls=espilP1.map.getStyle().layers||[]; for(var li=0;li<ls.length;li++){ if(ls[li].type==='symbol'){ try{ espilP1.map.setLayoutProperty(ls[li].id,'visibility','none'); }catch(e){} } } }catch(e){}
         }
         espilP1AddBuildings();
+        espilP1AddLayer();
       });
       espilP1.map.on('idle',function(){
         if(espilP1.ready&&window.__espilMapProgress01<1)window.__espilMapProgress01=1; /* loader contract: first idle after load completes the map signal */
@@ -4158,6 +4221,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
              is copied into Han's own account later, this path never runs. */
           espilP1.onFallback=true;
           espilP1.buildingsAdded=false; /* setStyle wipes sources - the load handler re-adds the buildings */
+          espilP1.layerAdded=false; /* setStyle also wipes custom layers - re-added on the same load */
           espilP1Banner('지정 스타일을 읽지 못해 기본 지도로 표시합니다. 길 이름 라벨은 걷어낸 상태입니다.');
           try{ espilP1.map.setStyle('mapbox://styles/mapbox/streets-v12'); }
           catch(e){ window.__espilMapProgress01=1; espilP1.failed='maperror'; }
@@ -4173,19 +4237,37 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(!cs||!cs.cityPhase){
         if(espilP1.mapEl)espilP1.mapEl.style.display='none';
         if(espilP1.bannerEl)espilP1.bannerEl.style.display='none';
+        if(espilP1.gameCanvasHidden){ espilP1.gameCanvasHidden=false; var cvEl2=document.getElementById('globe-canvas'); if(cvEl2)cvEl2.style.display=''; }
         return;
       }
       if(espilP1.mapEl)espilP1.mapEl.style.display='';
       if(espilP1.bannerEl&&espilP1.failed)espilP1.bannerEl.style.display='';
+      /* CUSTOM LAYER: while the layer is live the game canvas becomes a
+         transparent INPUT pane. Every camera listener (wheel zoom,
+         drag rotate, touch) is bound to this canvas, so it must stay
+         displayed and on top - but it is cleared once and never drawn
+         to again (animate skips its render); the map canvas below is
+         the only rendered surface. If the layer is not live the old
+         overlay path renders on this canvas exactly as before. */
+      var cvEl=document.getElementById('globe-canvas');
+      if(cvEl){
+        var wantPane=!!(espilP1.layerLive&&!espilP1.failed);
+        if(wantPane!==espilP1.gameCanvasHidden){
+          espilP1.gameCanvasHidden=wantPane;
+          if(wantPane&&typeof renderer!=='undefined'&&renderer){ try{ renderer.setClearColor(0x000000,0); renderer.clear(true,true,true); }catch(e){} }
+        }
+      }
       if(!espilP1.initTried&&espilP1.envReady)espilP1Init();
       if(window.__espilDistrictMeshesBuilt&&typeof mapBuilt!=='undefined'&&mapBuilt)espilP1Hide();
       if(typeof renderer!=='undefined'&&renderer)renderer.setClearColor(0x000000,0);
       if(espilP1.ready&&!espilP1.buildingsAdded)espilP1AddBuildings(); /* preload case: district data may land after the map load */
+      if(espilP1.ready&&!espilP1.layerAdded)espilP1AddLayer();
       if(espilP1.map&&espilP1.ready&&typeof walkPlayer!=='undefined'&&walkPlayer){
         var ll=espilP1LngLat(walkPlayer.pos.x,walkPlayer.pos.z);
         var brg=-walkCamYaw*180/Math.PI;
         var zoom=Math.max(17,Math.min(20,21.97-1.242*Math.log2(Math.max(3,walkCamDist)))); /* round 3 item 4 (Han): map zoom tracks the whole camera range - 17 at dist 16, max 20 at dist 3 */
         try{ espilP1.map.jumpTo({center:ll,bearing:brg,pitch:52,zoom:zoom}); }catch(e){}
+        if(espilP1.layerLive){ try{ espilP1.map.triggerRepaint(); }catch(e){} } /* the map's render pass draws the game scene via the custom layer */
       }
     }
     /* ============ ESPIL CHAT + SPEECH BUBBLE (2026-10-15, per Han:
@@ -8545,7 +8627,8 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         updateTransitBuses();
         if(typeof updateTrafficLightVisuals==='function')updateTrafficLightVisuals();
         updateLeafletMap();
-        renderer.render(mapScene,mapCamera);
+        if(espilP1.layerLive&&espilP1.map&&!espilP1.failed){ /* CUSTOM LAYER: mapScene is drawn inside the map's render pass this frame - the game's own context stays idle (CarInMap conversion, 2026-10-17) */ }
+        else renderer.render(mapScene,mapCamera);
         return;
       }
       /* Camera: plain orbit framing (the station reveal was removed 2026-10-06, per Han). */
