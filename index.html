@@ -208,8 +208,8 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     /* Inactive cities (Han 2026-10-18): shown in the reel but not
        selectable - dimmed, no pointer, no centered highlight or
        blinking dots even when scrolled to the middle. */
-    .city-name.is-inactive { opacity:.34; cursor:default; }
-    .city-name.is-inactive.is-centered { color:rgba(199,225,225,.36); text-shadow:none; font-size:.76rem; font-weight:600; letter-spacing:.12em; }
+    .city-name.is-inactive { opacity:.55; cursor:default; color:#9aa0a3; }
+    .city-name.is-inactive.is-centered { color:#9aa0a3; text-shadow:none; font-size:.76rem; font-weight:600; letter-spacing:.12em; }
     .city-name.is-inactive.is-centered::before,.city-name.is-inactive.is-centered::after { content:none; }
     .city-pin.is-inactive { opacity:.45; cursor:default; }
     .city-name.is-local { color:rgba(181,255,248,.62); }
@@ -497,6 +497,10 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     body.in-map #city-phase,
     body.in-map #city-pins,
     body.in-map .city-markers { display:none !important; }
+    /* Exit city button (Han 2026-10-18): shown only inside a city,
+       top-right beside the music button. */
+    #city-exit { display:none; }
+    body.in-map #city-exit { display:inline-flex; }
     /* #6: Direct entry (/vancouver) — hide landing immediately */
     body.direct-entry #intro,
     body.direct-entry #city-info,
@@ -664,6 +668,16 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         inset 0 3px 8px rgba(0,0,0,.5),
         0 2px 4px rgba(0,0,0,.5);
     }
+    /* Deactivated menu button (Han 2026-10-18: character custom is
+       out for now) - rendered, dimmed, no hover lift, not pressable. */
+    .move-slot.is-off { opacity:.42; cursor:default; filter:saturate(.4); }
+    .move-slot.is-off:hover { transform:translateZ(0); box-shadow:
+        0 0 12px rgba(63,125,68,.35),
+        inset 0 0 8px rgba(107,74,47,.3),
+        inset 0 2px 3px rgba(255,255,255,.15),
+        inset 0 -3px 5px rgba(0,0,0,.4),
+        0 4px 8px rgba(0,0,0,.5),
+        0 8px 16px rgba(0,0,0,.3); }
     /* 3D panels */
     .st-card {
       transform:perspective(1000px) rotateX(2deg);
@@ -1105,6 +1119,11 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     }
     .provider:hover { border-color:rgba(134,238,228,.55); background:rgba(18,44,50,.75); transform:translateY(-1px); }
     .provider:active { transform:none; }
+    /* Deactivated social sign-in (Han 2026-10-18): greyed, inert. */
+    .provider:disabled { opacity:.38; cursor:default; filter:saturate(.25); }
+    .provider:disabled:hover { border-color:rgba(169,226,222,.18); background:rgba(10,26,31,.6); transform:none; }
+    /* The one active control on the sign-in page: guest entry. */
+    .provider.guest-enter { width:100%; justify-content:center; border-color:rgba(134,238,228,.55); background:rgba(18,44,50,.8); font-size:.8rem; padding:13px 12px; }
     .p-dot { width:11px; height:11px; border-radius:50%; flex:none; box-shadow:0 0 8px currentColor; }
     .soon {
       margin-left:auto; font-size:.58rem; font-weight:800; letter-spacing:.14em;
@@ -1635,6 +1654,9 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     <header class="topbar">
       <div class="topbar-actions">
         <button class="pill-btn" id="bgm-toggle" type="button" aria-pressed="true" aria-label="Toggle theme music" aria-describedby="bgm-card">&#9834;</button>
+        <!-- Exit city (Han 2026-10-18): top-right next to the music
+             button, visible only while inside a city. -->
+        <button class="pill-btn" id="city-exit" type="button" aria-label="Exit city">EXIT</button>
         <!-- Han 2026-10-16 #8: SKILL TREE / SIGN IN top-bar entries removed.
              The skill tree still opens with K; sign-in happens at the Dive gate. -->
       </div>
@@ -1655,13 +1677,17 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         <h2>ENTER ESPIL ONLINE</h2>
         <p class="modal-sub">Choose how you'd like to arrive.</p>
         <p class="bypass-note" id="signin-bypass" hidden>TESTING BYPASS &mdash; continuing as guest&hellip;</p>
+        <!-- Production config (Han 2026-10-18): login is deactivated -
+             guest mode only. The social buttons are disabled; the one
+             active control is ENTER AS GUEST below them. The separate
+             character-creator link is gone: the only character choice
+             kept is male / female in the next step. -->
         <div class="provider-grid">
-          <button class="provider" type="button" data-provider="Google"><span class="p-dot" style="background:#4285F4;color:#4285F4"></span>Google</button>
-          <button class="provider" type="button" data-provider="Apple"><span class="p-dot" style="background:#e8e8e8;color:#e8e8e8"></span>Apple</button>
-          <button class="provider" type="button" data-provider="Facebook"><span class="p-dot" style="background:#1877F2;color:#1877F2"></span>Facebook</button>
+          <button class="provider" type="button" data-provider="Google" disabled><span class="p-dot" style="background:#4285F4;color:#4285F4"></span>Google</button>
+          <button class="provider" type="button" data-provider="Apple" disabled><span class="p-dot" style="background:#e8e8e8;color:#e8e8e8"></span>Apple</button>
+          <button class="provider" type="button" data-provider="Facebook" disabled><span class="p-dot" style="background:#1877F2;color:#1877F2"></span>Facebook</button>
         </div>
-        <div class="modal-divider"><span>new here?</span></div>
-        <a class="creator-link" href="creator.html">Create your character &rarr;</a>
+        <button class="provider guest-enter" id="guest-enter" type="button">ENTER AS GUEST</button>
       </div>
     </div>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -1676,10 +1702,10 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
             <span class="char-name">Male</span>
             <span class="char-tag">Ready</span>
           </button>
-          <button class="char-card is-disabled" id="char-female" type="button" data-gender="female" aria-label="Female character, coming soon" disabled>
+          <button class="char-card" id="char-female" type="button" data-gender="female" aria-label="Female character">
             <span class="char-face" aria-hidden="true">&#9792;</span>
             <span class="char-name">Female</span>
-            <span class="char-tag">Soon</span>
+            <span class="char-tag">Ready</span>
           </button>
         </div>
         <p class="bypass-note" id="char-bypass" hidden>TESTING BYPASS &mdash; entering as <b>Male</b>&hellip;</p>
@@ -2213,12 +2239,13 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       ['Lagos',6.5244,3.3792,'theatre','National Theatre'],['Nairobi',-1.2921,36.8219,'spire','KICC'],['Cairo',30.0444,31.2357,'pyramid','Great Pyramid'],['Cape Town',-33.9249,18.4241,'mountain','Table Mountain'],['Istanbul',41.0082,28.9784,'mosque','Blue Mosque'],['Dubai',25.2048,55.2708,'burj','Burj Khalifa'],['Mumbai',19.076,72.8777,'gateway','Gateway of India'],['Delhi',28.6139,77.209,'arch','India Gate'],
       ['Singapore',1.3521,103.8198,'merlion','Merlion'],['Bangkok',13.7563,100.5018,'temple','Wat Arun'],['Shanghai',31.2304,121.4737,'pearl','Oriental Pearl Tower'],['Hong Kong',22.3193,114.1694,'junk','Harbour junk'],['Beijing',39.9042,116.4074,'hall','Temple of Heaven'],['Seoul',37.5665,126.978,'needle','N Seoul Tower'],['Tokyo',35.6762,139.6503,'torii','Torii gate'],['Manila',14.5995,120.9842,'sun','Philippine sun'],['Jakarta',-6.2088,106.8456,'obelisk','National Monument'],['Sydney',-33.8688,151.2093,'sails','Sydney Opera House'],['Melbourne',-37.8136,144.9631,'station','Flinders Street Station'],['Auckland',-36.8509,174.7645,'needle','Sky Tower']
     ];
-    /* Landing city availability (Han 2026-10-18): only these seven
-       cities are selectable in the landing reel; every other city is
-       shown but inactive (not selectable by click, pin, Enter,
-       arrows or by name). Selection behaviour for the active seven
-       is unchanged. */
-    var ESPIL_SELECTABLE_CITIES={'Seoul':true,'Tokyo':true,'Vancouver':true,'New York':true,'Paris':true,'London':true,'Auckland':true};
+    /* Landing city availability (Han 2026-10-18; production config
+       the same day): only these SIX cities are selectable in the
+       landing reel - Seoul is inactive in this configuration too.
+       Every other city is shown but inactive (grey, not selectable
+       by click, pin, Enter, arrows or by name). Selection behaviour
+       for the active six is unchanged. */
+    var ESPIL_SELECTABLE_CITIES={'Tokyo':true,'Vancouver':true,'New York':true,'Paris':true,'London':true,'Auckland':true};
     var markers=[],markerGroup=new THREE.Group();
     earthSpin.add(markerGroup);
     function latLon(lat,lon,r){var phi=(90-lat)*Math.PI/180,theta=(lon+180)*Math.PI/180;return new THREE.Vector3(-r*Math.sin(phi)*Math.cos(theta),r*Math.cos(phi),r*Math.sin(phi)*Math.sin(theta));}
@@ -2606,10 +2633,13 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(!selected||cityPhaseActive)return;
       gateSignin(); /* entry sequence done -> gate flow -> walkable map */
     }
-    /* Gate flow (testing bypasses ON): ENTER CITY -> sign-in prompt (shown 2s, auto-continues
-       as guest) -> character check (localStorage; none yet -> customization shown 2s, male
-       pre-selected, auto-confirms) -> walkable map. Every gate is visible so the process
-       can be reviewed; flip TEST_BYPASS off when real auth lands. */
+    /* Gate flow (production config, Han 2026-10-18): ENTER CITY ->
+       the sign-in page at the Dive gate (social buttons disabled,
+       ENTER AS GUEST the one active control) -> character check
+       (localStorage; none yet -> the male / female choice, confirmed
+       by the player, never auto-advanced) -> the glass loader ->
+       walkable map. TEST_BYPASS remains only as the QA harness's
+       programmatic pass; the visible flow never auto-advances. */
     var TEST_BYPASS=true,GATE_DELAY=2000,chosenGender='male',gateActive=false;
     /* 2026-10-11 (Han QA): hide the landing city-selection readout while the
        entry gates (sign-in / character) are up — it sat above the sign-in modal. */
@@ -2618,25 +2648,14 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(cs)cs.classList.toggle('gate-hidden',!!hidden);
     }
     function gateSignin(){
-      var modal=document.getElementById('signin-modal');
-      var note=document.getElementById('signin-bypass');
+      /* Production flow (Han 2026-10-18): the sign-in page was already
+         served at the Dive gate (guest button) - do NOT show the modal
+         a second time here, and never auto-advance. Straight to the
+         character choice. */
       if(window.EspilAudio&&window.EspilAudio.pop)window.EspilAudio.pop();
       gateActive=true; /* keep the dive's auto info panel from re-showing during the gates */
       setCityStatusGateHidden(true);
-      if(!TEST_BYPASS){ if(modal)modal.setAttribute('aria-hidden','false'); return; }
-      if(note)note.hidden=false;
-      if(modal)modal.setAttribute('aria-hidden','false');
-      setTimeout(function(){
-        if(modal&&modal.getAttribute('aria-hidden')==='false'){
-          if(note)note.hidden=true;
-          modal.setAttribute('aria-hidden','true');
-          gateCharacter();
-        }else if(selected){
-          gateActive=false;
-          setCityStatusGateHidden(false);
-          showCityInfo(selected); /* user closed it manually: back to the info panel */
-        }
-      },GATE_DELAY);
+      gateCharacter();
     }
     function gateCharacter(){
       var saved=null;
@@ -2647,13 +2666,11 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       var csub=panel?panel.querySelector('.char-sub'):null;
       if(csub)csub.textContent='Your traveler for '+(window.__espilCityKey==='auckland'?'Auckland':'Vancouver Downtown')+'.';
       setChosen('male');
-      if(note)note.hidden=false;
+      if(note)note.hidden=true; /* no auto-entry note in the production flow */
       if(panel)panel.setAttribute('aria-hidden','false');
       if(window.EspilAudio&&window.EspilAudio.pop)window.EspilAudio.pop();
-      if(!TEST_BYPASS)return;
-      setTimeout(function(){
-        if(panel&&panel.getAttribute('aria-hidden')==='false')confirmCharacter(chosenGender);
-      },GATE_DELAY);
+      /* Production flow (Han 2026-10-18): the player CHOOSES male or
+         female and presses ENTER - no timed auto-confirm. */
     }
     function setChosen(g){
       chosenGender=g;
@@ -2674,9 +2691,11 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     }
     (function wireCharCustom(){
       var male=document.getElementById('char-male');
+      var female=document.getElementById('char-female');
       var confirm=document.getElementById('char-confirm');
       var back=document.getElementById('char-back');
       if(male)male.addEventListener('click',function(){setChosen('male');if(window.EspilAudio&&window.EspilAudio.tick)window.EspilAudio.tick();});
+      if(female)female.addEventListener('click',function(){setChosen('female');if(window.EspilAudio&&window.EspilAudio.tick)window.EspilAudio.tick();});
       if(confirm)confirm.addEventListener('click',function(){confirmCharacter(chosenGender);});
       if(back)back.addEventListener('click',function(){
         var panel=document.getElementById('char-custom');
@@ -7362,7 +7381,12 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       panel.setAttribute('aria-hidden',String(!open));
       if(open&&window.EspilAudio&&window.EspilAudio.tick)window.EspilAudio.tick();
     }
+    /* Character custom is OUT for now (Han 2026-10-18): the CHAR
+       button renders deactivated and the panel cannot be opened
+       (closing still works). Flip this one flag to bring it back. */
+    var espilCharCustomOff=true;
     function toggleCharacterPanel(force){
+      if(espilCharCustomOff&&force!==false)return;
       var panel=document.getElementById('character-panel');
       if(!panel)return;
       var open=typeof force==='boolean'?force:!characterOpen;
@@ -7550,7 +7574,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           {key:'K',label:'SKILL',fn:function(){toggleSkillTree();}},
           {key:'M',label:'MAP',fn:function(){if(window.__espilToast)window.__espilToast('Map stages arrive with the UI update.');}},
           {key:'I',label:'INV',fn:function(){toggleInventory();}},
-          {key:'P',label:'CHAR',fn:function(){toggleCharacterPanel();}},
+          {key:'P',label:'CHAR',off:true,fn:function(){toggleCharacterPanel();}},
           {key:'H',label:'HOME',fn:function(){teleportHome();}},
           {key:'\u2699',label:'SET',fn:function(){toggleSettingsPanel();}}
         ];
@@ -7559,7 +7583,8 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           b.type='button';b.className='move-slot';
           b.setAttribute('aria-label',m.label+' ('+m.key+')');
           b.innerHTML='<span class="key">'+m.key+'</span><span class="mn">'+m.label+'</span>';
-          b.addEventListener('pointerdown',function(e){e.preventDefault();m.fn();});
+          if(m.off){ b.disabled=true; b.classList.add('is-off'); b.setAttribute('aria-disabled','true'); }
+          else b.addEventListener('pointerdown',function(e){e.preventDefault();m.fn();});
           kbm.appendChild(b);
         });
       }
@@ -8353,6 +8378,10 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(returnToOrbit&&window.EspilAudio)window.EspilAudio.onReturnToOrbit();
     }
     cityReturn.addEventListener('click',function(){clearSelection(true);});
+    /* In-city EXIT button (Han 2026-10-18): same return-to-globe path
+       as RETURN TO EARTH, from the top-right beside the music toggle. */
+    var cityExitBtn=document.getElementById('city-exit');
+    if(cityExitBtn)cityExitBtn.addEventListener('click',function(){clearSelection(true);});
     /* City info panel: image, metro population, popular brands. ENTER dives into the street view. */
     var cityFacts={
       'Vancouver':{pop:'2.6M',brands:['Lululemon','Aritzia',"Arc'teryx"],img:'assets/cities/vancouver.webp'},
@@ -8399,7 +8428,10 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        2026-10-16 (Han): Auckland Queen Street corridor joins as the
        second playable city - entry opens for playable cities only. */
     var VANCOUVER_ONLY=true;
-    function espilPlayableCity(name){return name==='Vancouver'||name==='Auckland';}
+    /* Production config (Han 2026-10-18): Vancouver is the only city
+       that dives; the other five selectable cities show COMING SOON
+       with the button disabled. */
+    function espilPlayableCity(name){return name==='Vancouver';}
     function showCityInfo(marker){
       infoShown=true;approachSlow=false;
       var facts=cityFacts[marker.userData.name]||{pop:'—',brands:[],img:''};
@@ -8407,7 +8439,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(infoEnter){
         infoEnter.disabled=!canEnter;
         infoEnter.classList.toggle('is-disabled',!canEnter);
-        infoEnter.innerHTML=canEnter?'DIVE':'NOT AVAILABLE';
+        infoEnter.innerHTML=canEnter?'DIVE':'COMING SOON';
       }
       if(infoImg){infoImg.src=facts.img;infoImg.alt=marker.userData.landmark;}
       if(infoName)infoName.textContent=marker.userData.name;
@@ -9408,6 +9440,16 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         if(window.__espilLoginGatePending&&window.__espilLoginGatePending()){ window.__espilLoginGateDone(); return; }
         showToast(name+' sign-in arrives with the game server.');
       });
+    });
+    /* Guest entry (Han 2026-10-18, production config): the modal's
+       one active control - same pass-through the provider buttons
+       used, now explicit. */
+    var guestBtn=document.getElementById('guest-enter');
+    if(guestBtn)guestBtn.addEventListener('click',function(){
+      if(window.EspilAudio&&window.EspilAudio.pop)window.EspilAudio.pop();
+      if(window.__espilLoginBypass&&window.__espilLoginBypass())return;
+      if(window.__espilLoginGatePending&&window.__espilLoginGatePending()){ window.__espilLoginGateDone(); return; }
+      showToast('Guest entry is available at a city gate.');
     });
   }());
   </script>
