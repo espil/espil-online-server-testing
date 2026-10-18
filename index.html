@@ -7485,6 +7485,29 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     });
     var jumpBtn=document.getElementById('map-jump');
     if(jumpBtn)jumpBtn.addEventListener('pointerdown',function(e){e.preventDefault();tryJump();});
+    /* One-point polygon wall resolution for the axis pass (see the
+       sweep driver in collideCircleAxis). Centre inside a footprint
+       is skipped: the support law owns that column (roof lift). */
+    function espilPolyResolveAxis(p,axis,r){
+      var pb=espilPolyBucketAt(p.pos.x,p.pos.z);
+      if(!pb)return;
+      for(var pi=0;pi<pb.length;pi++){
+        var rec=pb[pi];
+        if(p.pos.y+PLAYER_H<=0||p.pos.y>=rec.h)continue;
+        if(rec.h-p.pos.y<=.55)continue;
+        if(p.pos.x<rec.x0-r||p.pos.x>rec.x1+r||p.pos.z<rec.z0-r||p.pos.z>rec.z1+r)continue;
+        var pr=espilPolyProbe(rec,p.pos.x,p.pos.z);
+        if(pr.d>=r||pr.d<0)continue;
+        var ddx=(p.pos.x-pr.cx)/(pr.d||1), ddz=(p.pos.z-pr.cz)/(pr.d||1);
+        if(axis==='x'){
+          if(p._dx>0&&ddx<-.25)p.pos.x-=(r-pr.d)/(-ddx);
+          else if(p._dx<0&&ddx>.25)p.pos.x+=(r-pr.d)/ddx;
+        }else{
+          if(p._dz>0&&ddz<-.25)p.pos.z-=(r-pr.d)/(-ddz);
+          else if(p._dz<0&&ddz>.25)p.pos.z+=(r-pr.d)/ddz;
+        }
+      }
+    }
     function collideCircleAxis(p,axis){
       var r=PLAYER_R;
       /* Check downtown colliders + nearby chunk colliders (spatial hash) + cars.
@@ -7522,26 +7545,24 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
          exactly where they are drawn. Per-axis resolution uses the
          closest point on the ring: the axis exit distance that puts
          the circle exactly PLAYER_R from the true edge - diagonal
-         walls included, no stair-step. */
+         walls included, no stair-step. The axis move is SWEPT: it is
+         resolved in sub-steps of at most 0.25 m, so at low frame
+         rates (frame steps of several metres) the circle can no
+         longer tunnel through a thin building between samples -
+         point sampling did exactly that on Han's PC (22:15). */
       if(ESPIL_P1){
-        var pb=espilPolyBucketAt(p.pos.x,p.pos.z);
-        if(pb)for(var pi=0;pi<pb.length;pi++){
-          var rec=pb[pi];
-          if(p.pos.y+PLAYER_H<=0||p.pos.y>=rec.h)continue;
-          if(rec.h-p.pos.y<=.55)continue;
-          if(p.pos.x<rec.x0-r||p.pos.x>rec.x1+r||p.pos.z<rec.z0-r||p.pos.z>rec.z1+r)continue;
-          var pr=espilPolyProbe(rec,p.pos.x,p.pos.z);
-          if(pr.d>=r||pr.d<0)continue; /* centre inside the footprint: the
-             support law owns the column (it lifts to the roof) - the wall
-             pass must not eject a resume that spawned inside */
-          var ddx=(p.pos.x-pr.cx)/(pr.d||1), ddz=(p.pos.z-pr.cz)/(pr.d||1);
-          if(axis==='x'){
-            if(p._dx>0&&ddx<-.25)p.pos.x-=(r-pr.d)/(-ddx);
-            else if(p._dx<0&&ddx>.25)p.pos.x+=(r-pr.d)/ddx;
-          }else{
-            if(p._dz>0&&ddz<-.25)p.pos.z-=(r-pr.d)/(-ddz);
-            else if(p._dz<0&&ddz>.25)p.pos.z+=(r-pr.d)/ddz;
+        var delta=(axis==='x'?p._dx:p._dz)||0;
+        var nSub=Math.max(1,Math.min(64,Math.ceil(Math.abs(delta)/0.25)));
+        var endA=(axis==='x'?p.pos.x:p.pos.z), startA=endA-delta;
+        for(var sw=1;sw<=nSub;sw++){
+          if(nSub>1){
+            var tgt=startA+delta*sw/nSub;
+            if(axis==='x')p.pos.x=tgt; else p.pos.z=tgt;
           }
+          var beforeA=(axis==='x'?p.pos.x:p.pos.z);
+          espilPolyResolveAxis(p,axis,r);
+          var afterA=(axis==='x'?p.pos.x:p.pos.z);
+          if(Math.abs(afterA-beforeA)>1e-9)break; /* contact: hold the resolved point */
         }
       }
     }
@@ -7598,13 +7619,18 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       }
       /* --- vertical: gravity + landing on tops (rooftops, planters, plaza, cars) --- */
       p.velY-=26*dt;
+      var yBeforeFall=p.pos.y;
       p.pos.y+=p.velY*dt;
       var support=.05,supportCar=null;
       function considerSupport(c){
         var cz=p.pos.z<c.z0?c.z0:(p.pos.z>c.z1?c.z1:p.pos.z);
         var cx=p.pos.x<c.x0?c.x0:(p.pos.x>c.x1?c.x1:p.pos.x);
         if(Math.abs(p.pos.z-cz)>PLAYER_R||Math.abs(p.pos.x-cx)>PLAYER_R)return;
-        if(c.top<=p.pos.y+.55&&c.top>support){support=c.top;supportCar=c.car||null;}
+        /* SWEPT (2026-10-17): tops are judged against the PRE-move
+           height - a fast fall at low FPS used to step clean past a
+           roof plane in one frame and land on the street inside the
+           building; the crossing now counts. */
+        if(c.top<=yBeforeFall+.55&&c.top>support){support=c.top;supportCar=c.car||null;}
       }
       if(!ESPIL_P1)for(var i=0;i<walkColliders.length;i++)considerSupport(walkColliders[i]); /* MAPBOX PHASE 1: store only */
       for(var ci=0;ci<carColliders.length;ci++)considerSupport(carColliders[ci]);
@@ -7614,7 +7640,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         var spb=espilPolyBucketAt(p.pos.x,p.pos.z);
         if(spb)for(var spi=0;spi<spb.length;spi++){
           var srec=spb[spi];
-          if(srec.h<=p.pos.y+.55&&srec.h>support){
+          if(srec.h<=yBeforeFall+.55&&srec.h>support){
             if(p.pos.x>=srec.x0-PLAYER_R&&p.pos.x<=srec.x1+PLAYER_R&&p.pos.z>=srec.z0-PLAYER_R&&p.pos.z<=srec.z1+PLAYER_R&&espilPolyProbe(srec,p.pos.x,p.pos.z).d<=PLAYER_R){support=srec.h;supportCar=null;}
           }
         }
