@@ -205,6 +205,13 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     }
     .city-name.is-active::before { margin-right:10px; }
     .city-name.is-active::after { margin-left:10px; }
+    /* Inactive cities (Han 2026-10-18): shown in the reel but not
+       selectable - dimmed, no pointer, no centered highlight or
+       blinking dots even when scrolled to the middle. */
+    .city-name.is-inactive { opacity:.34; cursor:default; }
+    .city-name.is-inactive.is-centered { color:rgba(199,225,225,.36); text-shadow:none; font-size:.76rem; font-weight:600; letter-spacing:.12em; }
+    .city-name.is-inactive.is-centered::before,.city-name.is-inactive.is-centered::after { content:none; }
+    .city-pin.is-inactive { opacity:.45; cursor:default; }
     .city-name.is-local { color:rgba(181,255,248,.62); }
     .city-name.is-local:not(.is-centered)::before { content:"•"; margin-right:7px; color:var(--signal); }
     .city-message {
@@ -2206,6 +2213,12 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       ['Lagos',6.5244,3.3792,'theatre','National Theatre'],['Nairobi',-1.2921,36.8219,'spire','KICC'],['Cairo',30.0444,31.2357,'pyramid','Great Pyramid'],['Cape Town',-33.9249,18.4241,'mountain','Table Mountain'],['Istanbul',41.0082,28.9784,'mosque','Blue Mosque'],['Dubai',25.2048,55.2708,'burj','Burj Khalifa'],['Mumbai',19.076,72.8777,'gateway','Gateway of India'],['Delhi',28.6139,77.209,'arch','India Gate'],
       ['Singapore',1.3521,103.8198,'merlion','Merlion'],['Bangkok',13.7563,100.5018,'temple','Wat Arun'],['Shanghai',31.2304,121.4737,'pearl','Oriental Pearl Tower'],['Hong Kong',22.3193,114.1694,'junk','Harbour junk'],['Beijing',39.9042,116.4074,'hall','Temple of Heaven'],['Seoul',37.5665,126.978,'needle','N Seoul Tower'],['Tokyo',35.6762,139.6503,'torii','Torii gate'],['Manila',14.5995,120.9842,'sun','Philippine sun'],['Jakarta',-6.2088,106.8456,'obelisk','National Monument'],['Sydney',-33.8688,151.2093,'sails','Sydney Opera House'],['Melbourne',-37.8136,144.9631,'station','Flinders Street Station'],['Auckland',-36.8509,174.7645,'needle','Sky Tower']
     ];
+    /* Landing city availability (Han 2026-10-18): only these seven
+       cities are selectable in the landing reel; every other city is
+       shown but inactive (not selectable by click, pin, Enter,
+       arrows or by name). Selection behaviour for the active seven
+       is unchanged. */
+    var ESPIL_SELECTABLE_CITIES={'Seoul':true,'Tokyo':true,'Vancouver':true,'New York':true,'Paris':true,'London':true,'Auckland':true};
     var markers=[],markerGroup=new THREE.Group();
     earthSpin.add(markerGroup);
     function latLon(lat,lon,r){var phi=(90-lat)*Math.PI/180,theta=(lon+180)*Math.PI/180;return new THREE.Vector3(-r*Math.sin(phi)*Math.cos(theta),r*Math.cos(phi),r*Math.sin(phi)*Math.sin(theta));}
@@ -4050,7 +4063,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        style fails to load, a visible guidance banner is shown instead
        of a silent skip. */
     var ESPIL_P1=true;
-    var espilP1={map:null,ready:false,failed:null,hiddenApplied:false,initTried:false,bannerEl:null,mapEl:null,layerAdded:false,layerLive:false,layerRenderer:null,layerCam:null,gameCanvasHidden:false,layerSignaled:false,zoom:null,zoomT:null,zoomDrive:false,style3dOff:false,style3dTries:0,anchorH:null};
+    var espilP1={map:null,ready:false,failed:null,hiddenApplied:false,initTried:false,bannerEl:null,mapEl:null,layerAdded:false,layerLive:false,layerRenderer:null,layerCam:null,gameCanvasHidden:false,layerSignaled:false,zoom:null,zoomT:null,zoomDrive:false,style3dOff:false,style3dTries:0};
     espilP1.envReady=false;
     (window.__ESPIL_ENV_READY__||Promise.resolve()).then(function(){espilP1.envReady=true;},function(){espilP1.envReady=true;});
     function espilP1Token(){
@@ -4177,7 +4190,12 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       try{
         if(!espilP1.map.getSource('espil-buildings')){
           espilP1.map.addSource('espil-buildings',{type:'geojson',data:espilP1BuildingsGeoJSON()});
-          espilP1.map.addLayer({id:'espil-buildings-3d',type:'fill-extrusion',source:'espil-buildings',paint:{'fill-extrusion-color':'#00c853','fill-extrusion-height':['get','h'],'fill-extrusion-base':0,'fill-extrusion-opacity':1}});
+          /* Building colour (Han 2026-10-18): the fixed key green
+             (#00c853) pin is RELEASED - buildings render in a neutral
+             tone, #c9c4bb (light greige). The green was only the
+             contract's display marker; collision is record-polygon
+             based and colour-independent, unchanged. */
+          espilP1.map.addLayer({id:'espil-buildings-3d',type:'fill-extrusion',source:'espil-buildings',paint:{'fill-extrusion-color':'#c9c4bb','fill-extrusion-height':['get','h'],'fill-extrusion-base':0,'fill-extrusion-opacity':1}});
           /* COLLISION LAYER (Han 2026-10-17, CarInMap method): a flat,
              invisible fill over the same footprints - the wall judge
              queries THIS layer with queryRenderedFeatures. The
@@ -4351,23 +4369,24 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(espilP1.ready&&!espilP1.style3dOff&&espilP1.style3dTries<1200){ espilP1.style3dTries++; espilP1HideStyle3D(); }
       if(espilP1.ready&&!espilP1.layerAdded)espilP1AddLayer();
       if(espilP1.map&&espilP1.ready&&typeof walkPlayer!=='undefined'&&walkPlayer){
-        /* CAMERA ANCHOR (Han PC QA 2026-10-18): the map center must stay
-           locked to the character INCLUDING vertical movement - while
-           climbing, the old center tracked only x/z, so the character
-           rose out of the frame. The center is fed the ground point
-           that projects where the elevated character is: offset along
-           the view forward by hAbove x 1.62 (the ground-equivalent
-           factor, calibrated on the rig: at the 1.28 tan value the
-           feet rode about 4.4 px per metre above centre; at 1.62 they
-           hold centre within ~5 px up to 10 m), hAbove measured from
-           the last grounded height. Descent keeps its own framing. */
-        if(walkPlayer.onGround)espilP1.anchorH=walkPlayer.pos.y;
+        /* CAMERA ANCHOR (Han PC QA 2026-10-18, round 2): the camera
+           ALWAYS centres the character - hack-and-slash framing. The
+           map centre is fed the ground point that the character's
+           actual position projects from, using his ABSOLUTE height
+           every frame and in every state (ground, rooftop, airborne,
+           climbing): the centre is offset along the view forward by
+           the ground-equivalent of his height, h x 1.72 / (1 + h/55)
+           (calibrated on the rig at 3.4 / 7.6 / 12 m: a plain linear
+           factor overshoots with height - 1.62 read +30 px low at
+           12 m - while this perspective form holds the feet within
+           ~5 px of centre at all three). The camera looks at the
+           character; it does not track the movement keys. Descent
+           keeps its own framing. */
         var _ccx=walkPlayer.pos.x, _ccz=walkPlayer.pos.z;
         if(!walkPlayer._espilDescend){
-          var _base=(espilP1.anchorH===null||espilP1.anchorH===undefined)?0:espilP1.anchorH;
-          var _hA=Math.max(0,Math.min(60,walkPlayer.pos.y-_base));
+          var _hA=Math.max(0,Math.min(60,walkPlayer.pos.y));
           if(_hA>0.05){
-            var _off=_hA*1.62;
+            var _off=_hA*1.72/(1+_hA/55);
             _ccx+=-Math.sin(walkCamYaw)*_off;
             _ccz+=-Math.cos(walkCamYaw)*_off;
           }
@@ -4397,11 +4416,12 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
            at true map scale - about 11 px tall at the default zoom
            18.3 (measured), which reads as invisible on a real map.
            Layer mode ONLY, the visual root is grown by a zoom-linked
-           factor F(z) = 14 x 2^(-(z-18.3)/2), chosen so the screen
-           height follows H(z) = 157 x 2^((z-18.3)/2) px: about 220 px
-           at the 19.3 default framing (Han PC QA 2026-10-18: closer
-           default + a 2x presence, MapleStory-like), about 550 px at
-           the max 22, about 70 px at 16. Physics, collision
+           factor F(z) = 4.67 x 2^(-(z-18.3)/2), chosen so the screen
+           height follows H(z) = 52 x 2^((z-18.3)/2) px: about 75 px
+           at the 19.3 default framing (Han PC QA round 2, 2026-10-18:
+           the 227 px figure read too big against the map - one third
+           of it; the 19.3 default zoom itself was approved and stays),
+           about 183 px at the max 22, about 23 px at 16. Physics, collision
            and support keep the
            true 1.8 m body - only the drawing grows; outside layer mode
            the base scale is restored. The contact shadow follows at a
@@ -4409,7 +4429,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         if(typeof walkPlayer!=='undefined'&&walkPlayer&&walkPlayer.av){
           var _av=walkPlayer.av,_vr=_av.__visualRoot;
           if(_vr){
-            var _F=espilP1.layerLive&&!espilP1.failed?14*Math.pow(2,-((espilP1.zoom||19.3)-18.3)/2):1;
+            var _F=espilP1.layerLive&&!espilP1.failed?4.67*Math.pow(2,-((espilP1.zoom||19.3)-18.3)/2):1;
             var _bs=_vr.userData.__avBaseScale||1.5;
             _vr.scale.setScalar(_bs*_F);
             _vr.position.y=(_vr.userData.__avBaseY||0)*_F;
@@ -4895,28 +4915,9 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         var c=jumpSfxCache[kind].cloneNode(); c.volume=.5; c.play().catch(function(){});
       }catch(e){}
     }
-    /* Footstep SFX — Han 2026-10-10: walk/run replaced with pavement steps
-       (was snow crunch / leaf crunch per 2026-10-06).
-       Files: assets/sfx/movement/walk_pavement.wav, run_pavement.wav */
-    var stepAudioWalk=null, stepAudioRun=null;
-    function ensureStepAudio(){
-      if(!stepAudioWalk){
-        stepAudioWalk=new Audio('assets/sfx/movement/walk_pavement.wav');
-        stepAudioWalk.preload='auto'; stepAudioWalk.volume=.5;
-      }
-      if(!stepAudioRun){
-        stepAudioRun=new Audio('assets/sfx/movement/run_pavement.wav');
-        stepAudioRun.preload='auto'; stepAudioRun.volume=.5;
-      }
-    }
-    function playFootstep(running){
-      try{
-        ensureStepAudio();
-        var a=running?stepAudioRun:stepAudioWalk;
-        /* Clone for overlap (rapid steps). */
-        var c=a.cloneNode(); c.volume=a.volume; c.play().catch(function(){});
-      }catch(e){}
-    }
+    /* Footstep SFX (walk_pavement.wav / run_pavement.wav) removed
+       entirely (Han PC QA round 2, 2026-10-18) - see the trigger site
+       in updateWalkMap. */
     function buildWalkerAvatar(){
       /* Han's male character (assets/character/male.glb): Mixamo 22-bone rig, 1.2 units,
          faces +z, textures embedded. Clips: idle 'Armature|clip0|baselayer', 'Walking', 'Running'.
@@ -8012,18 +8013,8 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         p._lastSave=performance.now();
         saveLastPos();
       }
-      /* QA #12: footstep SFX — trigger by distance traveled (not while swimming/airborne). */
-      if(p.moving&&p.onGround&&!p.swimming){
-        var stepDist=Math.sqrt(p._dx*p._dx+p._dz*p._dz);
-        p._stepAcc=(p._stepAcc||0)+stepDist;
-        var stride=p.running?3.2:2.2;
-        if(p._stepAcc>=stride){
-          p._stepAcc=0;
-          playFootstep(p.running);
-        }
-      }else{
-        p._stepAcc=0;
-      }
+      /* Footstep SFX removed (Han PC QA round 2, 2026-10-18): no
+         walking sounds. BGM themes are unaffected. */
     }
     /* City pins (2026-10-06, per Han): small HTML buttons with the city name above —
        the 3D landmark icons are gone. Positioned each frame by projection. */
@@ -8045,9 +8036,11 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       pin.addEventListener('focus',function(){hoverCity({object:marker});});
       pin.addEventListener('blur',function(){if(!selected)hoverCity(null);});
       pin.addEventListener('click',function(){centerReel(marker,true);selectCity(marker);});
+      if(!ESPIL_SELECTABLE_CITIES[city[0]]){ pin.classList.add('is-inactive'); pin.disabled=true; }
       pinsLayer.appendChild(pin);marker.userData.pin=pin;
       var cityButton=document.createElement('button');
       cityButton.type='button';cityButton.className='city-name';cityButton.textContent=city[0];cityButton.title=city[0]+' — '+city[4];cityButton.setAttribute('aria-label',city[0]+', '+city[4]);
+      if(!ESPIL_SELECTABLE_CITIES[city[0]]){ cityButton.classList.add('is-inactive'); cityButton.disabled=true; }
       cityButton.addEventListener('mouseenter',function(){hoverCity({object:marker});});
       cityButton.addEventListener('mouseleave',function(){if(!selected)hoverCity(null);});
       cityButton.addEventListener('focus',function(){hoverCity({object:marker});});
@@ -8118,7 +8111,12 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(selected||infoShown)clearSelection(true);
       var cur=markers.indexOf(centeredMarker);
       if(cur<0)cur=navIndex;
-      navIndex=(cur+dir+markers.length)%markers.length;
+      /* Arrow navigation lands only on selectable cities (Han 2026-10-18). */
+      for(var _step=0;_step<markers.length;_step++){
+        cur=(cur+dir+markers.length)%markers.length;
+        if(ESPIL_SELECTABLE_CITIES[markers[cur].userData.name])break;
+      }
+      navIndex=cur;
       var marker=markers[navIndex];
       centerReel(marker,true);
       var cityDirection=marker.position.clone().normalize().applyAxisAngle(new THREE.Vector3(0,1,0),earthSpin.rotation.y);
@@ -8294,6 +8292,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       }
     }
     function selectCity(marker){
+      if(!marker||!ESPIL_SELECTABLE_CITIES[marker.userData.name])return; /* inactive city (Han 2026-10-18): displayed, never selectable */
       selected=marker; if(status)status.textContent=status.textContent; /* landing line: city name only */setActiveButton(marker);centerReel(marker,true);
       ensureLandmarkGLB(marker); /* start fetching the real 3D model; swaps in when ready */
       navIndex=markers.indexOf(marker);
