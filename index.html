@@ -3845,28 +3845,21 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        the collision height. Collision, rooftops and climbing run on
        the prebuilt store alone: walkColliders and chunkColliders are
        bypassed at every query while ESPIL_P1 is on. The token comes
-       from the repo-root local-config.js (window.__ESPIL_LOCAL_CONFIG__)
-       first, falling back to the repo-root .env
-       (window.__ESPIL_ENV__.MAPBOX_TOKEN), and is never tracked; with
-       no token, or if the map library or style fails to load, a visible
-       guidance banner is shown instead of a silent skip. */
+       only from the repo-root .env (window.__ESPIL_ENV__.MAPBOX_TOKEN)
+       and is never tracked; with no token, or if the map library or
+       style fails to load, a visible guidance banner is shown instead
+       of a silent skip. */
     var ESPIL_P1=true;
     var espilP1={map:null,ready:false,failed:null,hiddenApplied:false,initTried:false,bannerEl:null,mapEl:null};
     espilP1.envReady=false;
     (window.__ESPIL_ENV_READY__||Promise.resolve()).then(function(){espilP1.envReady=true;},function(){espilP1.envReady=true;});
     function espilP1Token(){
-      /* Priority (COO instruction, 2026-10-17): the documented channel
-         local-config.js (__ESPIL_LOCAL_CONFIG__) wins over /.env - a stale
-         MAPBOX_TOKEN left in .env shadowed the local-config token on Han's
-         PC and Mapbox answered 401 with the wrong account's token. */
-      var cfg=window.__ESPIL_LOCAL_CONFIG__||{};
-      if(cfg.MAPBOX_TOKEN)return cfg.MAPBOX_TOKEN;
-      if(cfg.mapboxToken)return cfg.mapboxToken;
-      var e=window.__ESPIL_ENV__||{}; if(e.MAPBOX_TOKEN)return e.MAPBOX_TOKEN;
-      var cc=window.CAULDRON_STATIC_CONFIG||{};
-      if(cc.mapboxToken)return cc.mapboxToken;
-      if(cc.MAPBOX_TOKEN)return cc.MAPBOX_TOKEN;
-      return window.MAPBOX_ACCESS_TOKEN||'';
+      /* Single channel (Han, 2026-10-17): the token lives ONLY in the
+         repo-root .env (window.__ESPIL_ENV__). local-config.js is served
+         as-is from the web root, so a key placed there is exposed in
+         page source - it is not read for the token anymore. */
+      var e=window.__ESPIL_ENV__||{};
+      return e.MAPBOX_TOKEN||'';
     }
     var ESPIL_P1_ANCHORS={vancouver:{lat:49.2827,lng:-123.1207},auckland:{lat:-36.8523,lng:174.7635}};
     function espilP1Anchor(){ return ESPIL_P1_ANCHORS[espilCityKey()]||ESPIL_P1_ANCHORS.vancouver; }
