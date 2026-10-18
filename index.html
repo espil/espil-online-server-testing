@@ -860,8 +860,15 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       position:absolute; right:4px; bottom:2px; font-size:8px; font-weight:700; color:#ffe8a0; letter-spacing:0;
     }
     #quickbar .move-slot.is-locked { opacity:.5; border-style:dashed; }
+    #quickbar .flask-wrap { width:42px; height:42px; display:grid; place-items:center; pointer-events:none; }
+    #quickbar .flask {
+      width:34px; height:34px; flex:none;
+      filter:drop-shadow(0 4px 6px rgba(0,0,0,.35));
+    }
+    #quickbar .flask .pct { display:none; }
     @media (pointer:coarse) {
       #quickbar { grid-template-columns:repeat(5,38px); right:12px; }
+      #quickbar .flask { width:30px; height:30px; }
     }
     /* Mobile: keep pre-hotbar layout (not keyboard, not single-row hotbar). */
     @media (pointer:coarse) {
@@ -1745,8 +1752,8 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         <button class="map-zoom-btn" id="map-zoom-in" type="button" aria-label="Zoom in">+</button>
       </div>
     </div>
-    <div class="skill-bar" id="skill-bar" aria-hidden="true">
-      <!-- Han 2026-10-14: HP glass potion flask (left of the slot grid). -->
+    <section id="quickbar" aria-label="Quick slots">
+      <!-- Han PC verdict round 3 #5: HP/MP mini glass flasks live in the quickbar grid. -->
       <div class="flask-wrap" id="hp-flask-wrap">
         <div class="flask hp" aria-hidden="true">
           <div class="slosh">
@@ -1758,7 +1765,6 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           <div class="pct"><span id="hp-pct">100</span><small>%</small></div>
         </div>
       </div>
-      <!-- Han 2026-10-14: MP glass potion flask (right of the slot grid). -->
       <div class="flask-wrap" id="mp-flask-wrap">
         <div class="flask mp" aria-hidden="true">
           <div class="slosh">
@@ -1770,8 +1776,6 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           <div class="pct"><span id="mp-pct">100</span><small>%</small></div>
         </div>
       </div>
-    </div>
-    <section id="quickbar" aria-label="Quick slots">
       <div class="kb-main">
         <!-- QA #13 (UI room, 2026-10-06): 1234 item bar. -->
         <div class="kb-row" id="item-row" aria-label="Item slots"></div>
@@ -3508,6 +3512,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       var st=document.getElementById('loader-status'); if(st)st.textContent='Opening the map';
       espilLoaderShownAt=Date.now();
       window.__espilCityProgress01=0; window.__espilCitySettledFlag=false;
+      if(ESPIL_P1)window.__espilMapProgress01=0; /* UI-room loader contract (2026-10-17): the map signal resets with the other indicators */
       /* the v10 standard driver + liquid physics, started by the bridge */
       if(window.__espilStartMapLoader)window.__espilStartMapLoader();
       if(window.__espilStartLoaderPhysics)window.__espilStartLoaderPhysics();
@@ -3840,19 +3845,24 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        the collision height. Collision, rooftops and climbing run on
        the prebuilt store alone: walkColliders and chunkColliders are
        bypassed at every query while ESPIL_P1 is on. The token comes
-       from the repo-root .env (window.__ESPIL_ENV__.MAPBOX_TOKEN)
-       and is never tracked; with no token, or if the map library or
-       style fails to load, a visible guidance banner is shown instead
-       of a silent skip. */
+       from the repo-root local-config.js (window.__ESPIL_LOCAL_CONFIG__)
+       first, falling back to the repo-root .env
+       (window.__ESPIL_ENV__.MAPBOX_TOKEN), and is never tracked; with
+       no token, or if the map library or style fails to load, a visible
+       guidance banner is shown instead of a silent skip. */
     var ESPIL_P1=true;
     var espilP1={map:null,ready:false,failed:null,hiddenApplied:false,initTried:false,bannerEl:null,mapEl:null};
     espilP1.envReady=false;
     (window.__ESPIL_ENV_READY__||Promise.resolve()).then(function(){espilP1.envReady=true;},function(){espilP1.envReady=true;});
     function espilP1Token(){
-      var e=window.__ESPIL_ENV__||{}; if(e.MAPBOX_TOKEN)return e.MAPBOX_TOKEN;
+      /* Priority (COO instruction, 2026-10-17): the documented channel
+         local-config.js (__ESPIL_LOCAL_CONFIG__) wins over /.env - a stale
+         MAPBOX_TOKEN left in .env shadowed the local-config token on Han's
+         PC and Mapbox answered 401 with the wrong account's token. */
       var cfg=window.__ESPIL_LOCAL_CONFIG__||{};
       if(cfg.MAPBOX_TOKEN)return cfg.MAPBOX_TOKEN;
       if(cfg.mapboxToken)return cfg.mapboxToken;
+      var e=window.__ESPIL_ENV__||{}; if(e.MAPBOX_TOKEN)return e.MAPBOX_TOKEN;
       var cc=window.CAULDRON_STATIC_CONFIG||{};
       if(cc.mapboxToken)return cc.mapboxToken;
       if(cc.MAPBOX_TOKEN)return cc.MAPBOX_TOKEN;
@@ -3916,9 +3926,10 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     }
     function espilP1Init(){
       if(espilP1.initTried)return; espilP1.initTried=true;
+      window.__espilMapProgress01=0; /* UI-room loader contract (2026-10-17): 0 at init, .45 at style load, 1 at first idle; every failure path releases the gate with 1 (the banner carries the guidance) */
       var token=espilP1Token();
-      if(typeof mapboxgl==='undefined'){ espilP1.failed='lib'; espilP1Banner('Mapbox 지도 라이브러리를 불러오지 못했습니다. 네트워크 연결을 확인해 주십시오. 이동과 충돌은 사전 구축 저장소 기준으로 동작합니다.'); return; }
-      if(!token){ espilP1.failed='token'; espilP1Banner('Mapbox 토큰이 없어 지도를 표시하지 못했습니다. .env 파일에 MAPBOX_TOKEN을 넣어 주십시오. 이동과 충돌은 사전 구축 저장소 기준으로 동작합니다.'); return; }
+      if(typeof mapboxgl==='undefined'){ espilP1.failed='lib'; window.__espilMapProgress01=1; espilP1Banner('Mapbox 지도 라이브러리를 불러오지 못했습니다. 네트워크 연결을 확인해 주십시오. 이동과 충돌은 사전 구축 저장소 기준으로 동작합니다.'); return; }
+      if(!token){ espilP1.failed='token'; window.__espilMapProgress01=1; espilP1Banner('Mapbox 토큰이 없어 지도를 표시하지 못했습니다. .env 파일에 MAPBOX_TOKEN을 넣어 주십시오. 이동과 충돌은 사전 구축 저장소 기준으로 동작합니다.'); return; }
       mapboxgl.accessToken=token;
       var el=document.createElement('div'); el.id='espil-mapbox';
       el.style.cssText='position:absolute;inset:0;z-index:0;';
@@ -3928,15 +3939,20 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       espilP1.mapEl=el;
       try{
         espilP1.map=new mapboxgl.Map({container:el,style:'mapbox://styles/mapbox/streets-v12',center:espilP1LngLat(19,-57),zoom:17.3,pitch:52,bearing:0,attributionControl:false,interactive:false});
-      }catch(e){ espilP1.failed='init'; espilP1Banner('Mapbox 지도를 시작하지 못했습니다. 토큰을 확인해 주십시오.'); return; }
+      }catch(e){ espilP1.failed='init'; window.__espilMapProgress01=1; espilP1Banner('Mapbox 지도를 시작하지 못했습니다. 토큰을 확인해 주십시오.'); return; }
       espilP1.map.on('load',function(){
         espilP1.ready=true;
+        window.__espilMapProgress01=0.45; /* loader contract: style loaded */
         try{
           espilP1.map.addSource('espil-buildings',{type:'geojson',data:espilP1BuildingsGeoJSON()});
           espilP1.map.addLayer({id:'espil-buildings-3d',type:'fill-extrusion',source:'espil-buildings',paint:{'fill-extrusion-color':'#cfc4b0','fill-extrusion-height':['get','h'],'fill-extrusion-base':0,'fill-extrusion-opacity':1}});
         }catch(e){}
       });
+      espilP1.map.on('idle',function(){
+        if(espilP1.ready&&window.__espilMapProgress01<1)window.__espilMapProgress01=1; /* loader contract: first idle after load completes the map signal */
+      });
       espilP1.map.on('error',function(){
+        window.__espilMapProgress01=1; /* loader contract: failures release the gate; the banner carries the guidance */
         if(!espilP1.ready){ espilP1.failed='maperror'; espilP1Banner('Mapbox 지도를 불러오지 못했습니다. 토큰 거부이거나 스타일에 접근할 수 없는 상태입니다.'); }
       });
     }
@@ -8824,9 +8840,14 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       loader.style.setProperty('--p', shown);
     }
     function measure(){
-      if(mapMode){ /* map entry: the bridge publishes real city progress */
+      if(mapMode){ /* map entry: progress is bound to real readiness -
+           the bridge's city systems AND the Mapbox visual signal the P1
+           layer publishes (__espilMapProgress01: 0 init, .45 style load,
+           1 first idle / failure release). Absent signal = no map layer
+           expected, treated as ready. (Han PC verdict 2026-10-17 #1) */
         var cp=window.__espilCityProgress01||0;
-        real=Math.max(0,Math.min(100,cp*100));
+        var mp=(typeof window.__espilMapProgress01==='number')?window.__espilMapProgress01:1;
+        real=Math.max(0,Math.min(100,(cp*0.65+mp*0.35)*100));
         return;
       }
       var imgs=document.images, done=0;
@@ -8837,7 +8858,10 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       real=Math.min(100, imgPart+docPart+earthPart);
     }
     function ready(){
-      if(mapMode) return !!window.__espilCitySettledFlag;
+      if(mapMode){
+        var mp2=(typeof window.__espilMapProgress01==='number')?window.__espilMapProgress01:1;
+        return !!window.__espilCitySettledFlag && mp2>=1;
+      }
       return earthReady && document.readyState==='complete';
     }
     function begin(map){
@@ -8853,6 +8877,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         var target=mapMode? real : Math.max(real, Math.min(92, (Date.now()-start)/55));
         if(ready()) target=100;
         shown+=(target-shown)*0.14; if(target-shown<0.4) shown=target;
+        if(mapMode && !ready()) shown=Math.min(shown, real+6); /* never race past the signals */
         render();
         if(shown>=99.5 && ready() && Date.now()-start>=(mapMode?800:1000)) finish();
         if(Date.now()-start>(mapMode?30000:8000)) finish(); /* never trap the reader */
