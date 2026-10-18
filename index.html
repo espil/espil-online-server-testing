@@ -4126,7 +4126,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       else document.body.appendChild(el);
       espilP1.mapEl=el;
       try{
-        espilP1.map=new mapboxgl.Map({container:el,style:'mapbox://styles/quadclipse/cmvd82z22000l01r7713ybrz6',center:espilP1LngLat(19,-57),zoom:17.3,pitch:52,bearing:0,attributionControl:false,interactive:false});
+        espilP1.map=new mapboxgl.Map({container:el,style:'mapbox://styles/quadclipse/cmvdcpdor000901sq8xq57eab',center:espilP1LngLat(19,-57),zoom:17.3,pitch:52,bearing:0,attributionControl:false,interactive:false});
       }catch(e){ espilP1.failed='init'; window.__espilMapProgress01=1; espilP1Banner('Mapbox 지도를 시작하지 못했습니다. 토큰을 확인해 주십시오.'); return; }
       espilP1.map.on('load',function(){
         espilP1.ready=true;
