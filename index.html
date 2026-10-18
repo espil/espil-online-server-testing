@@ -3513,6 +3513,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       espilLoaderShownAt=Date.now();
       window.__espilCityProgress01=0; window.__espilCitySettledFlag=false;
       if(ESPIL_P1)window.__espilMapProgress01=0; /* UI-room loader contract (2026-10-17): the map signal resets with the other indicators */
+      if(ESPIL_P1)espilP1Preload(); /* map preload (Han, 2026-10-17): Mapbox init runs parallel to the city preload from here */
       /* the v10 standard driver + liquid physics, started by the bridge */
       if(window.__espilStartMapLoader)window.__espilStartMapLoader();
       if(window.__espilStartLoaderPhysics)window.__espilStartLoaderPhysics();
@@ -3882,9 +3883,20 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       for(var i=0;i<mats.length;i++){ var mt=mats[i]; if(!mt||mt.__espilP1Faded)continue; mt.__espilP1Faded=true; mt.transparent=true; mt.opacity=0; mt.depthWrite=false; }
     }
     function espilP1Hide(){
-      if(espilP1.hiddenApplied||!mapScene)return;
+      if(!mapScene)return;
       var dm=window.__espilDistrictMeshes||[];
-      for(var i=0;i<dm.length;i++)espilP1FadeMat(dm[i].material);
+      /* Leak fix (2026-10-17, Han PC round 3 item 1): the one-time latch
+         let every mesh created after the first pass stay fully opaque -
+         chunk content regenerates around the moving player, so unfaded
+         boxes trailed the character as floating shards. Re-run the pass
+         whenever the scene/district population changes, and at least
+         every ~4 s of frames regardless; between changes the cost is
+         two counters. Fading itself is flag-guarded per material. */
+      espilP1.hideTick=(espilP1.hideTick||0)+1;
+      var sig=mapScene.children.length+'/'+dm.length;
+      if(espilP1.hideSig===sig&&espilP1.hideTick%240!==0)return;
+      espilP1.hideSig=sig;
+      for(var i=0;i<dm.length;i++){ espilP1FadeMat(dm[i].material); dm[i].visible=false; } /* visible=false as well: an opacity-0 mesh still costs a draw call every frame (round 3 item 2) */
       if(typeof mapSkyDome!=='undefined'&&mapSkyDome)mapSkyDome.visible=false; /* its lower hemisphere would paint over the map */
       mapScene.traverse(function(o){
         if(!o.isMesh)return;
@@ -3898,9 +3910,8 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           var w=(g.parameters&&g.parameters.width)||0;
           if(!isCanvas&&(w>=400||(mt&&mt.map)))hide=true; /* satellite, roads, grass/cobble, base + city ground planes */
         }
-        if(hide)espilP1FadeMat(o.material);
+        if(hide){ espilP1FadeMat(o.material); o.visible=false; }
       });
-      espilP1.hiddenApplied=true;
     }
     function espilP1BuildingsGeoJSON(){
       var feats=[], a=espilP1Anchor();
@@ -3917,6 +3928,32 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       }
       return {type:'FeatureCollection',features:feats};
     }
+    function espilP1AddBuildings(){
+      if(!espilP1.map||espilP1.buildingsAdded)return;
+      var blds=(typeof espilDistrict!=='undefined'&&espilDistrict&&espilDistrict.buildings)||[];
+      if(!blds.length)return; /* district data not in yet - the tick retries */
+      try{
+        if(!espilP1.map.getSource('espil-buildings')){
+          espilP1.map.addSource('espil-buildings',{type:'geojson',data:espilP1BuildingsGeoJSON()});
+          espilP1.map.addLayer({id:'espil-buildings-3d',type:'fill-extrusion',source:'espil-buildings',paint:{'fill-extrusion-color':'#cfc4b0','fill-extrusion-height':['get','h'],'fill-extrusion-base':0,'fill-extrusion-opacity':1}});
+        }else{
+          espilP1.map.getSource('espil-buildings').setData(espilP1BuildingsGeoJSON());
+        }
+        espilP1.buildingsAdded=true;
+      }catch(e){}
+    }
+    function espilP1Preload(){
+      /* Map preload (Han, 2026-10-17): start Mapbox init in parallel with
+         the entry sequence (the city preload window) instead of waiting
+         for the city phase, so the style and tiles stream during loading
+         and the map is ready when entry completes. Display stays hidden
+         until the city phase (espilP1Tick owns visibility); the loader
+         signal advances during entry; failures keep the banner path. */
+      if(!ESPIL_P1||espilP1.initTried)return;
+      if(espilP1.envReady){ espilP1Init(); return; }
+      if(espilP1.preloadArmed)return; espilP1.preloadArmed=true;
+      (window.__ESPIL_ENV_READY__||Promise.resolve()).then(function(){ if(!espilP1.initTried)espilP1Init(); },function(){ if(!espilP1.initTried)espilP1Init(); });
+    }
     function espilP1Init(){
       if(espilP1.initTried)return; espilP1.initTried=true;
       window.__espilMapProgress01=0; /* UI-room loader contract (2026-10-17): 0 at init, .45 at style load, 1 at first idle; every failure path releases the gate with 1 (the banner carries the guidance) */
@@ -3931,20 +3968,34 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       else document.body.appendChild(el);
       espilP1.mapEl=el;
       try{
-        espilP1.map=new mapboxgl.Map({container:el,style:'mapbox://styles/mapbox/streets-v12',center:espilP1LngLat(19,-57),zoom:17.3,pitch:52,bearing:0,attributionControl:false,interactive:false});
+        espilP1.map=new mapboxgl.Map({container:el,style:'mapbox://styles/quadclipse/cmvd82z22000l01r7713ybrz6',center:espilP1LngLat(19,-57),zoom:17.3,pitch:52,bearing:0,attributionControl:false,interactive:false});
       }catch(e){ espilP1.failed='init'; window.__espilMapProgress01=1; espilP1Banner('Mapbox 지도를 시작하지 못했습니다. 토큰을 확인해 주십시오.'); return; }
       espilP1.map.on('load',function(){
         espilP1.ready=true;
         window.__espilMapProgress01=0.45; /* loader contract: style loaded */
-        try{
-          espilP1.map.addSource('espil-buildings',{type:'geojson',data:espilP1BuildingsGeoJSON()});
-          espilP1.map.addLayer({id:'espil-buildings-3d',type:'fill-extrusion',source:'espil-buildings',paint:{'fill-extrusion-color':'#cfc4b0','fill-extrusion-height':['get','h'],'fill-extrusion-base':0,'fill-extrusion-opacity':1}});
-        }catch(e){}
+        if(espilP1.onFallback){
+          /* Fallback base (round 3 item 6): Han rejected street-name labels -
+             strip every symbol layer so the fallback reads as the clean map. */
+          try{ var ls=espilP1.map.getStyle().layers||[]; for(var li=0;li<ls.length;li++){ if(ls[li].type==='symbol'){ try{ espilP1.map.setLayoutProperty(ls[li].id,'visibility','none'); }catch(e){} } } }catch(e){}
+        }
+        espilP1AddBuildings();
       });
       espilP1.map.on('idle',function(){
         if(espilP1.ready&&window.__espilMapProgress01<1)window.__espilMapProgress01=1; /* loader contract: first idle after load completes the map signal */
       });
       espilP1.map.on('error',function(){
+        if(!espilP1.ready&&!espilP1.onFallback){
+          /* Designated style unreadable with this token (round 3 item 6):
+             fall back ONCE to the label-stripped streets base; the loader
+             signal stays open while recovery is in progress. If the style
+             is copied into Han's own account later, this path never runs. */
+          espilP1.onFallback=true;
+          espilP1.buildingsAdded=false; /* setStyle wipes sources - the load handler re-adds the buildings */
+          espilP1Banner('지정 스타일을 읽지 못해 기본 지도로 표시합니다. 길 이름 라벨은 걷어낸 상태입니다.');
+          try{ espilP1.map.setStyle('mapbox://styles/mapbox/streets-v12'); }
+          catch(e){ window.__espilMapProgress01=1; espilP1.failed='maperror'; }
+          return;
+        }
         window.__espilMapProgress01=1; /* loader contract: failures release the gate; the banner carries the guidance */
         if(!espilP1.ready){ espilP1.failed='maperror'; espilP1Banner('Mapbox 지도를 불러오지 못했습니다. 토큰 거부이거나 스타일에 접근할 수 없는 상태입니다.'); }
       });
@@ -3962,10 +4013,11 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(!espilP1.initTried&&espilP1.envReady)espilP1Init();
       if(window.__espilDistrictMeshesBuilt&&typeof mapBuilt!=='undefined'&&mapBuilt)espilP1Hide();
       if(typeof renderer!=='undefined'&&renderer)renderer.setClearColor(0x000000,0);
+      if(espilP1.ready&&!espilP1.buildingsAdded)espilP1AddBuildings(); /* preload case: district data may land after the map load */
       if(espilP1.map&&espilP1.ready&&typeof walkPlayer!=='undefined'&&walkPlayer){
         var ll=espilP1LngLat(walkPlayer.pos.x,walkPlayer.pos.z);
         var brg=-walkCamYaw*180/Math.PI;
-        var zoom=17.3-Math.log2(Math.max(4,walkCamDist)/14)*0.6;
+        var zoom=Math.max(17,Math.min(20,21.97-1.242*Math.log2(Math.max(3,walkCamDist)))); /* round 3 item 4 (Han): map zoom tracks the whole camera range - 17 at dist 16, max 20 at dist 3 */
         try{ espilP1.map.jumpTo({center:ll,bearing:brg,pitch:52,zoom:zoom}); }catch(e){}
       }
     }
@@ -7199,7 +7251,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(e.pointerId===mapDragId)mapDragId=null;
       try{canvas.releasePointerCapture(e.pointerId);}catch(err){}
     }
-    function mapZoom(d){walkCamDist=Math.max(6,Math.min(16,walkCamDist+d));}
+    function mapZoom(d){walkCamDist=Math.max(3,Math.min(16,walkCamDist+d));} /* round 3 item 4: closer max zoom-in (was 6) */
     /* Keyboard: tracked only while the map is open (globe keeps its own bindings). */
     document.addEventListener('keydown',function(e){
       if(!document.body.classList.contains('in-map'))return;
@@ -8218,11 +8270,31 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     }
     var __infoEnterBtn=document.getElementById('city-info-enter');
     if(__infoEnterBtn)__infoEnterBtn.addEventListener('click',tryLandscapeLock);
+    function espilMinimapResize(){
+      if(leafletMap){ try{ leafletMap.invalidateSize(); }catch(e){} }
+    }
+    var espilMinimapResizeT=null;
+    window.addEventListener('resize',function(){
+      if(espilMinimapResizeT)clearTimeout(espilMinimapResizeT);
+      espilMinimapResizeT=setTimeout(espilMinimapResize,200);
+    });
     function setMapStage(s){
       mapStage=Math.max(1,Math.min(3,s));
       var wrap=document.getElementById('minimap-wrap');
       if(wrap)wrap.setAttribute('data-stage',String(mapStage));
-      if(leafletMap)setTimeout(function(){leafletMap.invalidateSize();},320);
+      if(leafletMap){
+        /* Resize fix (2026-10-17, Han PC round 2 item 3): the single 320 ms
+           call raced the .3 s CSS size transition - any main-thread jank
+           made Leaflet lock in a mid-transition size and nothing ever
+           re-measured, so the fullscreen stage stayed small. Re-measure on
+           transition end plus a short ladder, and on window resize. A
+           correct measure is also what makes Leaflet fetch the tiles the
+           bigger stage needs. */
+        if(wrap)wrap.addEventListener('transitionend',espilMinimapResize,{once:true});
+        setTimeout(espilMinimapResize,60);
+        setTimeout(espilMinimapResize,350);
+        setTimeout(espilMinimapResize,800);
+      }
     }
     function cycleMapStage(){
       setMapStage(mapStage>=3?1:mapStage+1);
