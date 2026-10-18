@@ -4343,6 +4343,29 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         var zoom=espilP1.zoom;
         try{ espilP1.map.jumpTo({center:ll,bearing:brg,pitch:52,zoom:zoom}); }catch(e){}
         if(espilP1.layerLive){ try{ espilP1.map.triggerRepaint(); }catch(e){} } /* the map's render pass draws the game scene via the custom layer */
+        /* AVATAR SCALE (Han 2026-10-17): in layer mode the avatar draws
+           at true map scale - about 11 px tall at the default zoom
+           18.3 (measured), which reads as invisible on a real map.
+           Layer mode ONLY, the visual root is grown by a zoom-linked
+           factor F(z) = 10 x 2^(-(z-18.3)/2), chosen so the screen
+           height follows H(z) = 110 x 2^((z-18.3)/2) px: about 110 px
+           at 18.3 (the old overlay default's readability), about
+           396 px at the max 22, about 50 px at 16. Physics, collision
+           and support keep the
+           true 1.8 m body - only the drawing grows; outside layer mode
+           the base scale is restored. The contact shadow follows at a
+           capped factor so it stays a contact shadow. */
+        if(typeof walkPlayer!=='undefined'&&walkPlayer&&walkPlayer.av){
+          var _av=walkPlayer.av,_vr=_av.__visualRoot;
+          if(_vr){
+            var _F=espilP1.layerLive&&!espilP1.failed?10*Math.pow(2,-((espilP1.zoom||18.3)-18.3)/2):1;
+            var _bs=_vr.userData.__avBaseScale||1.5;
+            _vr.scale.setScalar(_bs*_F);
+            _vr.position.y=(_vr.userData.__avBaseY||0)*_F;
+            if(_av.shadow){ var _ss=Math.min(_F,4); _av.shadow.scale.set(_ss,_ss,1); }
+            window.__espilAvatarScaleF=_F; /* QA readout: the applied factor */
+          }
+        }
       }
     }
     /* ============ ESPIL CHAT + SPEECH BUBBLE (2026-10-15, per Han:
@@ -4869,6 +4892,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           var bbox=new THREE.Box3().setFromObject(model);
           model.position.y-=bbox.min.y; /* feet exactly on the ground */
           model.traverse(function(o){if(o.isMesh){o.castShadow=true; if(typeof curvePatch==='function'&&o.material)curvePatch(o.material);}}); /* curve k=1400 (Han 2026-10-17): the character rides the same shared-uniform curve law as the rest of the scene */
+          av.__visualRoot=model; model.userData.__avBaseScale=1.5; model.userData.__avBaseY=model.position.y; /* layer-mode avatar scale (below) grows from this base */
           g.add(model);
           var mixer=new THREE.AnimationMixer(model);
           av.mixer=mixer;
