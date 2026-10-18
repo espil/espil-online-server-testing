@@ -14,6 +14,10 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
   });
 }).catch(function(){});
 </script>
+  <!-- Optional local keys file (gitignored, never tracked). Loaded so a
+       repo-root local-config.js actually reaches the runtime; absent
+       file is a silent 404. Keys may also live in /.env (see above). -->
+  <script src="/local-config.js"></script>
   <!-- espil-online deploy 2026-10-04 v12 full -->
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -3836,12 +3840,24 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        the collision height. Collision, rooftops and climbing run on
        the prebuilt store alone: walkColliders and chunkColliders are
        bypassed at every query while ESPIL_P1 is on. The token comes
-       from local-config.js (window.__ESPIL_LOCAL_CONFIG__.MAPBOX_TOKEN)
+       from the repo-root .env (window.__ESPIL_ENV__.MAPBOX_TOKEN)
        and is never tracked; with no token, or if the map library or
        style fails to load, a visible guidance banner is shown instead
        of a silent skip. */
     var ESPIL_P1=true;
     var espilP1={map:null,ready:false,failed:null,hiddenApplied:false,initTried:false,bannerEl:null,mapEl:null};
+    espilP1.envReady=false;
+    (window.__ESPIL_ENV_READY__||Promise.resolve()).then(function(){espilP1.envReady=true;},function(){espilP1.envReady=true;});
+    function espilP1Token(){
+      var e=window.__ESPIL_ENV__||{}; if(e.MAPBOX_TOKEN)return e.MAPBOX_TOKEN;
+      var cfg=window.__ESPIL_LOCAL_CONFIG__||{};
+      if(cfg.MAPBOX_TOKEN)return cfg.MAPBOX_TOKEN;
+      if(cfg.mapboxToken)return cfg.mapboxToken;
+      var cc=window.CAULDRON_STATIC_CONFIG||{};
+      if(cc.mapboxToken)return cc.mapboxToken;
+      if(cc.MAPBOX_TOKEN)return cc.MAPBOX_TOKEN;
+      return window.MAPBOX_ACCESS_TOKEN||'';
+    }
     var ESPIL_P1_ANCHORS={vancouver:{lat:49.2827,lng:-123.1207},auckland:{lat:-36.8523,lng:174.7635}};
     function espilP1Anchor(){ return ESPIL_P1_ANCHORS[espilCityKey()]||ESPIL_P1_ANCHORS.vancouver; }
     function espilP1LngLat(x,z){
@@ -3900,10 +3916,9 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     }
     function espilP1Init(){
       if(espilP1.initTried)return; espilP1.initTried=true;
-      var cfg=window.__ESPIL_LOCAL_CONFIG__||{};
-      var token=cfg.MAPBOX_TOKEN||cfg.MAPBOX_ACCESS_TOKEN||'';
+      var token=espilP1Token();
       if(typeof mapboxgl==='undefined'){ espilP1.failed='lib'; espilP1Banner('Mapbox 지도 라이브러리를 불러오지 못했습니다. 네트워크 연결을 확인해 주십시오. 이동과 충돌은 사전 구축 저장소 기준으로 동작합니다.'); return; }
-      if(!token){ espilP1.failed='token'; espilP1Banner('Mapbox 토큰이 없어 지도를 표시하지 못했습니다. local-config.js에 MAPBOX_TOKEN을 넣어 주십시오. 이동과 충돌은 사전 구축 저장소 기준으로 동작합니다.'); return; }
+      if(!token){ espilP1.failed='token'; espilP1Banner('Mapbox 토큰이 없어 지도를 표시하지 못했습니다. .env 파일에 MAPBOX_TOKEN을 넣어 주십시오. 이동과 충돌은 사전 구축 저장소 기준으로 동작합니다.'); return; }
       mapboxgl.accessToken=token;
       var el=document.createElement('div'); el.id='espil-mapbox';
       el.style.cssText='position:absolute;inset:0;z-index:0;';
@@ -3935,7 +3950,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       }
       if(espilP1.mapEl)espilP1.mapEl.style.display='';
       if(espilP1.bannerEl&&espilP1.failed)espilP1.bannerEl.style.display='';
-      if(!espilP1.initTried)espilP1Init();
+      if(!espilP1.initTried&&espilP1.envReady)espilP1Init();
       if(window.__espilDistrictMeshesBuilt&&typeof mapBuilt!=='undefined'&&mapBuilt)espilP1Hide();
       if(typeof renderer!=='undefined'&&renderer)renderer.setClearColor(0x000000,0);
       if(espilP1.map&&espilP1.ready&&typeof walkPlayer!=='undefined'&&walkPlayer){
