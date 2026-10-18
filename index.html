@@ -3518,8 +3518,10 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       }catch(e){ console.warn('[District] kit facade load skipped:',e); }
       return reg;
     }
+    var espilMeshBuildState=null;
     function espilBuildDistrictMeshes(){
       if(window.__espilDistrictMeshesBuilt)return;
+      if(espilMeshBuildState)return; /* a staged build is already running */
       if(!espilDistrict||typeof mapScene==='undefined'||!mapScene)return;
       var mats=espilDistrictMaterials();
       var palette=[0xd9b678,0xd4b183,0xcf9f6b,0xdbbd8a,0xd6a86f];
@@ -3542,7 +3544,18 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         g2.dispose();
       }
       var blds=espilDistrict.buildings;
-      for(var bi=0;bi<blds.length;bi++){
+      /* Staged build (Han 2026-10-18, loader-lag verdict): the merged
+         mesh build used to run as ONE synchronous block over all
+         buildings inside the loader window, freezing the glass loader's
+         own animation for its whole duration. It now advances ~200
+         buildings per macrotask and yields in between, so the loader
+         (and the page) keeps breathing; the completion contract is
+         unchanged (window.__espilDistrictMeshesBuilt flips only when
+         every mesh is in the scene). */
+      var st={bi:0}; espilMeshBuildState=st;
+      function step(){
+      var tEnd=Math.min(blds.length,st.bi+200);
+      for(var bi=st.bi;bi<tEnd;bi++){
         var b=blds[bi], ring=b.p, h=b.h;
         if(!ring||ring.length<3||h<=0)continue;
         var cx=0,cz=0,mnx=1e9,mxx=-1e9,mnz=1e9,mxz=-1e9,area2=0;
@@ -3588,6 +3601,11 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         var sg=new THREE.ShapeGeometry(shape); sg.rotateX(-Math.PI/2); sg.translate(0,h,0);
         srcGeom(racc,sg,rr,rg,rb); sg.dispose();
       }
+      st.bi=bi;
+      if(st.bi<blds.length){ setTimeout(step,0); return; }
+      finishBuild();
+      }
+      function finishBuild(){
       function finishMesh(acc,mat){
         var g=new THREE.BufferGeometry();
         g.setAttribute('position',new THREE.Float32BufferAttribute(acc.pos,3));
@@ -3603,6 +3621,9 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       var dcfg=espilCityCfg();
       if(dcfg.ox||dcfg.oz)for(var dmi=0;dmi<window.__espilDistrictMeshes.length;dmi++)window.__espilDistrictMeshes[dmi].position.set(dcfg.ox,0,dcfg.oz);
       window.__espilDistrictMeshesBuilt=true;
+      espilMeshBuildState=null;
+      }
+      step();
     }
     function espilShowMapLoader(){
       var el=document.getElementById('loader'); if(!el)return;
@@ -3742,7 +3763,14 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           var s=rx*tx+rz*tz;
           if(s<.1||s>L-.1)continue;
           var dl=rx*nx+rz*nz;
-          if(dl<PLAYER_R-.05||dl>PLAYER_R+.45)continue;
+          /* Attach window (Han PC QA 2026-10-18 follow-up): the low end
+             was PLAYER_R-0.05 (0.50 m), but axis-separated collision
+             leaves the centre at R*cos of the face angle on ANGLED
+             walls - about 0.48-0.50 m - so airborne contact on diagonal
+             faces never attached (measured: 12 attempts, 0 passes).
+             The attach snaps the centre to PLAYER_R+0.02 along the
+             normal, so accepting contact down to 0.25 m is safe. */
+          if(dl<PLAYER_R-.30||dl>PLAYER_R+.45)continue;
           if(-(mx*nx+mz*nz)<.45)continue;
           if(!best||dl<best.dl)best={rec:rec,ei:ei,nx:nx,nz:nz,tx:tx,tz:tz,dl:dl,eTop:eTop};
         }
@@ -4022,7 +4050,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        style fails to load, a visible guidance banner is shown instead
        of a silent skip. */
     var ESPIL_P1=true;
-    var espilP1={map:null,ready:false,failed:null,hiddenApplied:false,initTried:false,bannerEl:null,mapEl:null,layerAdded:false,layerLive:false,layerRenderer:null,layerCam:null,gameCanvasHidden:false,layerSignaled:false,zoom:null,zoomT:null,zoomDrive:false,style3dOff:false,style3dTries:0};
+    var espilP1={map:null,ready:false,failed:null,hiddenApplied:false,initTried:false,bannerEl:null,mapEl:null,layerAdded:false,layerLive:false,layerRenderer:null,layerCam:null,gameCanvasHidden:false,layerSignaled:false,zoom:null,zoomT:null,zoomDrive:false,style3dOff:false,style3dTries:0,anchorH:null};
     espilP1.envReady=false;
     (window.__ESPIL_ENV_READY__||Promise.resolve()).then(function(){espilP1.envReady=true;},function(){espilP1.envReady=true;});
     function espilP1Token(){
@@ -4323,7 +4351,28 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(espilP1.ready&&!espilP1.style3dOff&&espilP1.style3dTries<1200){ espilP1.style3dTries++; espilP1HideStyle3D(); }
       if(espilP1.ready&&!espilP1.layerAdded)espilP1AddLayer();
       if(espilP1.map&&espilP1.ready&&typeof walkPlayer!=='undefined'&&walkPlayer){
-        var ll=espilP1LngLat(walkPlayer.pos.x,walkPlayer.pos.z);
+        /* CAMERA ANCHOR (Han PC QA 2026-10-18): the map center must stay
+           locked to the character INCLUDING vertical movement - while
+           climbing, the old center tracked only x/z, so the character
+           rose out of the frame. The center is fed the ground point
+           that projects where the elevated character is: offset along
+           the view forward by hAbove x 1.62 (the ground-equivalent
+           factor, calibrated on the rig: at the 1.28 tan value the
+           feet rode about 4.4 px per metre above centre; at 1.62 they
+           hold centre within ~5 px up to 10 m), hAbove measured from
+           the last grounded height. Descent keeps its own framing. */
+        if(walkPlayer.onGround)espilP1.anchorH=walkPlayer.pos.y;
+        var _ccx=walkPlayer.pos.x, _ccz=walkPlayer.pos.z;
+        if(!walkPlayer._espilDescend){
+          var _base=(espilP1.anchorH===null||espilP1.anchorH===undefined)?0:espilP1.anchorH;
+          var _hA=Math.max(0,Math.min(60,walkPlayer.pos.y-_base));
+          if(_hA>0.05){
+            var _off=_hA*1.62;
+            _ccx+=-Math.sin(walkCamYaw)*_off;
+            _ccz+=-Math.cos(walkCamYaw)*_off;
+          }
+        }
+        var ll=espilP1LngLat(_ccx,_ccz);
         var brg=-walkCamYaw*180/Math.PI;
         /* ZOOM OPERATION (Han 2026-10-17, CarInMap scope): the map's own
            zoom level is the operated quantity. The wheel moves the zoom
@@ -4332,10 +4381,11 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
            both surfaces stay scale-locked. During descent the descent
            envelope leads the zoom (and the target tracks it), unless
            the player has taken the zoom over with the wheel. */
-        if(espilP1.zoom===null){ espilP1.zoom=18.3; espilP1.zoomT=18.3; }
+        if(espilP1.zoom===null){ espilP1.zoom=19.3; espilP1.zoomT=19.3; } /* default framing (Han PC QA 2026-10-18): pulled a full level closer, MapleStory-like presence */
         if(walkPlayer._espilDescend&&!espilP1.zoomDrive){
           espilP1.zoom=espilP1.zoomT=espilP1ZoomFromDist(walkCamDist);
         }else{
+          if(!espilP1.zoomDrive)espilP1.zoomT=19.3; /* until the player takes the wheel, the target is the default framing */
           espilP1.zoom+=(espilP1.zoomT-espilP1.zoom)*0.2;
           if(Math.abs(espilP1.zoomT-espilP1.zoom)<0.001)espilP1.zoom=espilP1.zoomT;
           walkCamDist=espilP1DistFromZoom(espilP1.zoom);
@@ -4347,10 +4397,11 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
            at true map scale - about 11 px tall at the default zoom
            18.3 (measured), which reads as invisible on a real map.
            Layer mode ONLY, the visual root is grown by a zoom-linked
-           factor F(z) = 10 x 2^(-(z-18.3)/2), chosen so the screen
-           height follows H(z) = 110 x 2^((z-18.3)/2) px: about 110 px
-           at 18.3 (the old overlay default's readability), about
-           396 px at the max 22, about 50 px at 16. Physics, collision
+           factor F(z) = 14 x 2^(-(z-18.3)/2), chosen so the screen
+           height follows H(z) = 157 x 2^((z-18.3)/2) px: about 220 px
+           at the 19.3 default framing (Han PC QA 2026-10-18: closer
+           default + a 2x presence, MapleStory-like), about 550 px at
+           the max 22, about 70 px at 16. Physics, collision
            and support keep the
            true 1.8 m body - only the drawing grows; outside layer mode
            the base scale is restored. The contact shadow follows at a
@@ -4358,12 +4409,13 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         if(typeof walkPlayer!=='undefined'&&walkPlayer&&walkPlayer.av){
           var _av=walkPlayer.av,_vr=_av.__visualRoot;
           if(_vr){
-            var _F=espilP1.layerLive&&!espilP1.failed?10*Math.pow(2,-((espilP1.zoom||18.3)-18.3)/2):1;
+            var _F=espilP1.layerLive&&!espilP1.failed?14*Math.pow(2,-((espilP1.zoom||19.3)-18.3)/2):1;
             var _bs=_vr.userData.__avBaseScale||1.5;
             _vr.scale.setScalar(_bs*_F);
             _vr.position.y=(_vr.userData.__avBaseY||0)*_F;
             if(_av.shadow){ var _ss=Math.min(_F,4); _av.shadow.scale.set(_ss,_ss,1); }
             window.__espilAvatarScaleF=_F; /* QA readout: the applied factor */
+            window.__espilAvatarState={anim:(walkPlayer.av&&walkPlayer.av.curAnim)||null,climb:!!walkPlayer._espilClimb,ground:!!walkPlayer.onGround,vy:walkPlayer.velY,jumps:walkPlayer.jumps,acts:(walkPlayer.av&&walkPlayer.av.actions)?Object.keys(walkPlayer.av.actions):null};
           }
         }
       }
@@ -7606,7 +7658,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
          translated through a curve. Outside Mapbox mode the legacy
          distance behaviour is unchanged. */
       if(ESPIL_P1&&typeof espilP1!=='undefined'&&espilP1&&espilP1.map&&espilP1.ready&&!espilP1.failed){
-        if(espilP1.zoomT===null)espilP1.zoomT=18.3;
+        if(espilP1.zoomT===null)espilP1.zoomT=19.3;
         espilP1.zoomT=Math.max(16,Math.min(22,espilP1.zoomT-d*0.28));
         espilP1.zoomDrive=true; /* a wheel during descent takes the zoom over from the envelope */
         return;
@@ -7912,7 +7964,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       g.rotation.y=p.faceY;
       /* Animation state machine: idle / walk / run / swim follow movement state.
          While a one-shot (jump, doubleJump, attack, etc.) is playing, don't override it. */
-      if(p.av.ready&&['jump','doubleJump','attack','stop','checkout','chat'].indexOf(p.av.curAnim)<0){
+      if(p.av.ready&&!p._espilClimb&&['jump','doubleJump','attack','stop','checkout','chat'].indexOf(p.av.curAnim)<0){ /* ESPIL CLIMB: while attached, espilClimbStep owns the pose (it plays 'climb'); this selector ran after it in the same frame and stomped the climb clip with idle/run every frame - the reason no climb animation ever showed (Han PC QA 2026-10-18) */
         var wantAnim;
         if(p.swimming){
           wantAnim=!p.moving?'swimIdle':'swim';
