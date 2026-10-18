@@ -3147,6 +3147,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       p.pos.y=(base!==null?base:0)+160;
       p.velY=0; p.onGround=false;
       walkCamDist=60; /* wide sky framing; the step eases it to 14 */
+      if(typeof espilP1!=='undefined'&&espilP1)espilP1.zoomDrive=false; /* the descent envelope leads the map zoom for this entry */
       if(p.av&&p.av.ready&&p.av.actions.dive)p.av.playAnim('dive');
       espilShowGeoPrompt();
     }
@@ -4003,7 +4004,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        style fails to load, a visible guidance banner is shown instead
        of a silent skip. */
     var ESPIL_P1=true;
-    var espilP1={map:null,ready:false,failed:null,hiddenApplied:false,initTried:false,bannerEl:null,mapEl:null};
+    var espilP1={map:null,ready:false,failed:null,hiddenApplied:false,initTried:false,bannerEl:null,mapEl:null,layerAdded:false,layerLive:false,layerRenderer:null,layerCam:null,gameCanvasHidden:false,layerSignaled:false,zoom:null,zoomT:null,zoomDrive:false,style3dOff:false,style3dTries:0};
     espilP1.envReady=false;
     (window.__ESPIL_ENV_READY__||Promise.resolve()).then(function(){espilP1.envReady=true;},function(){espilP1.envReady=true;});
     function espilP1Token(){
@@ -4016,6 +4017,12 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     }
     var ESPIL_P1_ANCHORS={vancouver:{lat:49.2827,lng:-123.1207},auckland:{lat:-36.8523,lng:174.7635}};
     function espilP1Anchor(){ return ESPIL_P1_ANCHORS[espilCityKey()]||ESPIL_P1_ANCHORS.vancouver; }
+    /* The shipped framing curve, kept as a pure scale lock: the overlay
+       camera distance is DERIVED from the operated map zoom with it,
+       and the descent envelope still speaks it. Control no longer
+       flows through it (Han 2026-10-17: operate the map's own zoom). */
+    function espilP1ZoomFromDist(d){ return Math.max(14.5,Math.min(22,21.97-1.242*Math.log2(Math.max(3,d)))); }
+    function espilP1DistFromZoom(z){ return Math.max(3,Math.min(60,Math.pow(2,(21.97-z)/1.242))); }
     function espilP1LngLat(x,z){
       var cfg=espilCityCfg(), a=espilP1Anchor();
       var lx=x-(cfg.ox||0), lz=z-(cfg.oz||0);
@@ -4080,6 +4087,28 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       }
       return {type:'FeatureCollection',features:feats};
     }
+    /* STYLE 3D OFF (Han 2026-10-17): a Standard-based style serves its
+       own 3D buildings through an IMPORT - those layers never appear
+       in getStyle().layers, so the layer scan in espilP1AddBuildings
+       cannot see or hide them, and the style's city would render under
+       ours (the double-render suspect of the 22:13 diagnosis). The
+       import carries its own config switch: show3dObjects=false turns
+       the style's 3D objects off at the source. Retried from the tick
+       until it lands (an import may settle after 'load'). */
+    function espilP1HideStyle3D(){
+      if(!espilP1.map||espilP1.style3dOff)return;
+      var done=true;
+      try{
+        var st=espilP1.map.getStyle();
+        var imps=(st&&st.imports)||[];
+        for(var ii=0;ii<imps.length;ii++){
+          var iid=(imps[ii]&&imps[ii].id)||'basemap';
+          try{ espilP1.map.setConfigProperty(iid,'show3dObjects',false); }
+          catch(e){ done=false; }
+        }
+      }catch(e){ done=false; }
+      if(done)espilP1.style3dOff=true;
+    }
     function espilP1AddBuildings(){
       if(!espilP1.map||espilP1.buildingsAdded)return;
       var blds=(typeof espilDistrict!=='undefined'&&espilDistrict&&espilDistrict.buildings)||[];
@@ -4093,7 +4122,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         var lys=espilP1.map.getStyle().layers||[];
         for(var li2=0;li2<lys.length;li2++){
           var LL=lys[li2];
-          if(LL.id==='espil-buildings-3d')continue;
+          if(LL.id==='espil-buildings-3d'||LL.id==='espil-buildings-collision')continue;
           if(LL['source-layer']==='building'||/building/i.test(LL.id)){
             try{espilP1.map.setLayoutProperty(LL.id,'visibility','none');}catch(e){}
           }
@@ -4103,10 +4132,80 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         if(!espilP1.map.getSource('espil-buildings')){
           espilP1.map.addSource('espil-buildings',{type:'geojson',data:espilP1BuildingsGeoJSON()});
           espilP1.map.addLayer({id:'espil-buildings-3d',type:'fill-extrusion',source:'espil-buildings',paint:{'fill-extrusion-color':'#00c853','fill-extrusion-height':['get','h'],'fill-extrusion-base':0,'fill-extrusion-opacity':1}});
+          /* COLLISION LAYER (Han 2026-10-17, CarInMap method): a flat,
+             invisible fill over the same footprints - the wall judge
+             queries THIS layer with queryRenderedFeatures. The
+             extrusion itself is never queried: at pitch its drawn
+             silhouette overhangs the footprint and would wall off open
+             ground beside tall buildings. */
+          espilP1.map.addLayer({id:'espil-buildings-collision',type:'fill',source:'espil-buildings',paint:{'fill-color':'#000000','fill-opacity':0}});
         }else{
           espilP1.map.getSource('espil-buildings').setData(espilP1BuildingsGeoJSON());
         }
         espilP1.buildingsAdded=true;
+      }catch(e){}
+      espilP1HideStyle3D();
+    }
+    /* ============ CUSTOM-LAYER INTEGRATION (CarInMap method, Han
+       2026-10-17) ============
+       The game scene renders INSIDE the map's own WebGL context as a
+       Mapbox custom layer: one context, one pipeline. The slave
+       canvas overlay, the second context and the sync-compositing
+       retire; the map camera is set from the game camera each frame
+       (espilP1Tick) and the map's render pass draws our scene through
+       this layer with the map's projection, so map buildings and game
+       objects share one depth buffer (true occlusion both ways).
+       Placement: our world metres sit on the city anchor via the
+       Mercator bridge - T(anchor) x S(s,-s,s) x Rx(90deg) maps our
+       (x east, y up, z south) onto Mercator (x east, y south, z up).
+       If anything in this path fails, layerLive stays false and the
+       game renders on its own canvas exactly as before. */
+    function espilP1GameLayer(){
+      return {
+        id:'espil-game-layer', type:'custom', renderingMode:'3d',
+        onAdd:function(map, gl){
+          espilP1.layerCam=new THREE.Camera();
+          try{
+            espilP1.layerRenderer=new THREE.WebGLRenderer({canvas:map.getCanvas(), context:gl, antialias:false, alpha:true});
+          }catch(e){ espilP1.layerRenderer=null; return; }
+          espilP1.layerRenderer.autoClear=false;
+          espilP1.layerRenderer.autoClearColor=false;
+          espilP1.layerRenderer.autoClearDepth=false;
+          espilP1.layerRenderer.autoClearStencil=false;
+          espilP1.layerLive=true;
+        },
+        render:function(gl, matrix){
+          var r=espilP1.layerRenderer; if(!r||!espilP1.layerCam||!espilP1.map)return;
+          var cv=espilP1.map.getCanvas();
+          if(r.domElement.width!==cv.width||r.domElement.height!==cv.height){
+            try{ r.setSize(cv.width, cv.height, false); }catch(e){}
+          }
+          var a=espilP1Anchor();
+          var mc=mapboxgl.MercatorCoordinate.fromLngLat({lng:a.lng, lat:a.lat}, 0);
+          var s=mc.meterInMercatorCoordinateUnits();
+          var l=new THREE.Matrix4()
+            .makeTranslation(mc.x, mc.y, mc.z)
+            .scale(new THREE.Vector3(s, -s, s))
+            .multiply(new THREE.Matrix4().makeRotationX(Math.PI/2));
+          var m=new THREE.Matrix4().fromArray(matrix);
+          espilP1.layerCam.projectionMatrix=m.multiply(l);
+          try{ r.render(mapScene, espilP1.layerCam); }catch(e){}
+          try{ r.state.reset(); }catch(e){}
+          /* Loader contract under the conversion: the continuous
+             repaint loop means the map may never go 'idle', so the
+             signal completes on the layer's first real render - the
+             same meaning (the map pipeline is drawing the game). */
+          if(!espilP1.layerSignaled){ espilP1.layerSignaled=true; if(window.__espilMapProgress01<1)window.__espilMapProgress01=1; }
+        },
+        onRemove:function(){ espilP1.layerLive=false; }
+      };
+    }
+    function espilP1AddLayer(){
+      if(!espilP1.map||espilP1.layerAdded)return;
+      try{
+        if(espilP1.map.getLayer('espil-game-layer')){ espilP1.layerAdded=true; return; }
+        espilP1.map.addLayer(espilP1GameLayer());
+        espilP1.layerAdded=true;
       }catch(e){}
     }
     function espilP1Preload(){
@@ -4135,9 +4234,12 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       else document.body.appendChild(el);
       espilP1.mapEl=el;
       try{
-        espilP1.map=new mapboxgl.Map({container:el,style:'mapbox://styles/quadclipse/cmvdcpdor000901sq8xq57eab',center:espilP1LngLat(19,-57),zoom:17.3,pitch:52,bearing:0,attributionControl:false,interactive:false});
+        espilP1.map=new mapboxgl.Map({container:el,style:'mapbox://styles/quadclipse/cmvdcpdor000901sq8xq57eab',center:espilP1LngLat(19,-57),zoom:17.3,pitch:52,bearing:0,attributionControl:false,interactive:false,projection:'mercator',maxZoom:22}); /* projection forced (Han 2026-10-17): the designated style declares lambertConformalConic, under which Mapbox skips ALL 3D drawing ("Drawing 3D models for lambertConformalConic projection is not yet implemented") - the custom layer and our extrusions vanished on Han's PC while the mercator stub could not reproduce it. The game's math is Mercator throughout. maxZoom = the Mapbox default 22 (custom cap removed on Han's order). */
       }catch(e){ espilP1.failed='init'; window.__espilMapProgress01=1; espilP1Banner('Mapbox 지도를 시작하지 못했습니다. 토큰을 확인해 주십시오.'); return; }
       espilP1.map.on('load',function(){
+        /* the loaded style re-imposes its declared projection - force
+           Mercator back before anything 3D is added (see constructor). */
+        try{ var _pr=espilP1.map.getProjection&&espilP1.map.getProjection(); if(!_pr||_pr.name!=='mercator')espilP1.map.setProjection('mercator'); }catch(e){}
         espilP1.ready=true;
         window.__espilMapProgress01=0.45; /* loader contract: style loaded */
         if(espilP1.onFallback){
@@ -4146,6 +4248,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           try{ var ls=espilP1.map.getStyle().layers||[]; for(var li=0;li<ls.length;li++){ if(ls[li].type==='symbol'){ try{ espilP1.map.setLayoutProperty(ls[li].id,'visibility','none'); }catch(e){} } } }catch(e){}
         }
         espilP1AddBuildings();
+        espilP1AddLayer();
       });
       espilP1.map.on('idle',function(){
         if(espilP1.ready&&window.__espilMapProgress01<1)window.__espilMapProgress01=1; /* loader contract: first idle after load completes the map signal */
@@ -4158,6 +4261,8 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
              is copied into Han's own account later, this path never runs. */
           espilP1.onFallback=true;
           espilP1.buildingsAdded=false; /* setStyle wipes sources - the load handler re-adds the buildings */
+          espilP1.style3dOff=false; espilP1.style3dTries=0; /* the fallback style gets its own 3D-off attempt */
+          espilP1.layerAdded=false; /* setStyle also wipes custom layers - re-added on the same load */
           espilP1Banner('지정 스타일을 읽지 못해 기본 지도로 표시합니다. 길 이름 라벨은 걷어낸 상태입니다.');
           try{ espilP1.map.setStyle('mapbox://styles/mapbox/streets-v12'); }
           catch(e){ window.__espilMapProgress01=1; espilP1.failed='maperror'; }
@@ -4173,19 +4278,53 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(!cs||!cs.cityPhase){
         if(espilP1.mapEl)espilP1.mapEl.style.display='none';
         if(espilP1.bannerEl)espilP1.bannerEl.style.display='none';
+        if(espilP1.gameCanvasHidden){ espilP1.gameCanvasHidden=false; var cvEl2=document.getElementById('globe-canvas'); if(cvEl2)cvEl2.style.display=''; }
         return;
       }
       if(espilP1.mapEl)espilP1.mapEl.style.display='';
       if(espilP1.bannerEl&&espilP1.failed)espilP1.bannerEl.style.display='';
+      /* CUSTOM LAYER: while the layer is live the game canvas becomes a
+         transparent INPUT pane. Every camera listener (wheel zoom,
+         drag rotate, touch) is bound to this canvas, so it must stay
+         displayed and on top - but it is cleared once and never drawn
+         to again (animate skips its render); the map canvas below is
+         the only rendered surface. If the layer is not live the old
+         overlay path renders on this canvas exactly as before. */
+      var cvEl=document.getElementById('globe-canvas');
+      if(cvEl){
+        var wantPane=!!(espilP1.layerLive&&!espilP1.failed);
+        if(wantPane!==espilP1.gameCanvasHidden){
+          espilP1.gameCanvasHidden=wantPane;
+          if(wantPane&&typeof renderer!=='undefined'&&renderer){ try{ renderer.setClearColor(0x000000,0); renderer.clear(true,true,true); }catch(e){} }
+        }
+      }
       if(!espilP1.initTried&&espilP1.envReady)espilP1Init();
       if(window.__espilDistrictMeshesBuilt&&typeof mapBuilt!=='undefined'&&mapBuilt)espilP1Hide();
       if(typeof renderer!=='undefined'&&renderer)renderer.setClearColor(0x000000,0);
       if(espilP1.ready&&!espilP1.buildingsAdded)espilP1AddBuildings(); /* preload case: district data may land after the map load */
+      if(espilP1.ready&&!espilP1.style3dOff&&espilP1.style3dTries<1200){ espilP1.style3dTries++; espilP1HideStyle3D(); }
+      if(espilP1.ready&&!espilP1.layerAdded)espilP1AddLayer();
       if(espilP1.map&&espilP1.ready&&typeof walkPlayer!=='undefined'&&walkPlayer){
         var ll=espilP1LngLat(walkPlayer.pos.x,walkPlayer.pos.z);
         var brg=-walkCamYaw*180/Math.PI;
-        var zoom=Math.max(17,Math.min(20,21.97-1.242*Math.log2(Math.max(3,walkCamDist)))); /* round 3 item 4 (Han): map zoom tracks the whole camera range - 17 at dist 16, max 20 at dist 3 */
+        /* ZOOM OPERATION (Han 2026-10-17, CarInMap scope): the map's own
+           zoom level is the operated quantity. The wheel moves the zoom
+           TARGET (espilP1.zoomT, set in mapZoom) and the view eases to
+           it; the overlay camera distance is derived from the zoom so
+           both surfaces stay scale-locked. During descent the descent
+           envelope leads the zoom (and the target tracks it), unless
+           the player has taken the zoom over with the wheel. */
+        if(espilP1.zoom===null){ espilP1.zoom=18.3; espilP1.zoomT=18.3; }
+        if(walkPlayer._espilDescend&&!espilP1.zoomDrive){
+          espilP1.zoom=espilP1.zoomT=espilP1ZoomFromDist(walkCamDist);
+        }else{
+          espilP1.zoom+=(espilP1.zoomT-espilP1.zoom)*0.2;
+          if(Math.abs(espilP1.zoomT-espilP1.zoom)<0.001)espilP1.zoom=espilP1.zoomT;
+          walkCamDist=espilP1DistFromZoom(espilP1.zoom);
+        }
+        var zoom=espilP1.zoom;
         try{ espilP1.map.jumpTo({center:ll,bearing:brg,pitch:52,zoom:zoom}); }catch(e){}
+        if(espilP1.layerLive){ try{ espilP1.map.triggerRepaint(); }catch(e){} } /* the map's render pass draws the game scene via the custom layer */
       }
     }
     /* ============ ESPIL CHAT + SPEECH BUBBLE (2026-10-15, per Han:
@@ -4711,7 +4850,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           model.scale.setScalar(1.5); /* 1.2 -> 1.8 units, reads as a person in this downtown */
           var bbox=new THREE.Box3().setFromObject(model);
           model.position.y-=bbox.min.y; /* feet exactly on the ground */
-          model.traverse(function(o){if(o.isMesh){o.castShadow=true;}});
+          model.traverse(function(o){if(o.isMesh){o.castShadow=true; if(typeof curvePatch==='function'&&o.material)curvePatch(o.material);}}); /* curve k=1400 (Han 2026-10-17): the character rides the same shared-uniform curve law as the rest of the scene */
           g.add(model);
           var mixer=new THREE.AnimationMixer(model);
           av.mixer=mixer;
@@ -7418,7 +7557,20 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(e.pointerId===mapDragId)mapDragId=null;
       try{canvas.releasePointerCapture(e.pointerId);}catch(err){}
     }
-    function mapZoom(d){walkCamDist=Math.max(3,Math.min(16,walkCamDist+d));} /* round 3 item 4: closer max zoom-in (was 6) */
+    function mapZoom(d){
+      /* ZOOM OPERATION (Han 2026-10-17): in Mapbox mode the wheel and
+         pinch move the MAP ZOOM target directly, in zoom units (range
+         16 to 22 (Mapbox default max, Han 2026-10-17), 0.28 per wheel notch) - not a camera distance
+         translated through a curve. Outside Mapbox mode the legacy
+         distance behaviour is unchanged. */
+      if(ESPIL_P1&&typeof espilP1!=='undefined'&&espilP1&&espilP1.map&&espilP1.ready&&!espilP1.failed){
+        if(espilP1.zoomT===null)espilP1.zoomT=18.3;
+        espilP1.zoomT=Math.max(16,Math.min(22,espilP1.zoomT-d*0.28));
+        espilP1.zoomDrive=true; /* a wheel during descent takes the zoom over from the envelope */
+        return;
+      }
+      walkCamDist=Math.max(3,Math.min(16,walkCamDist+d));
+    }
     /* Keyboard: tracked only while the map is open (globe keeps its own bindings). */
     document.addEventListener('keydown',function(e){
       if(!document.body.classList.contains('in-map'))return;
@@ -7485,6 +7637,53 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     });
     var jumpBtn=document.getElementById('map-jump');
     if(jumpBtn)jumpBtn.addEventListener('pointerdown',function(e){e.preventDefault();tryJump();});
+    /* QRF WALLS (Han 2026-10-17, CarInMap collision method): the wall
+       judgment reads the RENDERED footprint layer - the candidate next
+       position is projected to a screen point and queried with
+       queryRenderedFeatures; a hit rejects the axis move at the last
+       free sub-step (0.8 m sampling, centre point plus the body's
+       leading edge point). If the move's START is already inside a
+       footprint (a step that arrived while tiles were unloaded), the
+       records judge instead - they own the recovery. Height judgments
+       (rooftops, climb, support) always stay with the records; when
+       the map or the layer is unavailable this returns false and the
+       record sweep below is the wall judge. */
+    function espilP1QrfHit(x,z,py){
+      var ll=espilP1LngLat(x,z);
+      var pt=espilP1.map.project(ll);
+      var fs=espilP1.map.queryRenderedFeatures(pt,{layers:['espil-buildings-collision']});
+      for(var i=0;i<fs.length;i++){
+        var h=(fs[i].properties&&fs[i].properties.h)||0;
+        if(h-py>.55)return true; /* the record law's height gate, on the feature's own h */
+      }
+      return false;
+    }
+    function espilP1QrfAxis(p,axis,r){
+      var qs=window.__espilQrfStats||(window.__espilQrfStats={calls:0,hits:0,fallbacks:0,ms:0});
+      if(!espilP1.map||!espilP1.ready||espilP1.failed){ qs.fallbacks++; return false; }
+      try{ if(!espilP1.map.getLayer('espil-buildings-collision'))return false; }catch(e){ return false; }
+      var delta=(axis==='x'?p._dx:p._dz)||0;
+      if(!delta)return true;
+      var endA=(axis==='x'?p.pos.x:p.pos.z), startA=endA-delta;
+      var sx=(axis==='x'?startA:p.pos.x), sz=(axis==='z'?startA:p.pos.z);
+      try{ if(espilP1QrfHit(sx,sz,p.pos.y)){ qs.fallbacks++; return false; } }catch(e){ qs.fallbacks++; return false; }
+      var nSub=Math.max(1,Math.min(24,Math.ceil(Math.abs(delta)/0.8)));
+      var sgn=delta>0?1:-1;
+      for(var sw=1;sw<=nSub;sw++){
+        var candA=startA+delta*sw/nSub;
+        var cx=(axis==='x'?candA:p.pos.x), cz=(axis==='z'?candA:p.pos.z);
+        var lx=cx+(axis==='x'?sgn*r:0), lz=cz+(axis==='z'?sgn*r:0);
+        var hit=false, qt0=performance.now();
+        try{ hit=espilP1QrfHit(cx,cz,p.pos.y)||espilP1QrfHit(lx,lz,p.pos.y); }catch(e){ qs.fallbacks++; return false; }
+        qs.calls++; qs.ms+=performance.now()-qt0;
+        if(hit){ qs.hits++;
+          var freeA=startA+delta*(sw-1)/nSub;
+          if(axis==='x')p.pos.x=freeA; else p.pos.z=freeA;
+          return true;
+        }
+      }
+      return true;
+    }
     /* One-point polygon wall resolution for the axis pass (see the
        sweep driver in collideCircleAxis). Centre inside a footprint
        is skipped: the support law owns that column (roof lift). */
@@ -7550,7 +7749,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
          rates (frame steps of several metres) the circle can no
          longer tunnel through a thin building between samples -
          point sampling did exactly that on Han's PC (22:15). */
-      if(ESPIL_P1){
+      if(ESPIL_P1&&!espilP1QrfAxis(p,axis,r)){
         var delta=(axis==='x'?p._dx:p._dz)||0;
         var nSub=Math.max(1,Math.min(64,Math.ceil(Math.abs(delta)/0.25)));
         var endA=(axis==='x'?p.pos.x:p.pos.z), startA=endA-delta;
@@ -8545,7 +8744,8 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         updateTransitBuses();
         if(typeof updateTrafficLightVisuals==='function')updateTrafficLightVisuals();
         updateLeafletMap();
-        renderer.render(mapScene,mapCamera);
+        if(espilP1.layerLive&&espilP1.map&&!espilP1.failed){ /* CUSTOM LAYER: mapScene is drawn inside the map's render pass this frame - the game's own context stays idle (CarInMap conversion, 2026-10-17) */ }
+        else renderer.render(mapScene,mapCamera);
         return;
       }
       /* Camera: plain orbit framing (the station reveal was removed 2026-10-06, per Han). */
