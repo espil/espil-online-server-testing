@@ -1629,9 +1629,9 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         <p class="modal-sub">Choose how you'd like to arrive.</p>
         <p class="bypass-note" id="signin-bypass" hidden>TESTING BYPASS &mdash; continuing as guest&hellip;</p>
         <div class="provider-grid">
-          <button class="provider" type="button" data-provider="Google"><span class="p-dot" style="background:#4285F4;color:#4285F4"></span>Google<span class="soon">soon</span></button>
-          <button class="provider" type="button" data-provider="Apple"><span class="p-dot" style="background:#e8e8e8;color:#e8e8e8"></span>Apple<span class="soon">soon</span></button>
-          <button class="provider" type="button" data-provider="Facebook"><span class="p-dot" style="background:#1877F2;color:#1877F2"></span>Facebook<span class="soon">soon</span></button>
+          <button class="provider" type="button" data-provider="Google"><span class="p-dot" style="background:#4285F4;color:#4285F4"></span>Google</button>
+          <button class="provider" type="button" data-provider="Apple"><span class="p-dot" style="background:#e8e8e8;color:#e8e8e8"></span>Apple</button>
+          <button class="provider" type="button" data-provider="Facebook"><span class="p-dot" style="background:#1877F2;color:#1877F2"></span>Facebook</button>
         </div>
         <div class="modal-divider"><span>new here?</span></div>
         <a class="creator-link" href="creator.html">Create your character &rarr;</a>
@@ -7849,6 +7849,17 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       var cs=document.getElementById('city-status'); if(cs)cs.classList.remove('gate-hidden');
       if(n)n();
     };
+    window.__espilLoginBypass=function(){
+      /* Han 2026-10-17: no backend yet - login is a pass-through. If the
+         gate is armed, pass it. If an entry is in progress but the gate
+         never armed (e.g. the typing chain wedged before
+         maybeShowEntrySub), arm and pass in one step so the login page
+         can never trap the entry. Outside an entry this is a no-op and
+         the caller falls back to the informational toast. */
+      if(loginGateNext){ window.__espilLoginGateDone(); return true; }
+      if(entryActive){ openLoginGate(isProdHost()); window.__espilLoginGateDone(); return true; }
+      return false;
+    };
     window.__espilLoginGateCancel=function(){
       if(!loginGateNext)return; loginGateNext=null;
       setTimeout(function(){ cancelCityEntry(); },0);
@@ -7985,7 +7996,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         };
         requestAnimationFrame(tick);
       })();
-      entryTimers.push(setTimeout(function(){maybeShowEntrySub();},12000)); /* safety net */
+      entryTimers.push(setTimeout(function(){ if(entryActive&&!entryTypedDone)entryTypedDone=true; maybeShowEntrySub(); },12000)); /* safety net - Han 2026-10-17: force the typing gate open so the login gate always arms */
       if(entryEl)entryEl.setAttribute('aria-hidden','false');
       if(entrySub)entrySub.classList.remove('show');
       if(entryEl)try{entryEl.focus({preventScroll:true});}catch(e){}
@@ -8776,6 +8787,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       btn.addEventListener('click',function(){
         if(window.EspilAudio&&window.EspilAudio.pop)window.EspilAudio.pop();
         var name=btn.getAttribute('data-provider')||'Sign-in';
+        if(window.__espilLoginBypass&&window.__espilLoginBypass())return; /* Han 2026-10-17: login bypass (no backend yet) */
         if(window.__espilLoginGatePending&&window.__espilLoginGatePending()){ window.__espilLoginGateDone(); return; }
         showToast(name+' sign-in arrives with the game server.');
       });
