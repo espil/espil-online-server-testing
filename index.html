@@ -3248,12 +3248,24 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
          1 m scanline rows, and an edge descent or spawn must resolve
          to the roof, not fall through to the street inside the
          building (Han PC rooftop-landing failure, 2026-10-16). */
+      if(!ESPIL_P1){
       var sb=espilStripBucketAt(x,z);
       if(sb)for(var si=0;si<sb.length;si++){
         var sc2=sb[si];
         var qx=Math.max(sc2.x0,Math.min(sc2.x1,x)), qz=Math.max(sc2.z0,Math.min(sc2.z1,z));
         var ddx=x-qx, ddz=z-qz;
         if(ddx*ddx+ddz*ddz<=PLAYER_R*PLAYER_R&&sc2.top>best)best=sc2.top;
+      }
+      }
+      if(ESPIL_P1){
+        /* COLOR-KEY: the roof under the point is the record's own
+           height - same polygon, same h as the drawn extrusion. */
+        var pb2=espilPolyBucketAt(x,z);
+        if(pb2)for(var qi=0;qi<pb2.length;qi++){
+          var qr=pb2[qi]; if(qr.h<=best)continue;
+          if(x<qr.x0-PLAYER_R||x>qr.x1+PLAYER_R||z<qr.z0-PLAYER_R||z>qr.z1+PLAYER_R)continue;
+          if(espilPolyProbe(qr,x,z).d<=PLAYER_R)best=qr.h;
+        }
       }
       if(!ESPIL_P1&&typeof chunkColliders!=='undefined'&&chunkColliders){
         var cx=Math.floor(x/CHUNK_SIZE),cz=Math.floor(z/CHUNK_SIZE);
@@ -3293,6 +3305,65 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     function espilStripBucketAt(x,z){
       if(!espilStripHash)return null;
       return espilStripHash[Math.floor(x/ESPIL_STRIP_CELL)+','+Math.floor(z/ESPIL_STRIP_CELL)]||null;
+    }
+    /* ============ COLOR-KEY COLLISION (Han 2026-10-17) ============
+       On the Mapbox line the building RECORDS are the collision: the
+       same records (espilDistrict.buildings polygons + heights) that
+       draw the green extrusions answer wall and rooftop queries, so
+       the visible building IS the wall - no strip approximation, no
+       scanline stair-step, no coverage gaps. The prebuilt strip store
+       still loads for ground classes (water etc.); its wall/rooftop
+       query paths are unwired in ESPIL_P1 mode. */
+    var espilPolyHash=null, ESPIL_POLY_CELL=25;
+    function espilPolyBuild(){
+      espilPolyHash={};
+      var cfg=espilCityCfg(), blds=(espilDistrict&&espilDistrict.buildings)||[], cnt=0;
+      for(var i=0;i<blds.length;i++){
+        var b=blds[i]; if(!b||b.w||!b.p||b.p.length<3)continue;
+        var n=b.p.length-((b.p[0][0]===b.p[b.p.length-1][0]&&b.p[0][1]===b.p[b.p.length-1][1])?1:0);
+        if(n<3)continue;
+        var ring=[], x0=1e12,x1=-1e12,z0=1e12,z1=-1e12;
+        for(var j=0;j<n;j++){
+          var wx=b.p[j][0]+cfg.ox, wz=b.p[j][1]+cfg.oz;
+          ring.push([wx,wz]);
+          if(wx<x0)x0=wx; if(wx>x1)x1=wx; if(wz<z0)z0=wz; if(wz>z1)z1=wz;
+        }
+        var rec={ring:ring,h:b.h||0,x0:x0,x1:x1,z0:z0,z1:z1,cx:(x0+x1)/2,cz:(z0+z1)/2};
+        var bx0=Math.floor((x0-2)/ESPIL_POLY_CELL), bx1=Math.floor((x1+2)/ESPIL_POLY_CELL);
+        var bz0=Math.floor((z0-2)/ESPIL_POLY_CELL), bz1=Math.floor((z1+2)/ESPIL_POLY_CELL);
+        for(var bx=bx0;bx<=bx1;bx++)for(var bz=bz0;bz<=bz1;bz++){
+          var k=bx+','+bz, arr=espilPolyHash[k];
+          if(!arr)arr=espilPolyHash[k]=[];
+          arr.push(rec);
+        }
+        cnt++;
+      }
+      window.__espilPolyCount=cnt;
+    }
+    function espilPolyBucketAt(x,z){
+      if(!espilPolyHash)return null;
+      return espilPolyHash[Math.floor(x/ESPIL_POLY_CELL)+','+Math.floor(z/ESPIL_POLY_CELL)]||null;
+    }
+    /* Closest point on the ring + signed distance (negative inside)
+       + that edge's outward unit normal (pointing away from the
+       building, verified against the bbox centre). */
+    function espilPolyProbe(rec,x,z){
+      var ring=rec.ring, n=ring.length, best=1e18, bcx=0, bcz=0, bnx=0, bnz=0, inside=false;
+      for(var i=0,j=n-1;i<n;j=i++){
+        var ax=ring[j][0], az=ring[j][1], bx=ring[i][0], bz=ring[i][1];
+        if(((az>z)!==(bz>z))&&(x<(bx-ax)*(z-az)/(bz-az)+ax))inside=!inside;
+        var ex=bx-ax, ez=bz-az, L2=ex*ex+ez*ez;
+        var t=L2>0?((x-ax)*ex+(z-az)*ez)/L2:0; t=t<0?0:(t>1?1:t);
+        var px=ax+ex*t, pz=az+ez*t, dx=x-px, dz=z-pz, d2=dx*dx+dz*dz;
+        if(d2<best){
+          best=d2; bcx=px; bcz=pz;
+          var el=Math.sqrt(L2)||1, enx=ez/el, enz=-ex/el;
+          if((rec.cx-px)*enx+(rec.cz-pz)*enz>0){enx=-enx;enz=-enz;}
+          bnx=enx; bnz=enz;
+        }
+      }
+      var d=Math.sqrt(best);
+      return {d:inside?-d:d, cx:bcx, cz:bcz, nx:bnx, nz:bnz, inside:inside};
     }
     /* --- Playable cities (2026-10-16): Vancouver (origin) and the
        Auckland Queen Street corridor, isolated at world offset
@@ -3343,6 +3414,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           nStrips++;
         }
         window.__espilStripCount=nStrips;
+        espilPolyBuild();
         espilBuildDistrictMeshes();
         if(!cfg.core)espilBuildCityGround(cfg);
         espilDistrictBuilt=true;
@@ -3603,8 +3675,8 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     function espilClimbCandidates(p){
       var out=[];
       if(!ESPIL_P1)for(var i=0;i<walkColliders.length;i++)out.push(walkColliders[i]); /* MAPBOX PHASE 1: store only */
-      var csb=espilStripBucketAt(p.pos.x,p.pos.z);
-      if(csb)for(var ci2=0;ci2<csb.length;ci2++)out.push(csb[ci2]);
+      if(!ESPIL_P1){ var csb=espilStripBucketAt(p.pos.x,p.pos.z);
+      if(csb)for(var ci2=0;ci2<csb.length;ci2++)out.push(csb[ci2]); } /* MAPBOX PHASE 1: polygon edges via espilTryAttachClimbPoly */
       if(!ESPIL_P1){
       var pcx=Math.floor(p.pos.x/CHUNK_SIZE),pcz=Math.floor(p.pos.z/CHUNK_SIZE);
       for(var ox=-1;ox<=1;ox++)for(var oz=-1;oz<=1;oz++){
@@ -3615,7 +3687,70 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       return out;
     }
     function espilClimbTileOff(p){ return (p._tileBase!==null&&p._tileBase!==undefined)?(p._tileBase-.05):0; }
+    /* COLOR-KEY CLIMB (Han 2026-10-17): on the Mapbox line a wall is
+       a polygon EDGE of a building record. The climb state carries
+       the edge's unit outward normal (nx,nz) and unit tangent
+       (tx,tz); lo/hi are tangent coordinates (pos . t) widened
+       across collinear edge chains of the same ring, so one real
+       wall climbs as one wall, corners stop the travel. */
+    function espilTryAttachClimbPoly(p,mx,mz){
+      var off=espilClimbTileOff(p), base=p.pos.y;
+      var bucket=espilPolyBucketAt(p.pos.x,p.pos.z);
+      if(!bucket)return false;
+      var best=null;
+      for(var bi=0;bi<bucket.length;bi++){
+        var rec=bucket[bi], eTop=off+rec.h;
+        if(eTop-base<4)continue;
+        if(0>base+.8)continue;
+        var ring=rec.ring, n=ring.length;
+        for(var ei=0;ei<n;ei++){
+          var a=ring[ei], b=ring[(ei+1)%n];
+          var ex=b[0]-a[0], ez=b[1]-a[1], L=Math.sqrt(ex*ex+ez*ez);
+          if(L<1.5)continue;
+          var tx=ex/L, tz=ez/L;
+          var nx=ez/L, nz=-ex/L;
+          if((rec.cx-a[0])*nx+(rec.cz-a[1])*nz>0){nx=-nx;nz=-nz;}
+          var rx=p.pos.x-a[0], rz=p.pos.z-a[1];
+          var s=rx*tx+rz*tz;
+          if(s<.1||s>L-.1)continue;
+          var dl=rx*nx+rz*nz;
+          if(dl<PLAYER_R-.05||dl>PLAYER_R+.45)continue;
+          if(-(mx*nx+mz*nz)<.45)continue;
+          if(!best||dl<best.dl)best={rec:rec,ei:ei,nx:nx,nz:nz,tx:tx,tz:tz,dl:dl,eTop:eTop};
+        }
+      }
+      if(!best)return false;
+      var rec2=best.rec, ring2=rec2.ring, n2=ring2.length;
+      var a2=ring2[best.ei], s0=a2[0]*best.tx+a2[1]*best.tz;
+      var sLo=0, sHi=0, guard=0;
+      var idx=best.ei;
+      var cur=ring2[idx], nxt=ring2[(idx+1)%n2];
+      sHi=Math.sqrt((nxt[0]-cur[0])*(nxt[0]-cur[0])+(nxt[1]-cur[1])*(nxt[1]-cur[1]));
+      var fwd=idx;
+      while(guard++<64){
+        var v=ring2[(fwd+1)%n2], w=ring2[(fwd+2)%n2];
+        var e2x=w[0]-v[0], e2z=w[1]-v[1], L2=Math.sqrt(e2x*e2x+e2z*e2z);
+        if(L2<.01)break;
+        var cross=best.tx*(e2z/L2)-best.tz*(e2x/L2), dot=best.tx*(e2x/L2)+best.tz*(e2z/L2);
+        if(Math.abs(cross)>.02||dot<.999)break;
+        sHi+=L2; fwd=(fwd+1)%n2;
+      }
+      guard=0; var bwd=idx;
+      while(guard++<64){
+        var v2=ring2[bwd], w2=ring2[(bwd-1+n2)%n2];
+        var e3x=v2[0]-w2[0], e3z=v2[1]-w2[1], L3=Math.sqrt(e3x*e3x+e3z*e3z);
+        if(L3<.01)break;
+        var cross3=best.tx*(e3z/L3)-best.tz*(e3x/L3), dot3=best.tx*(e3x/L3)+best.tz*(e3z/L3);
+        if(Math.abs(cross3)>.02||dot3<.999)break;
+        sLo-=L3; bwd=(bwd-1+n2)%n2;
+      }
+      p._espilClimb={poly:true,nx:best.nx,nz:best.nz,tx:best.tx,tz:best.tz,lo:s0+sLo,hi:s0+sHi,base:base,top:best.eTop,h:0};
+      p.pos.x+=best.nx*((PLAYER_R+.02)-best.dl);
+      p.pos.z+=best.nz*((PLAYER_R+.02)-best.dl);
+      return true;
+    }
     function espilTryAttachClimb(p,mx,mz){
+      if(ESPIL_P1)return espilTryAttachClimbPoly(p,mx,mz);
       var off=espilClimbTileOff(p), base=p.pos.y, list=espilClimbCandidates(p), best=null;
       for(var i=0;i<list.length;i++){
         var c=list[i];
@@ -3724,12 +3859,20 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
          character's right hand while facing into the wall. */
       var txv=cl.nz, tzv=-cl.nx, side=mx*txv+mz*tzv;
       if(side){
-        var along=(cl.axis==='x')?p.pos.z:p.pos.x;
-        along=Math.max(cl.lo+.3,Math.min(cl.hi-.3,along+side*(spd*.6)*dt));
-        if(cl.axis==='x')p.pos.z=along; else p.pos.x=along;
+        if(cl.poly){
+          var alongP=p.pos.x*cl.tx+p.pos.z*cl.tz;
+          var alongN=Math.max(cl.lo+.3,Math.min(cl.hi-.3,alongP+side*(spd*.6)*dt));
+          var dAlong=alongN-alongP;
+          p.pos.x+=cl.tx*dAlong; p.pos.z+=cl.tz*dAlong;
+        }else{
+          var along=(cl.axis==='x')?p.pos.z:p.pos.x;
+          along=Math.max(cl.lo+.3,Math.min(cl.hi-.3,along+side*(spd*.6)*dt));
+          if(cl.axis==='x')p.pos.z=along; else p.pos.x=along;
+        }
       }
       if(cl.base+cl.h>=cl.top-.25){
-        if(cl.axis==='x')p.pos.x=cl.plane-cl.nx*(PLAYER_R+.5); else p.pos.z=cl.plane-cl.nz*(PLAYER_R+.5);
+        if(cl.poly){ p.pos.x-=cl.nx*(PLAYER_R+.52); p.pos.z-=cl.nz*(PLAYER_R+.52); }
+        else if(cl.axis==='x')p.pos.x=cl.plane-cl.nx*(PLAYER_R+.5); else p.pos.z=cl.plane-cl.nz*(PLAYER_R+.5);
         p.pos.y=cl.top; p.velY=0; p.onGround=true; p._espilClimb=null;
         return;
       }
@@ -3932,10 +4075,25 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(!espilP1.map||espilP1.buildingsAdded)return;
       var blds=(typeof espilDistrict!=='undefined'&&espilDistrict&&espilDistrict.buildings)||[];
       if(!blds.length)return; /* district data not in yet - the tick retries */
+      /* COLOR-KEY (Han 2026-10-17): exactly ONE building rendering -
+         the base style's own building layers (which carry their own
+         zoom band and made the color vanish at high and low zoom)
+         are hidden; our extrusion below is the only buildings, keyed
+         green at every zoom (the layer has no minzoom/maxzoom). */
+      try{
+        var lys=espilP1.map.getStyle().layers||[];
+        for(var li2=0;li2<lys.length;li2++){
+          var LL=lys[li2];
+          if(LL.id==='espil-buildings-3d')continue;
+          if(LL['source-layer']==='building'||/building/i.test(LL.id)){
+            try{espilP1.map.setLayoutProperty(LL.id,'visibility','none');}catch(e){}
+          }
+        }
+      }catch(e){}
       try{
         if(!espilP1.map.getSource('espil-buildings')){
           espilP1.map.addSource('espil-buildings',{type:'geojson',data:espilP1BuildingsGeoJSON()});
-          espilP1.map.addLayer({id:'espil-buildings-3d',type:'fill-extrusion',source:'espil-buildings',paint:{'fill-extrusion-color':'#cfc4b0','fill-extrusion-height':['get','h'],'fill-extrusion-base':0,'fill-extrusion-opacity':1}});
+          espilP1.map.addLayer({id:'espil-buildings-3d',type:'fill-extrusion',source:'espil-buildings',paint:{'fill-extrusion-color':'#00c853','fill-extrusion-height':['get','h'],'fill-extrusion-base':0,'fill-extrusion-opacity':1}});
         }else{
           espilP1.map.getSource('espil-buildings').setData(espilP1BuildingsGeoJSON());
         }
@@ -7330,7 +7488,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         if(chunkColliders[key])lists.push(chunkColliders[key]);
       }
       var csb2=espilStripBucketAt(p.pos.x,p.pos.z);
-      if(csb2)lists.push(csb2); /* district strips via spatial hash (self-city port) */
+      if(csb2&&!ESPIL_P1)lists.push(csb2); /* MAPBOX PHASE 1: walls are the building polygons below, not strips */
       for(var li=0;li<lists.length;li++){
         var arr=lists[li];
         for(var i=0;i<arr.length;i++){
@@ -7349,6 +7507,32 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           if(p._dz>0)p.pos.z=c.z0-r;else if(p._dz<0)p.pos.z=c.z1+r;
           /* else: no Z movement — don't snap, prevents bounce */
         }
+        }
+      }
+      /* COLOR-KEY WALLS (Han 2026-10-17): the building polygons block
+         exactly where they are drawn. Per-axis resolution uses the
+         closest point on the ring: the axis exit distance that puts
+         the circle exactly PLAYER_R from the true edge - diagonal
+         walls included, no stair-step. */
+      if(ESPIL_P1){
+        var pb=espilPolyBucketAt(p.pos.x,p.pos.z);
+        if(pb)for(var pi=0;pi<pb.length;pi++){
+          var rec=pb[pi];
+          if(p.pos.y+PLAYER_H<=0||p.pos.y>=rec.h)continue;
+          if(rec.h-p.pos.y<=.55)continue;
+          if(p.pos.x<rec.x0-r||p.pos.x>rec.x1+r||p.pos.z<rec.z0-r||p.pos.z>rec.z1+r)continue;
+          var pr=espilPolyProbe(rec,p.pos.x,p.pos.z);
+          if(pr.d>=r||pr.d<0)continue; /* centre inside the footprint: the
+             support law owns the column (it lifts to the roof) - the wall
+             pass must not eject a resume that spawned inside */
+          var ddx=(p.pos.x-pr.cx)/(pr.d||1), ddz=(p.pos.z-pr.cz)/(pr.d||1);
+          if(axis==='x'){
+            if(p._dx>0&&ddx<-.25)p.pos.x-=(r-pr.d)/(-ddx);
+            else if(p._dx<0&&ddx>.25)p.pos.x+=(r-pr.d)/ddx;
+          }else{
+            if(p._dz>0&&ddz<-.25)p.pos.z-=(r-pr.d)/(-ddz);
+            else if(p._dz<0&&ddz>.25)p.pos.z+=(r-pr.d)/ddz;
+          }
         }
       }
     }
@@ -7415,8 +7599,17 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       }
       if(!ESPIL_P1)for(var i=0;i<walkColliders.length;i++)considerSupport(walkColliders[i]); /* MAPBOX PHASE 1: store only */
       for(var ci=0;ci<carColliders.length;ci++)considerSupport(carColliders[ci]);
-      var ssb=espilStripBucketAt(p.pos.x,p.pos.z);
-      if(ssb)for(var si2=0;si2<ssb.length;si2++)considerSupport(ssb[si2]); /* district strips via spatial hash (self-city port) */
+      if(!ESPIL_P1){ var ssb=espilStripBucketAt(p.pos.x,p.pos.z);
+      if(ssb)for(var si2=0;si2<ssb.length;si2++)considerSupport(ssb[si2]); } /* MAPBOX PHASE 1: polygon roofs below */
+      if(ESPIL_P1){
+        var spb=espilPolyBucketAt(p.pos.x,p.pos.z);
+        if(spb)for(var spi=0;spi<spb.length;spi++){
+          var srec=spb[spi];
+          if(srec.h<=p.pos.y+.55&&srec.h>support){
+            if(p.pos.x>=srec.x0-PLAYER_R&&p.pos.x<=srec.x1+PLAYER_R&&p.pos.z>=srec.z0-PLAYER_R&&p.pos.z<=srec.z1+PLAYER_R&&espilPolyProbe(srec,p.pos.x,p.pos.z).d<=PLAYER_R){support=srec.h;supportCar=null;}
+          }
+        }
+      }
       if(p.pos.y<=support){
         if(!p.onGround&&p.velY<-9)walkSfx('land');
         p.pos.y=support;p.velY=0;p.onGround=true;p.jumps=0;
