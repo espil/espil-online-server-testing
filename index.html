@@ -21,6 +21,19 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       window.__ESPIL_ENV__[line.slice(0,i).trim()]=v;
     }
   });
+  /* Production token channel (2026-10-18): the production host has
+     no /.env file (gitignored, never deployed - live /.env is 404),
+     so when .env produced no MAPBOX_TOKEN and this IS the production
+     host, take the token from the /api/mapbox-token endpoint, which
+     reads the Vercel env var server-side (the Places-proxy pattern).
+     Local and testing hosts keep the pure .env flow untouched: this
+     branch cannot fire there. Chained into __ESPIL_ENV_READY__ so
+     every consumer sees the final token state. */
+  if(!window.__ESPIL_ENV__.MAPBOX_TOKEN&&/^(www\.)?espil\.online$/.test(location.hostname)){
+    return fetch('/api/mapbox-token').then(function(r){return r.ok?r.json():null;}).then(function(j){
+      if(j&&j.token)window.__ESPIL_ENV__.MAPBOX_TOKEN=String(j.token).trim();
+    }).catch(function(){});
+  }
 }).catch(function(){});
 </script>
   <!-- Optional local keys file (gitignored, never tracked). Loaded so a
@@ -2660,7 +2673,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     function gateCharacter(){
       var saved=null;
       try{saved=window.localStorage.getItem('espil_character');}catch(e){}
-      if(saved){ enterWalkMap(); return; } /* already has a character: skip customization */
+      if(saved){ espilApplyAvatarGender(espilSavedGender()); enterWalkMap(); return; } /* already has a character: skip customization */
       var panel=document.getElementById('char-custom');
       var note=document.getElementById('char-bypass');
       var csub=panel?panel.querySelector('.char-sub'):null;
@@ -2683,6 +2696,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     }
     function confirmCharacter(gender){
       try{window.localStorage.setItem('espil_character',JSON.stringify({gender:gender,ts:Date.now()}));}catch(e){}
+      espilApplyAvatarGender(gender); /* the preload may have built the other gender's avatar before this first-time pick */
       var panel=document.getElementById('char-custom');
       var note=document.getElementById('char-bypass');
       if(note)note.hidden=true;
@@ -4086,10 +4100,14 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     espilP1.envReady=false;
     (window.__ESPIL_ENV_READY__||Promise.resolve()).then(function(){espilP1.envReady=true;},function(){espilP1.envReady=true;});
     function espilP1Token(){
-      /* Single channel (Han, 2026-10-17): the token lives ONLY in the
-         repo-root .env (window.__ESPIL_ENV__). local-config.js is served
-         as-is from the web root, so a key placed there is exposed in
-         page source - it is not read for the token anymore. */
+      /* Token channels (Han, 2026-10-17; production channel added
+         2026-10-18): the token arrives in window.__ESPIL_ENV__ either
+         from the repo-root .env (local/testing) or, on the production
+         host only, from the /api/mapbox-token endpoint reading the
+         Vercel env var - production has no /.env file. The value is
+         never tracked in the repo. local-config.js is served as-is
+         from the web root, so a key placed there is exposed in page
+         source - it is not read for the token. */
       var e=window.__ESPIL_ENV__||{};
       return e.MAPBOX_TOKEN||'';
     }
@@ -4454,7 +4472,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
             _vr.position.y=(_vr.userData.__avBaseY||0)*_F;
             if(_av.shadow){ var _ss=Math.min(_F,4); _av.shadow.scale.set(_ss,_ss,1); }
             window.__espilAvatarScaleF=_F; /* QA readout: the applied factor */
-            window.__espilAvatarState={anim:(walkPlayer.av&&walkPlayer.av.curAnim)||null,climb:!!walkPlayer._espilClimb,ground:!!walkPlayer.onGround,vy:walkPlayer.velY,jumps:walkPlayer.jumps,acts:(walkPlayer.av&&walkPlayer.av.actions)?Object.keys(walkPlayer.av.actions):null};
+            window.__espilAvatarState={anim:(walkPlayer.av&&walkPlayer.av.curAnim)||null,climb:!!walkPlayer._espilClimb,ground:!!walkPlayer.onGround,vy:walkPlayer.velY,jumps:walkPlayer.jumps,acts:(walkPlayer.av&&walkPlayer.av.actions)?Object.keys(walkPlayer.av.actions):null,gender:(walkPlayer.av&&walkPlayer.av.__gender)||null};
           }
         }
       }
@@ -4937,15 +4955,43 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     /* Footstep SFX (walk_pavement.wav / run_pavement.wav) removed
        entirely (Han PC QA round 2, 2026-10-18) - see the trigger site
        in updateWalkMap. */
-    function buildWalkerAvatar(){
-      /* Han's male character (assets/character/male.glb): Mixamo 22-bone rig, 1.2 units,
-         faces +z, textures embedded. Clips: idle 'Armature|clip0|baselayer', 'Walking', 'Running'.
-         Female clips (female_run.glb / female_walk.glb) are staged in the same folder for later. */
+    /* Saved character gender (espil_character, written by the entry
+       gate's confirm). 'male' unless a female save exists. */
+    function espilSavedGender(){
+      try{var s=JSON.parse(window.localStorage.getItem('espil_character')||'null');
+        if(s&&(s.gender==='female'||s.gender==='male'))return s.gender;}catch(e){}
+      return 'male';
+    }
+    /* Rebuild the avatar in place when the confirmed gender differs
+       from the one the current avatar was built with (the preload
+       builds the avatar BEFORE a first-time player picks a gender,
+       so the confirm path re-applies it). No-op when already right. */
+    function espilApplyAvatarGender(gender){
+      if(!walkPlayer||!walkPlayer.av||!mapScene)return;
+      if(walkPlayer.av.__gender===gender)return;
+      var old=walkPlayer.av;
+      if(old.group&&old.group.parent)old.group.parent.remove(old.group);
+      if(old.shadow&&old.shadow.parent)old.shadow.parent.remove(old.shadow);
+      var av=buildWalkerAvatar(gender);
+      walkPlayer.av=av;
+      mapScene.add(av.group);mapScene.add(av.shadow);
+      av.shadow.position.set(walkPlayer.pos.x,.03,walkPlayer.pos.z);
+    }
+    function buildWalkerAvatar(gender){
+      gender=(gender==='female')?'female':'male';
+      /* Body + skeleton come from ONE GLB per gender (Mixamo 22-bone
+         rig, 1.2 units, faces +z, textures embedded): male.glb for
+         male; female_idle.glb for female - every female clip file
+         embeds the same full skinned body (verified 2026-10-18:
+         1 mesh, 1 skin, 25 nodes, height 1.2, same as male.glb, so
+         the 1.5x scale and bbox grounding carry over unchanged).
+         Clips: the body's embedded set seeds idle/walk/run, then
+         per-action GLBs register the rest of the action table. */
       var g=new THREE.Group();
       var shadow=new THREE.Mesh(new THREE.CircleGeometry(.55,20),
         new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:.26,depthWrite:false}));
       shadow.rotation.x=-Math.PI/2;
-      var av={group:g,shadow:shadow,ready:false,mixer:null,actions:{},curAnim:null};
+      var av={group:g,shadow:shadow,ready:false,mixer:null,actions:{},curAnim:null,__gender:gender};
       av.playAnim=function(name){
         if(!av.mixer||!av.actions[name]||av.curAnim===name)return;
         var prev=av.actions[av.curAnim],next=av.actions[name];
@@ -4955,7 +5001,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       };
       try{
         if(typeof THREE.GLTFLoader==='undefined')throw new Error('no GLTFLoader');
-        new THREE.GLTFLoader().load('assets/character/male.glb',function(gltf){
+        new THREE.GLTFLoader().load(gender==='female'?'assets/character/female_idle.glb':'assets/character/male.glb',function(gltf){
           var model=gltf.scene;
           /* The animation clips carry a baked-in half-turn on the hips vs the bind pose,
            so the model needs a PI counter-rotation to face the movement direction. */
@@ -5001,6 +5047,56 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
               });
             }catch(e){/* optional — fallback to built-in */}
           }
+          if(gender==='female'){
+            /* Female action table (activation, Han 2026-10-18): the
+               five on-disk clips register now; the nine Meshy-made
+               clips (asset room) register automatically when their
+               files land in assets/character/ - a missing file just
+               leaves that action off and the state machine falls
+               back, exactly like the male table's optional clips. */
+            loadAnimClip('female_idle.glb','idle',true);
+            loadAnimClip('female_walk.glb','walk',true); /* original-rig 'Walking' (46 ch), the male_walk.glb precedent - not the walk_strut conversion */
+            loadAnimClip('female_run.glb','run',true); /* original-rig 'Running' (46 ch) - not the run_charge conversion */
+            loadAnimClip('female_stop.glb','stop',false);
+            loadAnimClip('female_swim.glb','swim',true);
+            loadAnimClip('female_swim_idle.glb','swimIdle',true);
+            loadAnimClip('female_jump.glb','jump',false);
+            loadAnimClip('female_jump_double.glb','doubleJump',false);
+            loadAnimClip('female_climb.glb','climb',true);
+            loadAnimClip('female_attack.glb','attack',false);
+            loadAnimClip('female_checkout.glb','checkout',false);
+            loadAnimClip('female_chat.glb','chat',false);
+            /* Descent pair (dive/land) loads through a dedicated
+               path with the SAME entry contract as the male merged
+               file: the descent waits for these clips
+               (__espilDescentClipsReady flips when both register),
+               so a first-time female entry does not fall in the idle
+               pose while 16 MB clips are still decoding. A bounded
+               grace keeps a missing file from ever trapping the
+               entry - the descent then falls back to plain physics,
+               like the male path's failure mode. */
+            var espilFemaleDescentPending=2;
+            function espilFemaleDescentClip(file,actionName){
+              function done(){
+                if(--espilFemaleDescentPending<=0)window.__espilDescentClipsReady=true;
+              }
+              try{
+                new THREE.GLTFLoader().load('assets/character/'+file,function(gltf){
+                  var cs=gltf.animations||[];
+                  if(cs.length){
+                    var clip=stripRootMotion(cs[0]);
+                    var act=mixer.clipAction(clip);
+                    act.setLoop(THREE.LoopOnce);act.clampWhenFinished=true;
+                    av.actions[actionName]=act;
+                  }
+                  done();
+                },undefined,function(){ done(); });
+              }catch(e){ done(); }
+            }
+            espilFemaleDescentClip('female_dive.glb','dive');
+            espilFemaleDescentClip('female_land.glb','land');
+            setTimeout(function(){ window.__espilDescentClipsReady=true; },120000);
+          } else {
           /* Male: replace built-ins with new versions, add new states */
           loadAnimClip('male_idle.glb','idle',true);
           loadAnimClip('male_walk.glb','walk',true); /* asset-room verified Walk (Han original rig extraction, 2026-10-15) - the old male_walk_casual.glb conversion has a hand/neck twist defect and is NOT used (PC feedback #18) */
@@ -5082,6 +5178,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
               });
             }catch(e){}
           });
+          } /* end gender branch */
           /* One-shot animation player (for jump, attack, stop, checkout, chat).
              Plays the clip once, then returns to locomotion. */
           av.playOneShot=function(name,durMs){
@@ -5911,7 +6008,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       /* (Boundary walls removed; clamping applied in updateWalkMap after collision.) */
       } /* end if(!USE_OSM_REBUILD) — procedural grid skipped */
       /* The walker. */
-      var av=buildWalkerAvatar();
+      var av=buildWalkerAvatar(espilSavedGender());
       mapScene.add(av.group);mapScene.add(av.shadow);
       walkPlayer={av:av,pos:new THREE.Vector3(19,.05,-57),velY:0,onGround:true,jumps:0,faceY:.5,bobT:0,moving:false,flying:false,vehicle:null};
       av.shadow.position.set(19,.03,-57);
