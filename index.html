@@ -4004,7 +4004,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        style fails to load, a visible guidance banner is shown instead
        of a silent skip. */
     var ESPIL_P1=true;
-    var espilP1={map:null,ready:false,failed:null,hiddenApplied:false,initTried:false,bannerEl:null,mapEl:null,zoom:null,zoomT:null,zoomDrive:false};
+    var espilP1={map:null,ready:false,failed:null,hiddenApplied:false,initTried:false,bannerEl:null,mapEl:null,zoom:null,zoomT:null,zoomDrive:false,style3dOff:false,style3dTries:0};
     espilP1.envReady=false;
     (window.__ESPIL_ENV_READY__||Promise.resolve()).then(function(){espilP1.envReady=true;},function(){espilP1.envReady=true;});
     function espilP1Token(){
@@ -4087,6 +4087,28 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       }
       return {type:'FeatureCollection',features:feats};
     }
+    /* STYLE 3D OFF (Han 2026-10-17): a Standard-based style serves its
+       own 3D buildings through an IMPORT - those layers never appear
+       in getStyle().layers, so the layer scan in espilP1AddBuildings
+       cannot see or hide them, and the style's city would render under
+       ours (the double-render suspect of the 22:13 diagnosis). The
+       import carries its own config switch: show3dObjects=false turns
+       the style's 3D objects off at the source. Retried from the tick
+       until it lands (an import may settle after 'load'). */
+    function espilP1HideStyle3D(){
+      if(!espilP1.map||espilP1.style3dOff)return;
+      var done=true;
+      try{
+        var st=espilP1.map.getStyle();
+        var imps=(st&&st.imports)||[];
+        for(var ii=0;ii<imps.length;ii++){
+          var iid=(imps[ii]&&imps[ii].id)||'basemap';
+          try{ espilP1.map.setConfigProperty(iid,'show3dObjects',false); }
+          catch(e){ done=false; }
+        }
+      }catch(e){ done=false; }
+      if(done)espilP1.style3dOff=true;
+    }
     function espilP1AddBuildings(){
       if(!espilP1.map||espilP1.buildingsAdded)return;
       var blds=(typeof espilDistrict!=='undefined'&&espilDistrict&&espilDistrict.buildings)||[];
@@ -4122,6 +4144,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         }
         espilP1.buildingsAdded=true;
       }catch(e){}
+      espilP1HideStyle3D();
     }
     function espilP1Preload(){
       /* Map preload (Han, 2026-10-17): start Mapbox init in parallel with
@@ -4172,6 +4195,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
              is copied into Han's own account later, this path never runs. */
           espilP1.onFallback=true;
           espilP1.buildingsAdded=false; /* setStyle wipes sources - the load handler re-adds the buildings */
+          espilP1.style3dOff=false; espilP1.style3dTries=0; /* the fallback style gets its own 3D-off attempt */
           espilP1Banner('지정 스타일을 읽지 못해 기본 지도로 표시합니다. 길 이름 라벨은 걷어낸 상태입니다.');
           try{ espilP1.map.setStyle('mapbox://styles/mapbox/streets-v12'); }
           catch(e){ window.__espilMapProgress01=1; espilP1.failed='maperror'; }
@@ -4195,6 +4219,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(window.__espilDistrictMeshesBuilt&&typeof mapBuilt!=='undefined'&&mapBuilt)espilP1Hide();
       if(typeof renderer!=='undefined'&&renderer)renderer.setClearColor(0x000000,0);
       if(espilP1.ready&&!espilP1.buildingsAdded)espilP1AddBuildings(); /* preload case: district data may land after the map load */
+      if(espilP1.ready&&!espilP1.style3dOff&&espilP1.style3dTries<1200){ espilP1.style3dTries++; espilP1HideStyle3D(); }
       if(espilP1.map&&espilP1.ready&&typeof walkPlayer!=='undefined'&&walkPlayer){
         var ll=espilP1LngLat(walkPlayer.pos.x,walkPlayer.pos.z);
         var brg=-walkCamYaw*180/Math.PI;
