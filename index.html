@@ -10,7 +10,16 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     line=line.trim();
     if(!line||line.charAt(0)==='#')return;
     var i=line.indexOf('=');
-    if(i>0)window.__ESPIL_ENV__[line.slice(0,i).trim()]=line.slice(i+1).trim();
+    if(i>0){
+      /* Value hygiene (2026-10-17): a trailing semicolon or wrapping
+         quotes in a hand-edited .env used to ride along into the key
+         itself and Mapbox rejected the token as invalid - strip both. */
+      var v=line.slice(i+1).trim();
+      while(v.charAt(v.length-1)===';')v=v.slice(0,-1).trim();
+      if(v.length>=2&&((v.charAt(0)==='"'&&v.charAt(v.length-1)==='"')||(v.charAt(0)==="'"&&v.charAt(v.length-1)==="'")))v=v.slice(1,-1).trim();
+      while(v.charAt(v.length-1)===';')v=v.slice(0,-1).trim();
+      window.__ESPIL_ENV__[line.slice(0,i).trim()]=v;
+    }
   });
 }).catch(function(){});
 </script>
