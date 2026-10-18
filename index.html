@@ -4284,10 +4284,17 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           var a=espilP1Anchor();
           var mc=mapboxgl.MercatorCoordinate.fromLngLat({lng:a.lng, lat:a.lat}, 0);
           var s=mc.meterInMercatorCoordinateUnits();
+          var cfgL=espilCityCfg();
           var l=new THREE.Matrix4()
             .makeTranslation(mc.x, mc.y, mc.z)
             .scale(new THREE.Vector3(s, -s, s))
-            .multiply(new THREE.Matrix4().makeRotationX(Math.PI/2));
+            .multiply(new THREE.Matrix4().makeRotationX(Math.PI/2))
+            /* City world-offset (Auckland activation, 2026-10-18):
+               offset cities keep their world at +(ox, oz) inside the
+               scene; re-origin the placement on the entered city's
+               offset so the scene lands on ITS anchor, matching
+               espilP1LngLat. Vancouver ox=oz=0 - identity there. */
+            .multiply(new THREE.Matrix4().makeTranslation(-(cfgL.ox||0), 0, -(cfgL.oz||0)));
           var m=new THREE.Matrix4().fromArray(matrix);
           espilP1.layerCam.projectionMatrix=m.multiply(l);
           try{ r.render(mapScene, espilP1.layerCam); }catch(e){}
@@ -4335,7 +4342,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       else document.body.appendChild(el);
       espilP1.mapEl=el;
       try{
-        espilP1.map=new mapboxgl.Map({container:el,style:'mapbox://styles/quadclipse/cmvdcpdor000901sq8xq57eab',center:espilP1LngLat(3,31),zoom:17.3,pitch:52,bearing:0,attributionControl:false,interactive:false,projection:'mercator',maxZoom:22}); /* projection forced (Han 2026-10-17): the designated style declares lambertConformalConic, under which Mapbox skips ALL 3D drawing ("Drawing 3D models for lambertConformalConic projection is not yet implemented") - the custom layer and our extrusions vanished on Han's PC while the mercator stub could not reproduce it. The game's math is Mercator throughout. maxZoom = the Mapbox default 22 (custom cap removed on Han's order). */
+        espilP1.map=new mapboxgl.Map({container:el,style:'mapbox://styles/quadclipse/cmvdcpdor000901sq8xq57eab',center:espilP1LngLat((espilCityCfg().spawn||{x:3,z:31}).x,(espilCityCfg().spawn||{x:3,z:31}).z),zoom:17.3,pitch:52,bearing:0,attributionControl:false,interactive:false,projection:'mercator',maxZoom:22}); /* projection forced (Han 2026-10-17): the designated style declares lambertConformalConic, under which Mapbox skips ALL 3D drawing ("Drawing 3D models for lambertConformalConic projection is not yet implemented") - the custom layer and our extrusions vanished on Han's PC while the mercator stub could not reproduce it. The game's math is Mercator throughout. maxZoom = the Mapbox default 22 (custom cap removed on Han's order). */
       }catch(e){ espilP1.failed='init'; window.__espilMapProgress01=1; espilP1Banner('Mapbox 지도를 시작하지 못했습니다. 토큰을 확인해 주십시오.'); return; }
       espilP1.map.on('load',function(){
         /* the loaded style re-imposes its declared projection - force
@@ -8528,7 +8535,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     /* Production config (Han 2026-10-18): Vancouver is the only city
        that dives; the other five selectable cities show COMING SOON
        with the button disabled. */
-    function espilPlayableCity(name){return name==='Vancouver';}
+    function espilPlayableCity(name){return name==='Vancouver'||name==='Auckland';} /* per-city activation (Han 2026-10-18): Auckland opened after its Mapbox-line verification; Tokyo/New York/Paris/London join as each city's build verifies */
     function showCityInfo(marker){
       infoShown=true;approachSlow=false;
       var facts=cityFacts[marker.userData.name]||{pop:'—',brands:[],img:''};
