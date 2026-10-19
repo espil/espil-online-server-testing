@@ -1,6 +1,3 @@
 # API keys only — never commit (2026-10-13)
 .env
 local-config.js
-
-# Extracted asset pack - source is the .7z next to it; long paths break Windows pulls (2026-10-13)
-cauldron/assets/Complete_UI_Book_Styles_Pack_Free/

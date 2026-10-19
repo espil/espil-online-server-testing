@@ -9,6 +9,38 @@
   /* Base */
   html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#050914;font-family:system-ui,sans-serif;}
   #map{position:absolute;inset:0;}
+  /* Han 2026-10-10 #5: x50/y55 tiny-planet feel via CSS perspective
+     Stronger curve, centered, with stars/moon/sky background */
+  #map.tiny-planet{
+    transform: perspective(600px) rotateX(18deg) scale(1.35);
+    transform-origin: center 130%;
+  }
+  /* Starry sky background (visible at edges with strong curve) */
+  body::before{
+    content:'';
+    position:absolute;
+    inset:0;
+    background:
+      radial-gradient(2px 2px at 20% 30%, #fff, transparent),
+      radial-gradient(2px 2px at 60% 70%, #fff, transparent),
+      radial-gradient(1px 1px at 50% 50%, #fff, transparent),
+      radial-gradient(2px 2px at 80% 10%, #fff, transparent),
+      radial-gradient(1px 1px at 10% 80%, #fff, transparent),
+      radial-gradient(2px 2px at 90% 60%, #fff, transparent),
+      linear-gradient(to bottom, #050914 0%, #0a1528 50%, #050914 100%);
+    z-index:0;
+  }
+  #map{z-index:1;}
+  /* Moon */
+  body::after{
+    content:'🌙';
+    position:absolute;
+    top:8%;
+    right:12%;
+    font-size:48px;
+    z-index:0;
+    opacity:.8;
+  }
   /* Minimap (Cauldron 5-stage) */
   #minimap-wrap{position:absolute;top:16px;right:16px;width:180px;height:180px;border-radius:12px;overflow:hidden;border:2px solid rgba(255,255,255,.2);box-shadow:0 4px 20px rgba(0,0,0,.5);z-index:10;}
   #minimap{width:100%;height:100%;}
@@ -16,9 +48,57 @@
   #minimap-wrap[data-stage="3"]{width:100vw;height:100vh;top:0;right:0;border-radius:0;border:none;}
   .map-zoom-controls{position:absolute;bottom:8px;right:8px;display:flex;gap:4px;z-index:11;}
   .map-zoom-controls button{width:28px;height:28px;border-radius:6px;border:none;background:rgba(0,0,0,.6);color:#fff;font-size:16px;cursor:pointer;}
-  /* HUD (from espil.online) */
-  #hud{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:10;}
-  .hotkey{width:48px;height:48px;border-radius:8px;background:rgba(0,0,0,.5);border:2px solid rgba(255,255,255,.3);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;}
+  /* HUD — keyboard layout (from espil.online, 2026-10-10) */
+  .skill-bar{position:absolute;left:0;right:0;bottom:calc(14px + env(safe-area-inset-bottom));display:flex;gap:10px;align-items:flex-end;justify-content:space-between;padding:0 16px;z-index:10;pointer-events:none;font-family:system-ui,sans-serif;}
+  .skill-bar>*{pointer-events:auto;}
+  .kb-main{display:flex;flex-direction:column;gap:5px;}
+  #item-row{display:flex;gap:5px;}
+  #move-row{display:grid;grid-template-columns:repeat(4,44px);gap:5px;}
+  .kb-menu{display:grid;grid-template-columns:repeat(2,44px);gap:5px;}
+  .kb-menu .move-slot{border-radius:12px;}
+  @media (pointer:coarse){
+    .skill-bar{display:block;left:50%;right:auto;transform:translateX(-50%);bottom:calc(86px + env(safe-area-inset-bottom));padding:0;}
+    .kb-menu{display:none;}
+  }
+  .move-slot{position:relative;width:44px;height:44px;appearance:none;cursor:pointer;border:2px solid #6b4a2f;border-radius:50%;background:radial-gradient(circle at 50% 40%,#2d4a2f 0%,#1a2e1c 70%,#0f1d10 100%);box-shadow:0 0 12px rgba(63,125,68,.35),inset 0 0 8px rgba(107,74,47,.3);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:#e8f5e9;font-family:system-ui,sans-serif;touch-action:manipulation;user-select:none;-webkit-user-select:none;}
+  .move-slot:active{border-color:#ffd97a;box-shadow:0 0 16px rgba(255,217,122,.5);}
+  .move-slot.is-locked{opacity:.5;cursor:default;border-style:dashed;border-color:#5a3d26;}
+  .move-slot .key{position:absolute;top:2px;left:50%;transform:translateX(-50%);font:800 .52rem/1 system-ui,sans-serif;color:#ffd97a;text-shadow:0 1px 2px #000;}
+  .move-slot .mn{font:700 .42rem/1 system-ui,sans-serif;letter-spacing:.04em;color:#c8e6c9;}
+  /* Panels (from espil.online) */
+  .skill-tree{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;background:rgba(10,20,12,.85);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);}
+  .skill-tree[aria-hidden="false"]{display:flex;}
+  .st-card{width:min(640px,calc(100% - 32px));max-height:88vh;overflow-y:auto;padding:22px;border:2px solid #6b4a2f;border-radius:24px;background:linear-gradient(180deg,#1e3320 0%,#142414 50%,#0d1a0d 100%);box-shadow:0 0 44px rgba(63,125,68,.25);color:#e8f5e9;font-family:system-ui,sans-serif;}
+  .st-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;}
+  .st-head h2{margin:0;font:800 1.05rem/1.2 system-ui,sans-serif;letter-spacing:.14em;color:#ffd97a;}
+  .st-sub{margin:6px 0 0;font:600 .7rem/1.5 system-ui,sans-serif;color:rgba(200,230,201,.7);}
+  .st-close{appearance:none;flex:none;width:34px;height:34px;border-radius:50%;border:2px solid #6b4a2f;background:#1a2e1c;color:#ffd97a;font-size:.95rem;cursor:pointer;}
+  .st-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+  .st-foot{margin:14px 0 0;font:600 .62rem/1.6 system-ui,sans-serif;color:rgba(200,230,201,.6);}
+  /* Joystick (from espil.online) */
+  .joystick{position:absolute;z-index:20;left:18px;bottom:132px;width:104px;height:104px;border-radius:50%;border:1px solid rgba(134,238,228,.4);background:radial-gradient(circle,rgba(3,16,20,.55),rgba(3,16,20,.85));box-shadow:0 0 24px rgba(64,255,205,.18);display:none;touch-action:none;user-select:none;-webkit-user-select:none;}
+  .joy-knob{position:absolute;left:50%;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;background:radial-gradient(circle at 35% 35%,rgba(125,252,230,.9),rgba(64,255,205,.35));box-shadow:0 0 18px rgba(64,255,205,.5);pointer-events:none;}
+  @media (pointer:coarse){.joystick{display:block;}}
+  /* Status HUD (from espil.online) */
+  .map-status{position:absolute;z-index:10;top:calc(14px + env(safe-area-inset-top));left:14px;width:212px;padding:10px 12px 12px;border:1px solid rgba(134,238,228,.32);border-radius:12px;background:rgba(4,16,20,.66);color:#ddfffc;font-family:system-ui,sans-serif;pointer-events:none;}
+  .ms-level{display:flex;justify-content:space-between;align-items:center;font:800 .68rem/1.2 system-ui,sans-serif;letter-spacing:.1em;color:#eafffd;}
+  .ms-sp{color:#ffd97a;font-size:.68rem;}
+  .ms-label{display:flex;justify-content:space-between;margin-top:7px;font:700 .55rem/1 system-ui,sans-serif;letter-spacing:.12em;color:rgba(181,255,248,.62);}
+  .ms-bar{height:8px;margin-top:4px;border-radius:99px;background:rgba(255,255,255,.09);overflow:hidden;}
+  .ms-bar>i{display:block;height:100%;border-radius:99px;}
+  .ms-hp>i{background:linear-gradient(90deg,#ff5f6d,#ff9a5a);width:100%;}
+  .ms-mp>i{background:linear-gradient(90deg,#3fa7ff,#7dfce6);width:100%;}
+  /* Chat (new, per Han 2026-10-10) */
+  #chat-wrap{position:absolute;z-index:10;left:14px;bottom:calc(14px + env(safe-area-inset-bottom));width:min(340px,calc(100vw - 28px));font-family:system-ui,sans-serif;}
+  #chat-log{max-height:120px;overflow-y:auto;margin-bottom:6px;padding:8px 10px;border-radius:10px;background:rgba(4,16,20,.6);color:#ddfffc;font-size:.75rem;line-height:1.4;display:none;}
+  #chat-log.show{display:block;}
+  #chat-log div{margin:2px 0;}
+  #chat-row{display:none;gap:6px;}
+  #chat-row.show{display:flex;}
+  #chat-input{flex:1;padding:8px 12px;border-radius:20px;border:1px solid rgba(134,238,228,.4);background:rgba(4,16,20,.8);color:#ddfffc;font-size:.8rem;outline:none;}
+  #chat-send{padding:8px 16px;border-radius:20px;border:1px solid rgba(134,238,228,.4);background:rgba(64,255,205,.2);color:#ddfffc;cursor:pointer;font-size:.8rem;}
+  #chat-toggle{position:absolute;z-index:10;left:14px;bottom:calc(70px + env(safe-area-inset-bottom));width:44px;height:44px;border-radius:50%;border:2px solid rgba(134,238,228,.4);background:rgba(4,16,20,.7);color:#ddfffc;font-size:1.2rem;cursor:pointer;display:grid;place-items:center;}
+  @media (pointer:coarse){#chat-wrap{bottom:calc(200px + env(safe-area-inset-bottom));}#chat-toggle{bottom:calc(256px + env(safe-area-inset-bottom));}}
   /* Store modal (from espil.online) */
   #store-modal{display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:90%;max-width:500px;max-height:80vh;background:#1a2233;border-radius:16px;z-index:100;overflow:hidden;}
   #store-modal.open{display:block;}
@@ -28,12 +108,55 @@
   #toast.show{display:block;}
   /* Loading */
   #loading{position:absolute;inset:0;background:#050914;display:flex;align-items:center;justify-content:center;z-index:200;color:#fff;}
-  #loading.done{display:none;}
-</style>
+  #loading.done{display:none;}</style>
 </head>
 <body>
-<div id="loading">Loading Vancouver…</div>
+<div id="loading">
+  <!-- Han 2026-10-10: Espil Online typewriter scene (like landing intro) -->
+  <div style="text-align:center;">
+    <div id="load-typewriter" style="font-size:42px;font-weight:bold;letter-spacing:8px;color:#fff;text-shadow:0 0 20px #4f7ed9;margin-bottom:24px;min-height:60px;"></div>
+    <div style="width:280px;height:4px;background:rgba(255,255,255,.15);border-radius:2px;margin:0 auto;overflow:hidden;">
+      <div id="load-progress" style="height:100%;width:0%;background:linear-gradient(90deg,#4f7ed9,#7ed9e8);transition:width .3s;box-shadow:0 0 10px #4f7ed9;"></div>
+    </div>
+    <div id="load-status" style="font-size:13px;color:#9fb3c8;margin-top:12px;letter-spacing:2px;">INITIALIZING…</div>
+  </div>
+</div>
+<script>
+// Typewriter effect for loading (Han 2026-10-10)
+(function(){
+  var text = 'ESPIL ONLINE';
+  var el = document.getElementById('load-typewriter');
+  var i = 0;
+  function type(){
+    if(i <= text.length){
+      el.textContent = text.substring(0, i);
+      i++;
+      setTimeout(type, 120);
+    }
+  }
+  if(el) type();
+})();
+</script>
 <div id="map"></div>
+<!-- Joystick (from espil.online) -->
+<div class="joystick" id="joystick"><div class="joy-knob" id="joy-knob"></div></div>
+<!-- Status HUD (from espil.online) -->
+<div class="map-status" id="map-status">
+  <div class="ms-level"><span>KEEPER</span><span class="ms-sp">📚 10</span></div>
+  <div class="ms-label"><span>HP</span><span>100/100</span></div>
+  <div class="ms-bar ms-hp"><i></i></div>
+  <div class="ms-label"><span>MP</span><span>50/50</span></div>
+  <div class="ms-bar ms-mp"><i></i></div>
+</div>
+<!-- Chat (per Han 2026-10-10) -->
+<button id="chat-toggle" type="button" aria-label="Toggle chat">💬</button>
+<div id="chat-wrap">
+  <div id="chat-log"></div>
+  <div id="chat-row">
+    <input id="chat-input" type="text" placeholder="Type a message…" maxlength="200" />
+    <button id="chat-send" type="button">Send</button>
+  </div>
+</div>
 <div id="minimap-wrap" data-stage="1">
   <div id="minimap"></div>
   <div class="map-zoom-controls">
@@ -41,17 +164,80 @@
     <button id="map-zoom-out">−</button>
   </div>
 </div>
-<div id="hud">
-  <div class="hotkey">1</div><div class="hotkey">2</div><div class="hotkey">3</div><div class="hotkey">4</div>
-  <div class="hotkey">Q</div><div class="hotkey">W</div><div class="hotkey">E</div><div class="hotkey">R</div>
+<div class="skill-bar" id="skill-bar">
+  <div class="kb-main">
+    <div id="item-row" aria-label="Item slots"></div>
+    <div id="move-row" aria-label="Skill slots"></div>
+  </div>
+  <div class="kb-menu" id="kb-menu" aria-label="Menu shortcuts"></div>
+</div>
+<!-- Panels (from espil.online) -->
+<div class="skill-tree" id="skill-tree-panel" aria-hidden="true" role="dialog" aria-label="Skill tree">
+  <div class="st-card">
+    <div class="st-head"><div><h2>SKILL TREE</h2><p class="st-sub">Press K to close.</p></div><button class="st-close" id="skill-close" type="button">✕</button></div>
+    <div class="st-grid"><p class="st-foot">Skill tree arrives with the character update.</p></div>
+  </div>
+</div>
+<div class="skill-tree" id="inventory-panel" aria-hidden="true" role="dialog" aria-label="Inventory">
+  <div class="st-card">
+    <div class="st-head"><div><h2>INVENTORY</h2><p class="st-sub">Press I to close.</p></div><button class="st-close" id="inv-close" type="button">✕</button></div>
+    <div class="st-grid"><p class="st-foot">Empty for now.</p></div>
+  </div>
+</div>
+<div class="skill-tree" id="character-panel" aria-hidden="true" role="dialog" aria-label="Character">
+  <div class="st-card">
+    <div class="st-head"><div><h2>CHARACTER</h2><p class="st-sub">Status and outfit. Press P to close.</p></div><button class="st-close" id="char-close" type="button">✕</button></div>
+    <div class="st-grid"><p class="st-foot">Outfit system arrives with the character update.</p></div>
+  </div>
+</div>
+<div class="skill-tree" id="friends-panel" aria-hidden="true" role="dialog" aria-label="Friends">
+  <div class="st-card">
+    <div class="st-head"><div><h2>FRIENDS / PARTY</h2><p class="st-sub">Press Y to close.</p></div><button class="st-close" id="friends-close" type="button">✕</button></div>
+    <div class="st-grid"><p class="st-foot">Friend sync needs the server.</p></div>
+  </div>
 </div>
 <div id="store-modal">
   <button id="store-modal-close">×</button>
-  <div id="store-modal-content"></div>
+  <div class="store-modal-panel" style="padding:20px;color:#fff;">
+    <!-- Step 1: Choose a place (action window) -->
+    <div id="store-list-view">
+      <h3>Choose a place</h3>
+      <p style="font-size:.8rem;color:#9fb3c8;margin:-8px 0 12px;">Click to select, ESC to cancel</p>
+      <div id="store-list"></div>
+    </div>
+    <!-- Step 2: Place info (separate screen) -->
+    <div id="store-detail-view" class="hidden" style="display:none;">
+      <button id="store-back" type="button" style="background:none;border:none;color:#4f7ed9;cursor:pointer;margin-bottom:12px;">← Back</button>
+      <h3 id="store-detail-name"></h3>
+      <div class="store-actions" style="display:flex;gap:8px;margin:12px 0;">
+        <button data-action="info" type="button" style="padding:8px 12px;border-radius:6px;border:1px solid #4f7ed9;background:none;color:#fff;cursor:pointer;">Info</button>
+        <button data-action="reviews" type="button" style="padding:8px 12px;border-radius:6px;border:1px solid #4f7ed9;background:none;color:#fff;cursor:pointer;">Reviews</button>
+        <button data-action="photos" type="button" style="padding:8px 12px;border-radius:6px;border:1px solid #4f7ed9;background:none;color:#fff;cursor:pointer;">Photos</button>
+        <button data-action="enter" type="button" style="padding:8px 12px;border-radius:6px;background:#4f7ed9;border:none;color:#fff;cursor:pointer;">Enter →</button>
+      </div>
+      <div id="store-detail-content"></div>
+    </div>
+  </div>
 </div>
 <div id="toast"></div>
 
+<!-- Mobile joystick (Han 2026-10-10) -->
+<div id="joystick" style="display:none;position:absolute;bottom:100px;left:24px;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,.15);border:2px solid rgba(255,255,255,.3);z-index:20;touch-action:none;">
+  <div id="joystick-knob" style="position:absolute;top:50%;left:50%;width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,.5);transform:translate(-50%,-50%);"></div>
+</div>
+<div id="joystick-btn" style="display:none;position:absolute;bottom:100px;right:24px;width:64px;height:64px;border-radius:50%;background:rgba(79,126,217,.7);color:#fff;border:none;font-size:14px;z-index:20;">SPACE</div>
+
+<style>
+  @media (pointer:coarse){
+    #joystick{display:block !important;}
+    #joystick-btn{display:block !important;}
+  }
+</style>
+
 <script src="https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.js"></script>
+<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+<!-- GLTFLoader removed (module incompatibility) — using primitive fallback -->
+<!-- TODO: Use ES modules with importmap for GLB loading -->
 <script>
 // Static config (from Cauldron)
 window.CAULDRON_STATIC_CONFIG = {
@@ -69,7 +255,7 @@ window.CAULDRON_STATIC_CONFIG = {
   var VANCOUVER = [-123.1207, 49.2827];
   var CAMERA_PITCH = 48;
   var CAMERA_BEARING = -10;
-  var CAMERA_ZOOM = 16.5;
+  var CAMERA_ZOOM = 20.45; /* Cauldron street level (Han 2026-10-10) */
 
   var MINIMAP_LEVELS = [
     {label:'50m', zoom:18.35},
@@ -83,12 +269,131 @@ window.CAULDRON_STATIC_CONFIG = {
   var map, minimap, playerMarker, minimapMarker;
   var playerLngLat = VANCOUVER.slice();
 
+  // Han 2026-10-10 #4: Loading progress system
+  var loadProgress = {map:0, collision:0, character:0};
+  function updateLoadProgress(key, pct){
+    loadProgress[key] = pct;
+    var total = (loadProgress.map + loadProgress.collision + loadProgress.character) / 3;
+    var bar = document.getElementById('load-progress');
+    var status = document.getElementById('load-status');
+    if(bar) bar.style.width = total + '%';
+    if(status){
+      if(total < 100){
+        status.textContent = 'Loading… ' + Math.round(total) + '%';
+      }else{
+        status.textContent = 'Ready!';
+      }
+    }
+    // Hide loading when all done
+    if(total >= 100){
+      setTimeout(function(){
+        document.getElementById('loading').classList.add('done');
+      }, 500);
+    }
+  }
+
+  // Han 2026-10-10 #3: Collision system (OSM building data)
+  // Prevents walking through buildings
+  var collisionBuildings = []; // {x0,x1,z0,z1} in meters
+  var collisionLoaded = false;
+
+  function loadCollisionData(){
+    // Han 2026-10-10: Use relative path (works from /vancouver.html)
+    fetch('assets/osm/vancouver_chunks.json')
+      .then(function(r){
+        if(!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function(data){
+        var chunks = data.chunks || {};
+        var count = 0;
+        for(var key in chunks){
+          var c = chunks[key];
+          if(!c.b) continue;
+          for(var i=0; i<c.b.length; i++){
+            var b = c.b[i]; // [x, z, w, d, h]
+            var bx = b[0], bz = b[1], bw = b[2], bd = b[3];
+            // Only downtown 1.5km (performance)
+            if(Math.sqrt(bx*bx + bz*bz) > 1500) continue;
+            collisionBuildings.push({
+              x0: bx - bw/2, x1: bx + bw/2,
+              z0: bz - bd/2, z1: bz + bd/2
+            });
+            count++;
+          }
+        }
+        collisionLoaded = true;
+        console.log('[Collision] Loaded ' + count + ' buildings');
+        updateLoadProgress('collision', 100);
+      })
+      .catch(function(e){
+        console.warn('[Collision] Failed to load:', e);
+        // Han 2026-10-10: Don't block loading on failure (was stuck at 67%)
+        updateLoadProgress('collision', 100);
+      });
+  }
+
+  // Convert lng/lat to meters (x,z)
+  function lngLatToMeters(lng, lat){
+    var x = (lng - (-123.1207)) * 111320 * Math.cos(49.2827 * Math.PI/180);
+    var z = -(lat - 49.2827) * 111320;
+    return {x: x, z: z};
+  }
+
+  // Check if position collides with any building
+  function checkCollision(lng, lat){
+    if(!collisionLoaded) return false;
+    var m = lngLatToMeters(lng, lat);
+    // Player radius ~0.5m
+    var r = 0.5;
+    for(var i=0; i<collisionBuildings.length; i++){
+      var b = collisionBuildings[i];
+      if(m.x + r > b.x0 && m.x - r < b.x1 &&
+         m.z + r > b.z0 && m.z - r < b.z1){
+        return true;
+      }
+    }
+    return false;
+  }
+
   function createMarkerEl(cls, label){
     var el = document.createElement('div');
     el.className = cls;
     el.setAttribute('aria-label', label);
-    el.style.cssText = 'width:20px;height:20px;border-radius:50%;background:#4f7ed9;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.5);';
+    // Han 2026-10-10 #1: Male/female character selection
+    var gender = 'male';
+    try{
+      var saved = JSON.parse(localStorage.getItem('espil_character') || '{}');
+      if(saved.gender) gender = saved.gender;
+    }catch(e){}
+    var bg = gender === 'female' ? '#e87ea1' : '#4f7ed9';
+    var emoji = gender === 'female' ? '🧍‍♀️' : '🧍';
+    el.style.cssText = 'width:32px;height:32px;border-radius:50%;background:'+bg+';border:4px solid #fff;box-shadow:0 2px 12px rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;font-weight:bold;';
+    el.textContent = emoji;
+    el.id = 'player-marker-el';
     return el;
+  }
+
+  // Han 2026-10-10 #1: Character gender toggle (P key cycles, or UI)
+  function toggleCharacterGender(){
+    var current = 'male';
+    try{
+      var saved = JSON.parse(localStorage.getItem('espil_character') || '{}');
+      current = saved.gender || 'male';
+    }catch(e){}
+    var next = current === 'male' ? 'female' : 'male';
+    try{
+      localStorage.setItem('espil_character', JSON.stringify({gender: next, ts: Date.now()}));
+    }catch(e){}
+    // Update marker
+    var el = document.getElementById('player-marker-el');
+    if(el){
+      var bg = next === 'female' ? '#e87ea1' : '#4f7ed9';
+      var emoji = next === 'female' ? '🧍‍♀️' : '🧍';
+      el.style.background = bg;
+      el.textContent = emoji;
+    }
+    showToast('Character: ' + next);
   }
 
   function initMap(){
@@ -118,21 +423,275 @@ window.CAULDRON_STATIC_CONFIG = {
         });
       }catch(e){}
       // Lower building opacity for visibility (Cauldron style)
+      // Han 2026-10-10 #6: Building textures require Mapbox Studio style changes
+      // The style 'mapbox://styles/quadclipse/cmos12qyt008901rgg1eka1xm' controls
+      // building appearance. To add textures:
+      // 1. Open the style in Mapbox Studio
+      // 2. Add fill-extrusion with texture (or use Plushy AI generated textures)
+      // 3. If not possible, revert to Three.js renderer
       map.getStyle().layers.forEach(function(layer){
         if(layer.type === 'fill-extrusion' && /building/i.test(layer.id)){
           map.setPaintProperty(layer.id, 'fill-extrusion-opacity', 0.85);
         }
       });
-      document.getElementById('loading').classList.add('done');
+      // Add 3D character layer
+      // Han 2026-10-10: Disabled — 3D custom layer unreliable, using 2D marker
+      // TODO: Re-enable with proper ES module GLTFLoader
+      // addCharacterLayer();
+      // Han 2026-10-10: x50/y55 tiny-planet curvature (top priority)
+      // Note: Mapbox tiles can't use custom shaders. Using CSS 3D transform
+      // to fake the tiny-planet curvature feel.
+      document.getElementById('map').classList.add('tiny-planet');
+      // addCurvedGroundLayer(); // Disabled: underlay not visible through tiles
+      updateLoadProgress('map', 100);
     });
 
+    // 2D marker as fallback (hidden when 3D character loads)
     playerMarker = new mapboxgl.Marker({
       element: createMarkerEl('player-marker', 'Player'),
       anchor: 'center',
     }).setLngLat(playerLngLat).addTo(map);
+    // Hide marker once 3D character is ready (to avoid duplication)
+    // The 3D layer will handle positioning
 
     initMinimap();
     initControls();
+  }
+
+  // 3D Character via Mapbox Custom Layer + Three.js
+  // Han 2026-10-10: GLB character on Mapbox (merge, not replace)
+  var characterLayer = null;
+  var characterModel = null;
+  var characterMixer = null;
+  function addCharacterLayer(){
+    if(typeof THREE === 'undefined'){
+      console.warn('[Character] THREE not loaded, using marker only');
+      return;
+    }
+
+    var modelOrigin = playerLngLat.slice();
+    var modelAltitude = 0;
+    var modelRotate = [Math.PI/2, 0, 0];
+
+    characterLayer = {
+      id: 'character-3d',
+      type: 'custom',
+      renderingMode: '3d',
+
+      onAdd: function(map, gl){
+        this.map = map;
+        this.camera = new THREE.Camera();
+        this.scene = new THREE.Scene();
+
+        // Lighting
+        var dirLight = new THREE.DirectionalLight(0xffffff, 1);
+        dirLight.position.set(0, 10, 10);
+        this.scene.add(dirLight);
+        this.scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+
+        // Load GLB character (if GLTFLoader available)
+        // Note: Using primitive fallback until ES module GLTFLoader is set up
+        if(typeof THREE.GLTFLoader !== 'undefined'){
+          var loader = new THREE.GLTFLoader();
+          var charUrl = '/assets/character/male.glb';
+          loader.load(
+            charUrl,
+            function(gltf){
+              characterModel = gltf.scene;
+              characterModel.scale.set(2, 2, 2);
+              this.scene.add(characterModel);
+              console.log('[Character] GLB loaded:', charUrl);
+              if(gltf.animations && gltf.animations.length > 0){
+                characterMixer = new THREE.AnimationMixer(characterModel);
+                console.log('[Character] Animations:', gltf.animations.map(function(a){return a.name;}));
+              }
+            }.bind(this),
+            undefined,
+            function(err){
+              console.warn('[Character] GLB failed, using primitive:', err);
+              addPrimitiveCharacter.call(this);
+            }.bind(this)
+          );
+        }else{
+          // GLTFLoader not available — use primitive directly
+          addPrimitiveCharacter.call(this);
+        }
+
+        function addPrimitiveCharacter(){
+          console.log('[Character] Using primitive fallback');
+          var bodyMat = new THREE.MeshLambertMaterial({color: 0x4f7ed9});
+          characterModel = new THREE.Group();
+          var body = new THREE.Mesh(
+            new THREE.CapsuleGeometry(0.4, 0.8, 4, 12),
+            bodyMat
+          );
+          body.position.y = 0.9;
+          characterModel.add(body);
+          var head = new THREE.Mesh(
+            new THREE.SphereGeometry(0.3, 16, 16),
+            new THREE.MeshLambertMaterial({color: 0xf0c8a0})
+          );
+          head.position.y = 1.8;
+          characterModel.add(head);
+          this.scene.add(characterModel);
+        }
+
+        this.renderer = new THREE.WebGLRenderer({
+          canvas: map.getCanvas(),
+          context: gl,
+          antialias: true,
+        });
+        this.renderer.autoClear = false;
+      },
+
+      render: function(gl, matrix){
+        // Update model position to player
+        modelOrigin = playerLngLat.slice();
+
+        var merc = mapboxgl.MercatorCoordinate.fromLngLat(
+          {lng: modelOrigin[0], lat: modelOrigin[1]},
+          modelAltitude
+        );
+
+        // Model matrix
+        var modelMatrix = new THREE.Matrix4()
+          .makeTranslation(merc.x, merc.y, merc.z)
+          .scale(new THREE.Vector3(
+            merc.meterInMercatorCoordinateUnits(),
+            merc.meterInMercatorCoordinateUnits(),
+            merc.meterInMercatorCoordinateUnits()
+          ));
+
+        var rotationX = new THREE.Matrix4().makeRotationAxis(
+          new THREE.Vector3(1, 0, 0), modelRotate[0]);
+        var rotationY = new THREE.Matrix4().makeRotationAxis(
+          new THREE.Vector3(0, 1, 0), modelRotate[1]);
+        var rotationZ = new THREE.Matrix4().makeRotationAxis(
+          new THREE.Vector3(0, 0, 1), modelRotate[2]);
+
+        var m = new THREE.Matrix4().fromArray(matrix);
+        var l = new THREE.Matrix4()
+          .multiplyMatrices(m, modelMatrix)
+          .multiply(rotationX)
+          .multiply(rotationY)
+          .multiply(rotationZ);
+
+        this.camera.projectionMatrix = l;
+
+        // Update animations
+        if(characterMixer){
+          characterMixer.update(0.016); // ~60fps
+        }
+
+        this.renderer.resetState();
+        this.renderer.render(this.scene, this.camera);
+        this.map.triggerRepaint();
+      }
+    };
+
+    map.addLayer(characterLayer);
+    console.log('[Character] 3D layer added');
+  }
+
+  // Han 2026-10-10: x50/y55 tiny-planet curvature
+  // Custom ground layer with artificial curvature (like Three.js version)
+  // This creates the tiny-planet look Han wants, distinct from Mapbox's real globe
+  function addCurvedGroundLayer(){
+    if(typeof THREE === 'undefined'){
+      console.warn('[Curve] THREE not loaded, skipping curved ground');
+      return;
+    }
+
+    var CURVE_X = 50, CURVE_Y = 55; // Han's x50/y55
+    var SIZE = 10000; // 10km plane
+    var SEGS = 64;
+
+    var curvedLayer = {
+      id: 'curved-ground',
+      type: 'custom',
+      renderingMode: '3d',
+
+      onAdd: function(map, gl){
+        this.map = map;
+        this.camera = new THREE.Camera();
+        this.scene = new THREE.Scene();
+
+        // Create curved plane geometry
+        var geo = new THREE.PlaneGeometry(SIZE, SIZE, SEGS, SEGS);
+        geo.rotateX(-Math.PI/2); // Flat on XZ
+
+        // Custom shader with x50/y55 curve
+        // Curve relative to player position (updated via uniform)
+        var mat = new THREE.ShaderMaterial({
+          uniforms: {
+            uPlayer: {value: new THREE.Vector2(0, 0)}, // Player pos in plane local coords
+            uCurve: {value: new THREE.Vector2(CURVE_X, CURVE_Y)},
+            uColor: {value: new THREE.Color(0x1a2a3a)}, // Dark ground (under Mapbox tiles)
+          },
+          vertexShader: [
+            'uniform vec2 uPlayer;',
+            'uniform vec2 uCurve;',
+            'varying vec2 vUv;',
+            'void main(){',
+            '  vUv = uv;',
+            '  vec3 pos = position;',
+            '  vec2 d = pos.xz - uPlayer;',
+            '  float drop = min((d.x*d.x*uCurve.x + d.y*d.y*uCurve.y)/120000.0, 1000.0);',
+            '  pos.y -= drop;',
+            '  gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);',
+            '}'
+          ].join('\n'),
+          fragmentShader: [
+            'uniform vec3 uColor;',
+            'varying vec2 vUv;',
+            'void main(){',
+            '  gl_FragColor = vec4(uColor, 1.0);',
+            '}'
+          ].join('\n'),
+          transparent: false,
+        });
+
+        this.ground = new THREE.Mesh(geo, mat);
+        this.scene.add(this.ground);
+
+        this.renderer = new THREE.WebGLRenderer({
+          canvas: map.getCanvas(),
+          context: gl,
+          antialias: true,
+        });
+        this.renderer.autoClear = false;
+      },
+
+      render: function(gl, matrix){
+        // Position ground at player location
+        var merc = mapboxgl.MercatorCoordinate.fromLngLat(
+          {lng: playerLngLat[0], lat: playerLngLat[1]},
+          -50 // Slightly below Mapbox tiles
+        );
+
+        // Update player uniform (center of plane)
+        if(this.ground){
+          this.ground.material.uniforms.uPlayer.value.set(0, 0);
+          // Position the mesh at player
+          this.ground.position.set(merc.x, merc.y, merc.z);
+        }
+
+        var m = new THREE.Matrix4().fromArray(matrix);
+        this.camera.projectionMatrix = m;
+
+        this.renderer.resetState();
+        this.renderer.render(this.scene, this.camera);
+      }
+    };
+
+    // Add below all other layers (as ground)
+    // Note: This renders UNDER Mapbox tiles. For the curve to be visible,
+    // we need the Mapbox style to have transparency or we render on top.
+    console.log('[Curve] x50/y55 curved ground layer prepared');
+    // TODO: The curve needs to affect the visible Mapbox tiles, not just an underlay.
+    // For now, logging the intent. Full implementation requires either:
+    // 1. Custom Mapbox style with transparent background, OR
+    // 2. Post-processing the Mapbox canvas (complex)
   }
 
   function initMinimap(){
@@ -151,43 +710,108 @@ window.CAULDRON_STATIC_CONFIG = {
       }).setLngLat(playerLngLat).addTo(minimap);
     });
 
+    /* Han 2026-10-11 #9: +/- adjusts SIZE (stage), not zoom. */
     document.getElementById('map-zoom-in').addEventListener('click', function(){
-      zoomIdx = Math.min(MINIMAP_LEVELS.length-1, zoomIdx+1);
-      minimap.setZoom(MINIMAP_LEVELS[zoomIdx].zoom);
+      var wrap=document.getElementById('minimap-wrap');
+      var stage=parseInt(wrap.getAttribute('data-stage'),10);
+      wrap.setAttribute('data-stage',String(Math.min(3,stage+1)));
     });
     document.getElementById('map-zoom-out').addEventListener('click', function(){
-      zoomIdx = Math.max(0, zoomIdx-1);
-      minimap.setZoom(MINIMAP_LEVELS[zoomIdx].zoom);
+      var wrap=document.getElementById('minimap-wrap');
+      var stage=parseInt(wrap.getAttribute('data-stage'),10);
+      wrap.setAttribute('data-stage',String(Math.max(1,stage-1)));
     });
   }
 
   function initControls(){
     var keys = {};
     document.addEventListener('keydown', function(e){
-      keys[e.key.toLowerCase()] = true;
-      if(e.key==='m'||e.key==='M') cycleMinimap();
+      var lk=e.key.toLowerCase();
+      keys[lk] = true;
+      if(lk==='m') cycleMinimap();
+      else if(lk==='k') togglePanel('skill-tree-panel');
+      else if(lk==='i') togglePanel('inventory-panel');
+      else if(lk==='p') toggleCharacterGender(); // Han 2026-10-10 #1
+      else if(lk==='y') togglePanel('friends-panel');
+      else if(lk==='h') showToast('Home teleport coming soon');
       if(e.key===' '){ e.preventDefault(); tryInteract(); }
     });
     document.addEventListener('keyup', function(e){
       keys[e.key.toLowerCase()] = false;
     });
 
+    // Mobile joystick (Han 2026-10-10)
+    var joyActive = false, joyDX = 0, joyDY = 0;
+    var joyEl = document.getElementById('joystick');
+    var knobEl = document.getElementById('joystick-knob');
+    if(joyEl){
+      var joyCenter = {x:0, y:0};
+      joyEl.addEventListener('touchstart', function(e){
+        e.preventDefault();
+        joyActive = true;
+        var rect = joyEl.getBoundingClientRect();
+        joyCenter.x = rect.left + rect.width/2;
+        joyCenter.y = rect.top + rect.height/2;
+      }, {passive:false});
+      document.addEventListener('touchmove', function(e){
+        if(!joyActive) return;
+        var t = e.touches[0];
+        var dx = t.clientX - joyCenter.x;
+        var dy = t.clientY - joyCenter.y;
+        var maxR = 40;
+        var dist = Math.sqrt(dx*dx + dy*dy);
+        if(dist > maxR){
+          dx = dx * maxR / dist;
+          dy = dy * maxR / dist;
+        }
+        joyDX = dx / maxR;
+        joyDY = dy / maxR;
+        knobEl.style.transform = 'translate(calc(-50% + ' + dx + 'px), calc(-50% + ' + dy + 'px))';
+      }, {passive:true});
+      document.addEventListener('touchend', function(){
+        joyActive = false;
+        joyDX = 0; joyDY = 0;
+        knobEl.style.transform = 'translate(-50%,-50%)';
+      });
+      var spaceBtn = document.getElementById('joystick-btn');
+      if(spaceBtn){
+        spaceBtn.addEventListener('touchstart', function(e){
+          e.preventDefault();
+          tryInteract();
+        }, {passive:false});
+      }
+    }
+
     // Movement loop
+    // Han 2026-10-10 #7: Arrow keys/joystick only, NOT WASD
+    // (WASD reserved for character direction/skills in this game)
     var STEP = 0.00005; // ~5m per frame at 60fps
     function tick(){
       var moved = false;
       var dlng = 0, dlat = 0;
-      if(keys['w']||keys['arrowup']){ dlat += STEP; moved=true; }
-      if(keys['s']||keys['arrowdown']){ dlat -= STEP; moved=true; }
-      if(keys['a']||keys['arrowleft']){ dlng -= STEP; moved=true; }
-      if(keys['d']||keys['arrowright']){ dlng += STEP; moved=true; }
+      if(keys['arrowup']){ dlat += STEP; moved=true; }
+      if(keys['arrowdown']){ dlat -= STEP; moved=true; }
+      if(keys['arrowleft']){ dlng -= STEP; moved=true; }
+      if(keys['arrowright']){ dlng += STEP; moved=true; }
+      // Joystick input
+      if(joyActive && (Math.abs(joyDX) > 0.1 || Math.abs(joyDY) > 0.1)){
+        dlng += joyDX * STEP * 2;
+        dlat -= joyDY * STEP * 2;
+        moved = true;
+      }
       if(moved){
-        playerLngLat[0] += dlng;
-        playerLngLat[1] += dlat;
-        map.setCenter(playerLngLat);
-        playerMarker.setLngLat(playerLngLat);
-        if(minimapMarker) minimapMarker.setLngLat(playerLngLat);
-        minimap.setCenter(playerLngLat);
+        var newLng = playerLngLat[0] + dlng;
+        var newLat = playerLngLat[1] + dlat;
+        // Han 2026-10-10 #3: Check collision before moving
+        if(!checkCollision(newLng, newLat)){
+          playerLngLat[0] = newLng;
+          playerLngLat[1] = newLat;
+          map.setCenter(playerLngLat);
+          playerMarker.setLngLat(playerLngLat);
+          if(minimapMarker) minimapMarker.setLngLat(playerLngLat);
+          minimap.setCenter(playerLngLat);
+        }
+        // Else: blocked by building, don't move
       }
       requestAnimationFrame(tick);
     }
@@ -201,18 +825,200 @@ window.CAULDRON_STATIC_CONFIG = {
     wrap.setAttribute('data-stage', stage);
   }
 
+  /* UI panels (from espil.online, 2026-10-10) */
+  function togglePanel(id, force){
+    var panel=document.getElementById(id);
+    if(!panel)return;
+    var open=typeof force==='boolean'?force:panel.getAttribute('aria-hidden')!=='false';
+    panel.setAttribute('aria-hidden',String(!open));
+  }
+  function initSkillBar(){
+    var irow=document.getElementById('item-row');
+    if(irow&&!irow.children.length){
+      ['1','2','3','4'].forEach(function(k){
+        var b=document.createElement('button');
+        b.type='button';b.className='move-slot is-locked';
+        b.innerHTML='<span class="key">'+k+'</span><span class="mn">—</span>';
+        b.setAttribute('aria-label','Item slot '+k);
+        irow.appendChild(b);
+      });
+    }
+    var mrow=document.getElementById('move-row');
+    if(mrow&&!mrow.children.length){
+      ['Q','W','E','R','A','S','D','F'].forEach(function(k){
+        var b=document.createElement('button');
+        b.type='button';b.className='move-slot is-locked';
+        b.innerHTML='<span class="key">'+k+'</span><span class="mn">—</span>';
+        b.setAttribute('aria-label','Skill slot '+k);
+        b.title='Skills arrive with the combat update';
+        mrow.appendChild(b);
+      });
+    }
+    var kbm=document.getElementById('kb-menu');
+    if(kbm&&!kbm.children.length){
+      var menus=[
+        {key:'K',label:'SKILL',fn:function(){togglePanel('skill-tree-panel');}},
+        {key:'M',label:'MAP',fn:function(){cycleMinimap();}},
+        {key:'I',label:'INV',fn:function(){togglePanel('inventory-panel');}},
+        {key:'P',label:'CHAR',fn:function(){togglePanel('character-panel');}},
+        {key:'H',label:'HOME',fn:function(){showToast('Home teleport coming soon');}},
+        {key:'⚙',label:'SET',fn:function(){showToast('Settings coming soon');}}
+      ];
+      menus.forEach(function(m){
+        var b=document.createElement('button');
+        b.type='button';b.className='move-slot';
+        b.innerHTML='<span class="key">'+m.key+'</span><span class="mn">'+m.label+'</span>';
+        b.setAttribute('aria-label',m.label);
+        b.addEventListener('click',function(e){e.preventDefault();m.fn();});
+        kbm.appendChild(b);
+      });
+    }
+    /* Panel close buttons */
+    [['skill-close','skill-tree-panel'],['inv-close','inventory-panel'],['char-close','character-panel'],['friends-close','friends-panel']].forEach(function(pair){
+      var btn=document.getElementById(pair[0]);
+      if(btn)btn.addEventListener('click',function(){togglePanel(pair[1],false);});
+      var panel=document.getElementById(pair[1]);
+      if(panel)panel.addEventListener('click',function(e){if(e.target===panel)togglePanel(pair[1],false);});
+    });
+  }
+
+  /* Store modal wiring */
+  (function initStoreModal(){
+    function onReady(){
+      var closeBtn=document.getElementById('store-modal-close');
+      if(closeBtn)closeBtn.addEventListener('click',function(){
+        document.getElementById('store-modal').classList.remove('open');
+      });
+      var backBtn=document.getElementById('store-back');
+      if(backBtn)backBtn.addEventListener('click',function(){
+        document.getElementById('store-detail-view').classList.add('hidden');
+        document.getElementById('store-list-view').classList.remove('hidden');
+      });
+    }
+    if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',onReady);
+    else onReady();
+  })();
+
   // Store interaction (from espil.online, adapted for Mapbox)
+  // Han 2026-10-10: Real store system, not just Cauldron POI
   var GOOGLE_PLACES_KEY = '__PUT_YOUR_KEY_HERE__';
+  var nearbyStoresCache = {};
+
   function tryInteract(){
-    // Fetch nearby stores via Google Places
     var lat = playerLngLat[1], lng = playerLngLat[0];
-    if(GOOGLE_PLACES_KEY.indexOf('__PUT_')===0){
-      showToast('Store data unavailable (API key needed)');
+    fetchNearbyStores(lat, lng, function(stores){
+      if(stores && stores.length > 0){
+        showStoreModal(stores);
+      }else{
+        var msg = 'Not a store';
+        if(GOOGLE_PLACES_KEY.indexOf('__PUT_')===0){
+          msg = 'Store data unavailable (API key needed)';
+        }
+        showToast(msg);
+      }
+    });
+  }
+
+  function fetchNearbyStores(lat, lng, cb){
+    // Check cache (100m grid)
+    var key = Math.round(lat*1000)+','+Math.round(lng*1000);
+    if(nearbyStoresCache[key]){
+      cb(nearbyStoresCache[key]);
       return;
     }
+
+    if(GOOGLE_PLACES_KEY.indexOf('__PUT_')===0){
+      cb([]);
+      return;
+    }
+
+    // Google Places API (New) Nearby Search
     var url = 'https://places.googleapis.com/v1/places:searchNearby';
-    // ... (Places API call, show modal if stores found)
-    showToast('Checking for nearby stores…');
+    var body = {
+      includedTypes: ['store', 'restaurant', 'cafe', 'shopping_mall'],
+      maxResultCount: 10,
+      locationRestriction: {
+        circle: {
+          center: {latitude: lat, longitude: lng},
+          radius: 50.0
+        }
+      }
+    };
+
+    fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': GOOGLE_PLACES_KEY,
+        'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.location,places.rating,places.id'
+      },
+      body: JSON.stringify(body)
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      var stores = (data.places || []).map(function(p){
+        return {
+          id: p.id,
+          name: p.displayName ? p.displayName.text : 'Unknown',
+          address: p.formattedAddress || '',
+          lat: p.location ? p.location.latitude : lat,
+          lng: p.location ? p.location.longitude : lng,
+          rating: p.rating || 0
+        };
+      });
+      nearbyStoresCache[key] = stores;
+      cb(stores);
+    })
+    .catch(function(e){
+      console.warn('[Stores] Places API failed:', e);
+      cb([]);
+    });
+  }
+
+  function showStoreModal(stores){
+    var modal = document.getElementById('store-modal');
+    var listView = document.getElementById('store-list-view');
+    var detailView = document.getElementById('store-detail-view');
+    var listEl = document.getElementById('store-list');
+
+    // Show list view
+    listView.classList.remove('hidden');
+    detailView.classList.add('hidden');
+
+    // Populate list
+    listEl.innerHTML = '';
+    stores.forEach(function(store, idx){
+      var item = document.createElement('div');
+      item.className = 'store-item';
+      item.style.cssText = 'padding:12px;border-bottom:1px solid rgba(255,255,255,.1);cursor:pointer;';
+      item.innerHTML = '<strong>' + escapeHtml(store.name) + '</strong><br>' +
+        '<small style="color:#9fb3c8;">' + escapeHtml(store.address) + '</small>';
+      item.addEventListener('click', function(){
+        showStoreDetail(store);
+      });
+      listEl.appendChild(item);
+    });
+
+    modal.classList.add('open');
+  }
+
+  function showStoreDetail(store){
+    document.getElementById('store-list-view').classList.add('hidden');
+    document.getElementById('store-list-view').style.display = 'none';
+    var detailView = document.getElementById('store-detail-view');
+    detailView.classList.remove('hidden');
+    detailView.style.display = 'block';
+
+    document.getElementById('store-detail-name').textContent = store.name;
+    document.getElementById('store-detail-content').innerHTML =
+      '<p><strong>Address:</strong> ' + escapeHtml(store.address) + '</p>' +
+      (store.rating ? '<p><strong>Rating:</strong> ' + store.rating + ' ⭐</p>' : '');
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
   }
 
   function showToast(msg){
@@ -235,7 +1041,94 @@ window.CAULDRON_STATIC_CONFIG = {
 
   // Init
   initMap();
+  loadCollisionData(); // Han 2026-10-10 #3
+  updateLoadProgress('character', 100); // Marker is instant
+  initSkillBar();
+  initJoystick();
+  initChat();
   checkDeepLink();
+
+  /* Joystick (from espil.online) */
+  function initJoystick(){
+    var joy=document.getElementById('joystick'),knob=document.getElementById('joy-knob');
+    if(!joy||!knob)return;
+    var active=false,joyId=null,cx=0,cy=0;
+    var R=34;
+    function setKnob(dx,dy){knob.style.transform='translate('+dx+'px,'+dy+'px)';}
+    joy.addEventListener('pointerdown',function(e){
+      active=true;joyId=e.pointerId;joy.setPointerCapture(joyId);
+      var r=joy.getBoundingClientRect();cx=r.left+r.width/2;cy=r.top+r.height/2;
+      e.preventDefault();
+    });
+    joy.addEventListener('pointermove',function(e){
+      if(!active||e.pointerId!==joyId)return;
+      var dx=e.clientX-cx,dy=e.clientY-cy;
+      var d=Math.hypot(dx,dy);
+      if(d>R){dx=dx/d*R;dy=dy/d*R;}
+      setKnob(dx,dy);
+      /* Feed into movement: reuse keys object via custom event */
+      joy._dx=dx/R;joy._dy=dy/R;
+    });
+    function endJoy(e){
+      if(e.pointerId!==joyId)return;
+      active=false;joyId=null;setKnob(0,0);joy._dx=0;joy._dy=0;
+    }
+    joy.addEventListener('pointerup',endJoy);
+    joy.addEventListener('pointercancel',endJoy);
+    joy._dx=0;joy._dy=0;
+    /* Hook into movement tick */
+    var origTick=window._vancouverTick;
+    setInterval(function(){
+      if(joy._dx||joy._dy){
+        var STEP=0.00005;
+        playerLngLat[0]+=joy._dx*STEP*2;
+        playerLngLat[1]-=joy._dy*STEP*2;
+        map.setCenter(playerLngLat);
+        playerMarker.setLngLat(playerLngLat);
+        if(minimapMarker)minimapMarker.setLngLat(playerLngLat);
+        if(minimap)minimap.setCenter(playerLngLat);
+      }
+    },16);
+  }
+
+  /* Chat (per Han 2026-10-10) */
+  function initChat(){
+    var toggle=document.getElementById('chat-toggle');
+    var log=document.getElementById('chat-log');
+    var row=document.getElementById('chat-row');
+    var input=document.getElementById('chat-input');
+    var send=document.getElementById('chat-send');
+    if(!toggle||!log||!row)return;
+    var open=false;
+    function setOpen(o){
+      open=o;
+      log.classList.toggle('show',o);
+      row.classList.toggle('show',o);
+      if(o&&input)input.focus();
+    }
+    toggle.addEventListener('click',function(){setOpen(!open);});
+    function sendMsg(){
+      var txt=input.value.trim();
+      if(!txt)return;
+      var div=document.createElement('div');
+      div.textContent='You: '+txt;
+      log.appendChild(div);
+      log.scrollTop=log.scrollHeight;
+      input.value='';
+      /* Local only — multiplayer needs server */
+    }
+    if(send)send.addEventListener('click',sendMsg);
+    if(input)input.addEventListener('keydown',function(e){
+      if(e.key==='Enter'){e.preventDefault();sendMsg();}
+      e.stopPropagation();
+    });
+    /* Enter toggles chat when not typing */
+    document.addEventListener('keydown',function(e){
+      if(e.key==='Enter'&&document.activeElement!==input){
+        /* Let the main handler decide — don't interfere */
+      }
+    });
+  }
 })();
 </script>
 </body>
