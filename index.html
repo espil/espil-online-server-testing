@@ -1142,6 +1142,22 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     .notice-list li::before { content:"•"; position:absolute; left:0; color:#7fd8d0; }
     .notice-date { color:#8fb8b3; font-weight:700; white-space:nowrap; }
     #notice-open { font:700 .72rem/1 "Manrope",sans-serif; letter-spacing:.08em; }
+    /* Notice tabs + stacking (Han 2026-10-19, notice verdict): the
+       four sections are tabs now, one pane at a time; and the notice
+       backdrop leaves the shared modal layer (z 20) for its own fixed
+       layer ABOVE the landing intro overlay (z 60), so opening the
+       notice from the landing never buries it under the intro. */
+    #notice-modal { position:fixed; z-index:80; }
+    .notice-tabs { display:flex; flex-wrap:wrap; gap:6px; margin:16px 0 2px; padding-bottom:10px; border-bottom:1px solid rgba(134,238,228,.16); }
+    .notice-tab {
+      appearance:none; border:1px solid rgba(169,226,222,.18); border-radius:999px;
+      background:rgba(10,26,31,.6); color:#b9d8d4; padding:7px 12px;
+      font:700 .74rem/1 "Manrope",sans-serif; letter-spacing:.04em; cursor:pointer;
+    }
+    .notice-tab:hover { color:#fff; }
+    .notice-tab.on { background:rgba(127,216,208,.18); color:#eafffb; border-color:rgba(127,216,208,.55); }
+    .notice-pane { display:none; margin-top:14px; }
+    .notice-pane.on { display:block; }
     .provider-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px; }
     .provider {
       position:relative; appearance:none; display:flex; align-items:center; gap:10px;
@@ -1748,17 +1764,22 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         <button class="modal-close" id="notice-close" type="button" aria-label="공지사항 닫기">&times;</button>
         <h2>공지사항</h2>
         <p class="modal-sub">Espil Online 소식과 업데이트</p>
-        <ul class="notice-list" id="notice-announce"></ul>
-        <div class="notice-sec">
-          <h3>업데이트</h3>
+        <div class="notice-tabs" role="tablist" aria-label="공지 분류">
+          <button class="notice-tab on" type="button" role="tab" aria-selected="true" data-ntab="announce">공지사항</button>
+          <button class="notice-tab" type="button" role="tab" aria-selected="false" data-ntab="updates">업데이트</button>
+          <button class="notice-tab" type="button" role="tab" aria-selected="false" data-ntab="planned">예정</button>
+          <button class="notice-tab" type="button" role="tab" aria-selected="false" data-ntab="issues">알려진 이슈와 버그 신고</button>
+        </div>
+        <div class="notice-pane on" data-npane="announce" role="tabpanel">
+          <ul class="notice-list" id="notice-announce"></ul>
+        </div>
+        <div class="notice-pane" data-npane="updates" role="tabpanel">
           <ul class="notice-list" id="notice-updates"></ul>
         </div>
-        <div class="notice-sec">
-          <h3>예정</h3>
+        <div class="notice-pane" data-npane="planned" role="tabpanel">
           <ul class="notice-list" id="notice-planned"></ul>
         </div>
-        <div class="notice-sec">
-          <h3>알려진 이슈와 버그 신고</h3>
+        <div class="notice-pane" data-npane="issues" role="tabpanel">
           <ul class="notice-list" id="notice-issues"></ul>
         </div>
       </div>
@@ -2854,6 +2875,22 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       var modal=document.getElementById('notice-modal');
       var openBtn=document.getElementById('notice-open');
       var closeBtn=document.getElementById('notice-close');
+      /* Stacking fix (Han 2026-10-19, notice verdict): the markup
+         lives inside #earth-frame, whose isolation:isolate makes the
+         whole frame one stacking context painted under the
+         body-level landing intro (z 60) - no z-index inside the frame
+         can ever surface the panel. Move the backdrop to <body> so
+         its own layer (z 80) competes at the top level. */
+      if(modal&&modal.parentElement!==document.body)document.body.appendChild(modal);
+      /* Tabs (Han 2026-10-19): one section pane at a time. */
+      var ntabs=modal?modal.querySelectorAll('.notice-tab'):[];
+      var npanes=modal?modal.querySelectorAll('.notice-pane'):[];
+      function selectNoticeTab(key){
+        ntabs.forEach(function(t){ var on=t.getAttribute('data-ntab')===key; t.classList.toggle('on',on); t.setAttribute('aria-selected',on?'true':'false'); });
+        npanes.forEach(function(p){ p.classList.toggle('on',p.getAttribute('data-npane')===key); });
+        if(window.EspilAudio&&window.EspilAudio.tick)window.EspilAudio.tick();
+      }
+      ntabs.forEach(function(t){ t.addEventListener('click',function(){ selectNoticeTab(t.getAttribute('data-ntab')); }); });
       function open(){ if(modal)modal.setAttribute('aria-hidden','false'); if(window.EspilAudio&&window.EspilAudio.pop)window.EspilAudio.pop(); }
       function close(){ if(modal)modal.setAttribute('aria-hidden','true'); }
       if(openBtn)openBtn.addEventListener('click',open);
