@@ -1465,18 +1465,20 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     }
     #loader.done{opacity:0; visibility:hidden; pointer-events:none}
     #loader.seg-a{pointer-events:none} /* Dive segment: the glass is feedback, the entry overlay keeps the clicks */
-    /* Brand cursor + light-dust pointer shadow (Han 2026-10-19): the
-       domain logo is the cursor everywhere on the site; text fields
-       keep the text beam. */
-    *:not(input):not(textarea){cursor:url('assets/espil-cursor-64.png') 32 32,url('assets/espil-cursor.png') 16 16,auto !important}
+    /* Brand cursor + pixel-scatter pointer trail (Han 2026-10-19,
+       cursor verdict the same evening): the domain logo is the cursor
+       everywhere on the site at HALF the first-pass size, with the
+       black square keyed out so only the globe shows; text fields
+       keep the text beam. The trail is hard square pixels scattering
+       outward, not soft dust. */
+    *:not(input):not(textarea){cursor:url('assets/espil-cursor-32.png') 16 16,url('assets/espil-cursor-16.png') 8 8,auto !important}
     .espil-dust{
-      position:fixed; z-index:190; pointer-events:none; border-radius:50%;
-      transform:translate(-50%,-50%);
-      animation:espilDustFall .75s ease-out forwards;
+      position:fixed; z-index:190; pointer-events:none;
+      animation:espilPixelScatter .6s steps(6) forwards;
     }
-    @keyframes espilDustFall{
-      0%{opacity:.95; margin-top:0; margin-left:0}
-      100%{opacity:0; margin-top:26px}
+    @keyframes espilPixelScatter{
+      0%{opacity:1; transform:translate(-50%,-50%) translate(0,0)}
+      100%{opacity:0; transform:translate(-50%,-50%) translate(var(--dx,0px),var(--dy,16px))}
     }
     #loader .glass{
       position:relative; width:98px; height:98px; border-radius:50%;
@@ -10101,30 +10103,31 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
   })();
   </script>
   <script>
-  /* Pointer shadow (Han 2026-10-19): green and yellow light-dust
-     trails the brand-logo cursor - a few grains per move, drifting
-     down and dissolving in under a second. Capped and throttled so
-     the map never pays for it; off for reduced-motion users. */
+  /* Pointer trail (Han 2026-10-19, cursor verdict): yellow and
+     green PIXELS scatter off the brand-logo cursor as it moves -
+     hard square grains bursting outward in every direction and
+     winking out in steps, replacing the soft light-dust fall of the
+     first pass. Capped and throttled so the map never pays for it;
+     off for reduced-motion users. */
   (function(){
     if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
     var last=0, live=0;
+    var COLORS=['#ffe14d','#ffd23e','#bef264','#4ade80','#fff3a0','#86efac'];
     document.addEventListener('pointermove',function(e){
       var now=performance.now();
-      if(now-last<26||live>44)return;
+      if(now-last<22||live>70)return;
       last=now;
-      var n=2+(Math.random()<.5?1:0);
+      var n=4+(Math.random()<.6?1:0)+(Math.random()<.3?1:0);
       for(var i=0;i<n;i++){
         var s=document.createElement('span');
         s.className='espil-dust';
-        var sz=3+Math.random()*4;
-        var green=Math.random()<.5;
+        var sz=Math.random()<.6?3:(Math.random()<.7?2:4);
         s.style.width=sz+'px'; s.style.height=sz+'px';
-        s.style.left=(e.clientX+(Math.random()*14-7))+'px';
-        s.style.top=(e.clientY+(Math.random()*10-5))+'px';
-        s.style.background=green
-          ? 'radial-gradient(circle,rgba(190,242,100,.95) 0%,rgba(120,220,120,0) 70%)'
-          : 'radial-gradient(circle,rgba(255,226,120,.95) 0%,rgba(242,211,138,0) 70%)';
-        s.style.marginLeft=(Math.random()*10-5)+'px';
+        s.style.left=(e.clientX+(Math.random()*8-4))+'px';
+        s.style.top=(e.clientY+(Math.random()*8-4))+'px';
+        s.style.background=COLORS[(Math.random()*COLORS.length)|0];
+        s.style.setProperty('--dx',((Math.random()*56-28)|0)+'px');
+        s.style.setProperty('--dy',((Math.random()*52-20)|0)+'px');
         document.body.appendChild(s);
         live++;
         (function(el){ el.addEventListener('animationend',function(){ el.remove(); live--; }); })(s);
