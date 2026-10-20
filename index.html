@@ -5392,19 +5392,26 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           loadAnimClip('male_stop.glb','stop',false);
           loadAnimClip('male_swim.glb','swim',true);
           loadAnimClip('male_swim_idle.glb','swimIdle',true);
-          loadAnimClip('male_jump_armsopen.glb','jump',false);
+          /* Default jump = the plain hop (Han's decision 2026-10-19,
+             PC verdict batch 3 determination): male_jump_armsopen.glb
+             is a 3.7 s acrobatic tumble that read as broken rigging
+             when time-scaled 5.34x onto the 0.69 s hop, so 'jump'
+             loads male_jump.glb (1.9 s plain hop, the same source the
+             female jump uses). The armsopen file stays in the repo,
+             unloaded by the table. */
+          loadAnimClip('male_jump.glb','jump',false);
           loadAnimClip('male_jump_double.glb','doubleJump',false);
           loadAnimClip('male_climb.glb','climb',true); /* ESPIL CLIMB (self-city port, 2026-10-16): asset-room world-delta retarget */
           loadAnimClip('male_attack.glb','attack',false);
           loadAnimClip('male_checkout.glb','checkout',false);
           loadAnimClip('male_chat.glb','chat',false);
-          /* Keep legacy male_jump.glb as fallback if armsopen fails */
+          /* jumpLegacy: the same plain hop, kept as playJump fallback if the primary load ever fails */
           loadAnimClip('male_jump.glb','jumpLegacy',false);
           loadAnimClip('male_jump_double.glb','doubleJump',false);
           loadAnimClip('male_attack.glb','attack',false);
           loadAnimClip('male_checkout.glb','checkout',false);
           loadAnimClip('male_chat.glb','chat',false);
-          /* Keep legacy male_jump.glb as fallback if armsopen fails */
+          /* jumpLegacy: the same plain hop, kept as playJump fallback if the primary load ever fails */
           loadAnimClip('male_jump.glb','jumpLegacy',false);
           /* Sky-descent clips (Meshy action 508, wired for the tiles
              integration): ONE GLB holds dive (frames 0-19) + land
