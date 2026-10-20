@@ -3631,7 +3631,8 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     var ESPIL_CITIES={
       vancouver:{district:'assets/osm/vancouver_district_sample.json',collision:'assets/osm/vancouver_collision.json',ox:0,oz:0,core:true,bounds:{x0:-1799,z0:-2028,x1:2027,z1:1956},spawn:{x:3,z:31}}, /* bounds = the district extent, added 2026-10-19 for the last-place resume rule (Han PC verdict #9): resume judges the full playable extent, not the smaller downtown boundary polygon. First-summon place (Han 2026-10-18): the Vancouver Art Gallery's Robson Square plaza - gallery record bbox x[-46.9..52.9] z[-57.6..16.8], the point sits 14.2 m south of its south face on its centre axis, inside no footprint */
       auckland:{district:'assets/osm/auckland_district.json',collision:'assets/osm/auckland_collision.json',ox:10000,oz:0,core:false,spawn:{x:10302.9,z:-1001.9},bounds:{x0:9243,z0:-1595,x1:11024,z1:1080},harbour:{w:3600,d:1750,dx:140,dz:-1865}},
-      newyork:{district:'assets/osm/newyork_district.json',collision:'assets/osm/newyork_collision.json',ox:-5000,oz:0,core:false,spawn:{x:-5000,z:0},bounds:{x0:-6906,z0:-2063,x1:-2972,z1:2058}} /* New York (2026-10-19): OSM extract radius 2 km on Times Square (40.75800, -73.98554), 9,020 buildings; spawn = local (0, 0), the Times Square pedestrian plaza at the anchor itself, 17.8 m clear of every footprint (offline scan of the shipped district records) */
+      newyork:{district:'assets/osm/newyork_district.json',collision:'assets/osm/newyork_collision.json',ox:-5000,oz:0,core:false,spawn:{x:-5000,z:0},bounds:{x0:-6906,z0:-2063,x1:-2972,z1:2058}}, /* New York (2026-10-19): OSM extract radius 2 km on Times Square (40.75800, -73.98554), 9,020 buildings; spawn = local (0, 0), the Times Square pedestrian plaza at the anchor itself, 17.8 m clear of every footprint (offline scan of the shipped district records) */
+      paris:{district:'assets/osm/paris_district.json',collision:'assets/osm/paris_collision.json',ox:-10000,oz:0,core:false,spawn:{x:-10000,z:0},bounds:{x0:-12016,z0:-2049,x1:-7946,z1:2042}} /* Paris (2026-10-19): OSM extract radius 2 km on the Trocadero (48.86272, 2.28756), 11,957 buildings; spawn = local (0, 0), the Trocadero parvis at the anchor itself, 42.8 m clear of every footprint (offline scan of the shipped district records); about half of Paris footprints carry no OSM height tag, so many fall back to the default height */
     };
     function espilCityKey(){ var k=window.__espilCityKey||'vancouver'; return ESPIL_CITIES[k]?k:'vancouver'; }
     function espilCityCfg(){ return ESPIL_CITIES[espilCityKey()]; }
@@ -4260,7 +4261,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       var e=window.__ESPIL_ENV__||{};
       return e.MAPBOX_TOKEN||'';
     }
-    var ESPIL_P1_ANCHORS={vancouver:{lat:49.2827,lng:-123.1207},auckland:{lat:-36.8523,lng:174.7635},newyork:{lat:40.75800,lng:-73.98554}};
+    var ESPIL_P1_ANCHORS={vancouver:{lat:49.2827,lng:-123.1207},auckland:{lat:-36.8523,lng:174.7635},newyork:{lat:40.75800,lng:-73.98554},paris:{lat:48.86272,lng:2.28756}};
     function espilP1Anchor(){ return ESPIL_P1_ANCHORS[espilCityKey()]||ESPIL_P1_ANCHORS.vancouver; }
     /* The shipped framing curve, kept as a pure scale lock: the overlay
        camera distance is DERIVED from the operated map zoom with it,
@@ -8961,7 +8962,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     /* Production config (Han 2026-10-18): Vancouver is the only city
        that dives; the other five selectable cities show COMING SOON
        with the button disabled. */
-    function espilPlayableCity(name){return name==='Vancouver'||name==='Auckland'||name==='New York';} /* per-city activation (Han 2026-10-18): Auckland opened after its Mapbox-line verification; New York joined 2026-10-19 with its Times Square build; Tokyo/Paris/London join as each city's build verifies */
+    function espilPlayableCity(name){return name==='Vancouver'||name==='Auckland'||name==='New York'||name==='Paris';} /* per-city activation (Han 2026-10-18): Auckland opened after its Mapbox-line verification; New York and Paris joined 2026-10-19 with their builds; Tokyo/London join as each city's build verifies */
     function showCityInfo(marker){
       infoShown=true;approachSlow=false;
       var facts=cityFacts[marker.userData.name]||{pop:'—',brands:[],img:''};
