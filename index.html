@@ -1714,7 +1714,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     <div id="city-pins" aria-hidden="true"></div>
     <header class="topbar">
       <div class="topbar-actions">
-        <button class="pill-btn" id="notice-open" type="button" aria-label="공지사항 열기">공지</button>
+        <button class="pill-btn" id="notice-open" type="button" aria-label="Open notices">Notice</button>
         <button class="pill-btn" id="bgm-toggle" type="button" aria-pressed="true" aria-label="Toggle theme music" aria-describedby="bgm-card">&#9834;</button>
         <!-- Exit city (Han 2026-10-18): top-right next to the music
              button, visible only while inside a city. -->
@@ -1756,15 +1756,15 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
          Sections render from ESPIL_NOTICE_CONTENT below - edit the
          arrays to update the notice; the markup never changes. -->
     <div class="modal-backdrop" id="notice-modal" aria-hidden="true">
-      <div class="modal notice-modal" role="dialog" aria-modal="true" aria-label="공지사항">
-        <button class="modal-close" id="notice-close" type="button" aria-label="공지사항 닫기">&times;</button>
-        <h2>공지사항</h2>
-        <p class="modal-sub">Espil Online 소식과 업데이트</p>
-        <div class="notice-tabs" role="tablist" aria-label="공지 분류">
-          <button class="notice-tab on" type="button" role="tab" aria-selected="true" data-ntab="announce">공지사항</button>
-          <button class="notice-tab" type="button" role="tab" aria-selected="false" data-ntab="updates">업데이트</button>
-          <button class="notice-tab" type="button" role="tab" aria-selected="false" data-ntab="planned">예정</button>
-          <button class="notice-tab" type="button" role="tab" aria-selected="false" data-ntab="issues">알려진 이슈와 버그 신고</button>
+      <div class="modal notice-modal" role="dialog" aria-modal="true" aria-label="Notices">
+        <button class="modal-close" id="notice-close" type="button" aria-label="Close notices">&times;</button>
+        <h2>Notices</h2>
+        <p class="modal-sub">Espil Online news and updates</p>
+        <div class="notice-tabs" role="tablist" aria-label="Notice sections">
+          <button class="notice-tab on" type="button" role="tab" aria-selected="true" data-ntab="announce">Announcements</button>
+          <button class="notice-tab" type="button" role="tab" aria-selected="false" data-ntab="updates">Updates</button>
+          <button class="notice-tab" type="button" role="tab" aria-selected="false" data-ntab="planned">Planned</button>
+          <button class="notice-tab" type="button" role="tab" aria-selected="false" data-ntab="issues">Known Issues &amp; Bug Reports</button>
         </div>
         <div class="notice-pane on" data-npane="announce" role="tabpanel">
           <ul class="notice-list" id="notice-announce"></ul>
@@ -1868,7 +1868,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     <div class="joystick" id="joystick" aria-hidden="true">
       <div class="joy-knob" id="joy-knob"></div>
     </div>
-    <div id="rotate-overlay" aria-hidden="true"><div class="rotate-phone">&#128241;</div><div>화면을 가로로 돌려주세요</div></div>
+    <div id="rotate-overlay" aria-hidden="true"><div class="rotate-phone">&#128241;</div><div>Please rotate your device to landscape</div></div>
     <button class="map-jump" id="map-jump" type="button" aria-label="Jump">JUMP</button>
     <button class="map-attack" id="map-attack" type="button" aria-label="Attack">&#9876;&#65039;</button>
     <div class="map-status" id="map-status" aria-hidden="true">
@@ -1937,9 +1937,9 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     <div id="chat-bubble" aria-hidden="true"></div>
     <div class="chat-window" id="chat-window" aria-hidden="true" aria-label="Chat">
       <div class="chat-head">
-        <button type="button" class="chat-channel is-active">채널</button>
-        <button type="button" class="chat-channel">동네</button>
-        <button type="button" class="chat-channel">파티</button>
+        <button type="button" class="chat-channel is-active">Channel</button>
+        <button type="button" class="chat-channel">Local</button>
+        <button type="button" class="chat-channel">Party</button>
         <button type="button" class="chat-expand" id="chat-expand" aria-label="Expand chat">+</button>
       </div>
       <div class="chat-log" id="chat-log" aria-live="polite"></div>
@@ -2016,42 +2016,56 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       <div class="st-card">
         <div class="st-head">
           <div>
-            <h2>나의 좌판</h2>
-            <p class="st-sub">Y 키로 닫습니다. 좌판은 도시마다 하나만 펼칠 수 있습니다.</p>
+            <h2>My Stall</h2>
+            <p class="st-sub">Press Y to close. You can open one stall per city.</p>
           </div>
           <button class="st-close" id="stall-close" type="button" aria-label="Close stall panel">&#10005;</button>
         </div>
         <div class="st-grid" id="stall-grid">
-          <p class="st-foot" id="stall-status">아직 펼친 좌판이 없습니다.</p>
+          <p class="st-foot" id="stall-status">No stall open yet.</p>
           <div style="display:flex;gap:8px;margin:8px 0;flex-wrap:wrap;">
-            <button class="pill-btn" id="stall-place-btn" type="button">여기에 좌판 펼치기</button>
-            <button class="pill-btn" id="stall-remove-btn" type="button" style="display:none;">좌판 치우기</button>
-            <button class="pill-btn" id="stall-view-btn" type="button" style="display:none;">손님으로 보기</button>
+            <button class="pill-btn" id="stall-place-btn" type="button">Open stall here</button>
+            <button class="pill-btn" id="stall-remove-btn" type="button" style="display:none;">Close stall</button>
+            <button class="pill-btn" id="stall-view-btn" type="button" style="display:none;">View as visitor</button>
           </div>
           <div id="stall-board"></div>
           <div id="stall-form">
-            <p class="st-foot" style="margin-top:12px;">글 올리기</p>
+            <p class="st-foot" style="margin-top:12px;">Add a post</p>
             <div style="display:flex;gap:8px;margin:8px 0;">
               <select id="stall-side" style="padding:8px;border-radius:8px;border:1px solid rgba(134,238,228,.3);background:rgba(0,0,0,.3);color:#ddfffc;">
-                <option value="sell">팝니다</option>
-                <option value="buy">구합니다</option>
+                <option value="sell">Selling</option>
+                <option value="buy">Buying</option>
               </select>
               <select id="stall-kind" style="padding:8px;border-radius:8px;border:1px solid rgba(134,238,228,.3);background:rgba(0,0,0,.3);color:#ddfffc;">
-                <option value="item">물품</option>
-                <option value="service">서비스</option>
+                <option value="item">Item</option>
+                <option value="service">Service</option>
               </select>
             </div>
-            <input type="text" id="stall-title" placeholder="제목 (예: 에스필 하우스 모델)" style="width:100%;box-sizing:border-box;padding:8px;border-radius:8px;border:1px solid rgba(134,238,228,.3);background:rgba(0,0,0,.3);color:#ddfffc;" />
+            <input type="text" id="stall-title" placeholder="Title (e.g. Espil House model)" style="width:100%;box-sizing:border-box;padding:8px;border-radius:8px;border:1px solid rgba(134,238,228,.3);background:rgba(0,0,0,.3);color:#ddfffc;" />
             <div style="display:flex;gap:8px;margin:8px 0;">
-              <input type="text" id="stall-price" placeholder="가격 (Leo 숫자, 비우면 협의)" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(134,238,228,.3);background:rgba(0,0,0,.3);color:#ddfffc;" />
-              <input type="text" id="stall-note" placeholder="메모 (선택)" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(134,238,228,.3);background:rgba(0,0,0,.3);color:#ddfffc;" />
+              <input type="text" id="stall-price" placeholder="Price (Leo amount, blank = negotiable)" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(134,238,228,.3);background:rgba(0,0,0,.3);color:#ddfffc;" />
+              <input type="text" id="stall-note" placeholder="Note (optional)" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(134,238,228,.3);background:rgba(0,0,0,.3);color:#ddfffc;" />
             </div>
-            <button class="pill-btn" id="stall-add-btn" type="button">글 등록</button>
+            <button class="pill-btn" id="stall-add-btn" type="button">Post</button>
           </div>
-          <p class="st-foot" style="margin-top:12px;">지금은 간판 글만 올릴 수 있습니다. 실제 물건 거래와 Leo 정산은 서버가 열리면 이어집니다.</p>
+          <p class="st-foot" style="margin-top:12px;">For now you can post signboard listings only. Real item trading and Leo settlement arrive when the server opens.</p>
         </div>
       </div>
     </div>
+    <!-- Building selection window (Han, 2026-10-20): Space at a building opens this panel with the building name; Enter goes inside. Shops resolve to their store page, other buildings to the shared interior room (v1). -->
+    <div class="skill-tree" id="bldg-panel" aria-hidden="true" role="dialog" aria-label="Building">
+      <div class="st-card">
+        <button class="x" id="bldg-close" type="button" aria-label="Close">&times;</button>
+        <h2 id="bldg-name">Building</h2>
+        <p class="st-sub" id="bldg-meta">-</p>
+        <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
+          <button class="pill-btn" id="bldg-enter" type="button">Enter</button>
+          <button class="pill-btn" id="bldg-cancel" type="button">Close</button>
+        </div>
+        <p class="st-foot" style="margin-top:12px;">Shops open their store page. Other buildings open a shared interior room for now.</p>
+      </div>
+    </div>
+    <div id="bldg-fade" style="position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .18s ease;z-index:300;"></div>
     <span class="sr-only">Drag to orbit the camera around the fixed Earth. Scroll to move closer or farther away. Select a city landmark or city name to approach its boundary in a tilted, forward-looking navigation view.</span>
   </main>
 
@@ -2826,31 +2840,31 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        only - the panel renders from them at boot. */
     var ESPIL_NOTICE_CONTENT={
       announce:[
-        'Espil Online은 현재 게스트 입장으로 누구나 플레이할 수 있습니다. 계정 시스템 (구글 로그인)은 준비 중입니다.',
-        '플레이 가능 도시: 밴쿠버, 오클랜드. 도쿄는 제작이 끝나 개방을 앞두고 있고, 뉴욕을 제작 중입니다.',
-        '캐릭터는 남성과 여성 중 선택할 수 있습니다. 캐릭터 커스터마이즈는 준비 중입니다.'
+        'Espil Online is currently open to everyone with guest entry. The account system (Google login) is in preparation.',
+        'Playable cities: Vancouver and Auckland. Tokyo is built and awaiting its opening, and New York is in production.',
+        'You can choose a male or female character. Character customization is in preparation.'
       ],
       updates:[
-        {d:'2026-10-18',t:'정식 오픈 구성: 게스트 입장만으로 플레이할 수 있게 됐고, 밴쿠버가 첫 플레이 도시로 열렸습니다.'},
-        {d:'2026-10-18',t:'여성 아바타: 여성 캐릭터와 전용 애니메이션 14종이 적용됐습니다.'},
-        {d:'2026-10-18',t:'첫 소환 위치 변경: 처음 입장하면 밴쿠버 아트갤러리 앞 광장에 도착합니다.'},
-        {d:'2026-10-18',t:'오클랜드 개방: 두 번째 플레이 가능 도시로 오클랜드 (Queen Street)가 열렸습니다.'},
-        {d:'2026-10-17',t:'지도 엔진 전환: 세계가 Mapbox 지도를 기반으로 재구축됐습니다. 보이는 건물이 곧 벽과 지붕이 되는 충돌 구조, 건물 오르기, 카메라 중심 프레이밍이 들어갔습니다.'},
-        {d:'2026-10-16',t:'글래스 로더: 로딩 화면이 유리 글래스 로더로 표준화됐습니다. 퍼센트와 상태 문구 없이 액체가 차오르는 것으로 진행을 표시합니다.'},
-        {d:'2026-10-14',t:'장소 검색 개선: 도시 안 장소 검색이 서버 경유로 바뀌어 안정화됐습니다.'},
-        {d:'2026-10-11',t:'초기 구축: 캐릭터 모델 세트, 인게임 채팅 창, 상태 HUD와 미니맵이 갖춰졌습니다.'}
+        {d:'2026-10-18',t:'Launch configuration: the game opened with guest-only entry, and Vancouver opened as the first playable city.'},
+        {d:'2026-10-18',t:'Female avatar: the female character and her 14 dedicated animations are in.'},
+        {d:'2026-10-18',t:'First-summon place changed: on your first entry you now arrive at the plaza in front of the Vancouver Art Gallery.'},
+        {d:'2026-10-18',t:'Auckland opened: Auckland (Queen Street) opened as the second playable city.'},
+        {d:'2026-10-17',t:'Map engine switch: the world was rebuilt on Mapbox maps, with record-based collision where the building you see is its wall and roof, building climbing, and camera-centred framing.'},
+        {d:'2026-10-16',t:'Glass loader: the loading screen was standardized to the glass loader, which shows progress as rising liquid with no percentage and no status text.'},
+        {d:'2026-10-14',t:'Place search improved: in-city place search now goes through the server and is more stable.'},
+        {d:'2026-10-11',t:'Initial build: the character model set, in-game chat window, status HUD and minimap were put in place.'}
       ],
       planned:[
-        '도쿄 개방, 뉴욕과 파리, 런던 제작',
-        '구글 로그인 (계정 시스템)',
-        '좌판: Y키로 여는 개인 상점, 유저 간 물품과 서비스 거래',
-        '세계 곡률 (curve 1400): Dive 전환과 함께 지형의 굴곡이 형성되는 연출'
+        'Tokyo opening, and New York, Paris and London in production',
+        'Google login (account system)',
+        'Stalls: a personal shop opened with the Y key, for trading items and services between players',
+        'World curvature (curve 1400): the terrain bend that forms with the Dive transition'
       ],
       issues:[
-        '알려진 이슈: 여성 캐릭터의 걷기와 뛰기 애니메이션이 회선이 느리면 늦게 붙을 수 있습니다. 파일 경량화 수정이 진행 중입니다.',
-        '알려진 이슈: 첫 로딩이 길게 느껴질 수 있습니다. 로딩 구조 개선이 진행 중입니다.',
-        '버그 신고 채널: 이메일 han@espil.online (제목에 [버그]를 붙여 주십시오), 또는 인스타그램 @espil_online DM.',
-        '신고에 함께 보내 주시면 좋은 것: 도시 이름과 위치, 무엇을 했을 때 생겼는지, 가능하면 스크린샷 한 장.'
+        'Known issue: on a slow connection, the female character walk and run animations can attach late. A file-lightening fix is in progress.',
+        'Known issue: the first loading can feel long. Loading-structure improvements are in progress.',
+        'Bug reports: email han@espil.online (please put [Bug] in the subject), or DM Instagram @espil_online.',
+        'Helpful to include: the city name and location, what you were doing when it happened, and a screenshot if you can.'
       ]
     };
     (function wireNoticePanel(){
@@ -4597,8 +4611,8 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(espilP1.initTried)return; espilP1.initTried=true;
       window.__espilMapProgress01=0; /* UI-room loader contract (2026-10-17): 0 at init, .45 at style load, 1 at first idle; every failure path releases the gate with 1 (the banner carries the guidance) */
       var token=espilP1Token();
-      if(typeof mapboxgl==='undefined'){ espilP1.failed='lib'; window.__espilMapProgress01=1; espilP1Banner('Mapbox 지도 라이브러리를 불러오지 못했습니다. 네트워크 연결을 확인해 주십시오. 이동과 충돌은 사전 구축 저장소 기준으로 동작합니다.'); return; }
-      if(!token){ espilP1.failed='token'; window.__espilMapProgress01=1; espilP1Banner('Mapbox 토큰이 없어 지도를 표시하지 못했습니다. .env 파일에 MAPBOX_TOKEN을 넣어 주십시오. 이동과 충돌은 사전 구축 저장소 기준으로 동작합니다.'); return; }
+      if(typeof mapboxgl==='undefined'){ espilP1.failed='lib'; window.__espilMapProgress01=1; espilP1Banner('Could not load the Mapbox map library. Please check your network connection. Movement and collision run on the prebuilt store.'); return; }
+      if(!token){ espilP1.failed='token'; window.__espilMapProgress01=1; espilP1Banner('No Mapbox token, so the map cannot be shown. Put MAPBOX_TOKEN in the .env file. Movement and collision run on the prebuilt store.'); return; }
       mapboxgl.accessToken=token;
       var el=document.createElement('div'); el.id='espil-mapbox';
       el.style.cssText='position:absolute;inset:0;z-index:0;';
@@ -4608,7 +4622,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       espilP1.mapEl=el;
       try{
         espilP1.map=new mapboxgl.Map({container:el,style:'mapbox://styles/quadclipse/cmvdcpdor000901sq8xq57eab',center:espilP1LngLat((espilCityCfg().spawn||{x:3,z:31}).x,(espilCityCfg().spawn||{x:3,z:31}).z),zoom:17.3,pitch:52,bearing:0,attributionControl:false,interactive:false,projection:'mercator',maxZoom:22}); /* projection forced (Han 2026-10-17): the designated style declares lambertConformalConic, under which Mapbox skips ALL 3D drawing ("Drawing 3D models for lambertConformalConic projection is not yet implemented") - the custom layer and our extrusions vanished on Han's PC while the mercator stub could not reproduce it. The game's math is Mercator throughout. maxZoom = the Mapbox default 22 (custom cap removed on Han's order). */
-      }catch(e){ espilP1.failed='init'; window.__espilMapProgress01=1; espilP1Banner('Mapbox 지도를 시작하지 못했습니다. 토큰을 확인해 주십시오.'); return; }
+      }catch(e){ espilP1.failed='init'; window.__espilMapProgress01=1; espilP1Banner('Could not start the Mapbox map. Please check the token.'); return; }
       espilP1.map.on('load',function(){
         /* the loaded style re-imposes its declared projection - force
            Mercator back before anything 3D is added (see constructor). */
@@ -4636,13 +4650,13 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           espilP1.buildingsAdded=false; /* setStyle wipes sources - the load handler re-adds the buildings */
           espilP1.style3dOff=false; espilP1.style3dTries=0; /* the fallback style gets its own 3D-off attempt */
           espilP1.layerAdded=false; /* setStyle also wipes custom layers - re-added on the same load */
-          espilP1Banner('지정 스타일을 읽지 못해 기본 지도로 표시합니다. 길 이름 라벨은 걷어낸 상태입니다.');
+          espilP1Banner('Could not read the designated style, so the base map is shown with street-name labels removed.');
           try{ espilP1.map.setStyle('mapbox://styles/mapbox/streets-v12'); }
           catch(e){ window.__espilMapProgress01=1; espilP1.failed='maperror'; }
           return;
         }
         window.__espilMapProgress01=1; /* loader contract: failures release the gate; the banner carries the guidance */
-        if(!espilP1.ready){ espilP1.failed='maperror'; espilP1Banner('Mapbox 지도를 불러오지 못했습니다. 토큰 거부이거나 스타일에 접근할 수 없는 상태입니다.'); }
+        if(!espilP1.ready){ espilP1.failed='maperror'; espilP1Banner('Could not load the Mapbox map. The token was refused or the style is not accessible.'); }
       });
     }
     function espilP1Tick(){
@@ -6882,7 +6896,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       var coarse=window.matchMedia&&window.matchMedia('(pointer:coarse)').matches;
       if(hint)hint.textContent=coarse?
         'Left stick walks (full tilt = run) \u00B7 drag to look around \u00B7 JUMP to hop (twice = double jump)':
-        'Arrow keys walk \u00B7 SHIFT jump (twice = double jump) \u00B7 SPACE interact \u00B7 Q punch \u00B7 W kick \u00B7 E 도구 인용 \u00B7 R defense \u00B7 K skills \u00B7 drag to look \u00B7 ESC to leave';
+        'Arrow keys walk \u00B7 SHIFT jump (twice = double jump) \u00B7 SPACE interact \u00B7 Q punch \u00B7 W kick \u00B7 E quote tool \u00B7 R defense \u00B7 K skills \u00B7 drag to look \u00B7 ESC to leave';
       cityPhasePanel.setAttribute('aria-hidden','false');
       document.getElementById('city-status').classList.add('is-city');
       setCityStatusGateHidden(false); /* entry gates done: is-city + in-map CSS take over */
@@ -7155,7 +7169,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        toast channel instead of Cauldron's dialogue panel. */
     function espilSpaceTooFar(){
       var t=document.getElementById('toast'); if(!t)return;
-      t.textContent='상호작용할 건물이나 가게가 너무 멉니다. 캐릭터를 건물/가게 쪽으로 더 붙인 뒤 Space를 누르세요.';
+      t.textContent='No building or shop is close enough to interact with. Move closer to a building or shop, then press Space.';
       t.classList.add('show');
       clearTimeout(t._sf);
       t._sf=setTimeout(function(){t.classList.remove('show');},3400);
@@ -7174,7 +7188,29 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
          edge / loose 44 m / POI 120 m) and answers with the too-far
          guidance whenever nothing resolves; here the #7 execution
          gate stands and every press past it gets Cauldron's answer. */
-      if(typeof ESPIL_P1!=='undefined'&&ESPIL_P1&&espilRecordDistAt(walkPlayer.pos.x,walkPlayer.pos.z)>2){espilSpaceTooFar();return;}
+      /* BUILDING PANEL (Han 2026-10-20 #5): inside a building, Space
+         works the door on the south wall. */
+      if(window.__espilInterior){
+        var _ip=walkPlayer.pos;
+        if(_ip.z>ESPIL_INT.z+6.0&&Math.abs(_ip.x-ESPIL_INT.x)<1.5)espilExitInterior();
+        else if(window.__espilToast)window.__espilToast('The door is on the south wall, marked EXIT');
+        return;
+      }
+      /* Han 2026-10-20 #5: on the Mapbox line, Space at a building
+         (record distance <= 2 m, Han's #7 gate) opens the building
+         selection window with its name; Enter goes inside (shops to
+         their store page, other buildings to the interior room). Past
+         the gate, Cauldron's too-far answer stands. */
+      if(typeof ESPIL_P1!=='undefined'&&ESPIL_P1){
+        var _nr=espilNearestRecord(walkPlayer.pos.x,walkPlayer.pos.z);
+        if(!_nr||_nr.d>2){espilSpaceTooFar();return;}
+        if(walkPlayer.av&&walkPlayer.av.playOneShot){
+          walkPlayer.av.playOneShot(Math.random()>.5?'checkout':'chat');
+        }
+        openBuildingPanel(_nr.rec);
+        if(window.EspilAudio&&window.EspilAudio.tick)window.EspilAudio.tick();
+        return;
+      }
       /* Play checkout/chat animation */
       if(walkPlayer.av&&walkPlayer.av.playOneShot){
         var useCheckout=Math.random()>.5;
@@ -7281,7 +7317,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       kick:{name:'Kick',key:'W',icon:'🦵',color:0x7dfce6,css:'#7dfce6',
         dmg:13,range:2.8,cd:.65,arc:2.2,y:.6,
         desc:'A heavy kick. Slower, longer reach.'},
-      throw:{name:'도구 인용',key:'E',icon:'「」',art:'quote',color:0xffd76e,css:'#ffd76e',
+      throw:{name:'Quote Tool',key:'E',icon:'「」',art:'quote',color:0xffd76e,css:'#ffd76e',
         dmg:10,range:8,cd:.9,arc:1.6,y:1.3,proj:true,
         desc:'Quote a tool from your knowledge. It flies forth and bursts on arrival.'},
       defense:{name:'Defense',key:'R',icon:'🛡️',color:0x9fe8b3,css:'#9fe8b3',
@@ -7311,7 +7347,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       {id:'m_djump',name:'Double Jump',max:10,art:'djump',needNode:'m_jump',needRank:3,desc:'+2% double-jump velocity per rank. Requires Jump Lv 3.'},
       {id:'m_punch',name:'Punch',max:20,art:'punch',desc:'+5% Punch damage per rank.'},
       {id:'m_kick',name:'Kick',max:20,art:'kick',desc:'+5% Kick damage per rank.'},
-      {id:'m_throw',name:'도구 인용',max:20,art:'quote',desc:'+5% damage per rank.'},
+      {id:'m_throw',name:'Quote Tool',max:20,art:'quote',desc:'+5% damage per rank.'},
       {id:'m_defense',name:'Defense',max:20,art:'defense',desc:'+0.06s guard duration per rank.'},
       {id:'swift',name:'Swift Forge',max:5,need:2,art:'swift',desc:'+5% attack speed per rank.'},
       {id:'reach',name:'Long Reach',max:3,need:2,art:'reach',desc:'+7% range per rank.'},
@@ -7713,10 +7749,10 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       }
       var maxed=rank>=n.max;
       d.innerHTML='<h3>'+n.name+'</h3><p>'+n.desc+'</p>'+
-        '<p class="cur">현재 Lv '+rank+': '+statLine(n,rank)+'</p>'+
+        '<p class="cur">Current Lv '+rank+': '+statLine(n,rank)+'</p>'+
         (maxed?'<p class="cost">MAX LEVEL</p>'
-              :'<p class="nxt">다음 Lv '+(rank+1)+': '+statLine(n,rank+1)+'</p>'+
-               '<p class="cost">비용: 📚 '+rankCost(rank)+'</p>');
+              :'<p class="nxt">Next Lv '+(rank+1)+': '+statLine(n,rank+1)+'</p>'+
+               '<p class="cost">Cost: 📚 '+rankCost(rank)+'</p>');
     }
     function branchPath(NS,x1,y1,x2,y2,w,col){
       var mx=(x1+x2)/2,my=(y1+y2)/2;
@@ -7919,12 +7955,12 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       c.strokeStyle='#c9a15a';c.lineWidth=6;c.strokeRect(4,4,504,120);
       c.fillStyle='#ffe9a8';c.textAlign='center';c.textBaseline='middle';
       var posts=(s&&s.posts)||[];
-      var line1='나의 좌판',line2='Y 키로 글을 올릴 수 있습니다';
+      var line1='My Stall',line2='Press Y to add a post';
       if(posts.length){
         var p=posts[0];
-        line1=((p.side==='buy')?'구합니다: ':'팝니다: ')+(p.title||'');
+        line1=((p.side==='buy')?'Buying: ':'Selling: ')+(p.title||'');
         if(line1.length>26)line1=line1.slice(0,26)+'…';
-        line2=posts.length>1?('외 '+(posts.length-1)+'건'):(p.price?(String(p.price)+' Leo'):'가격 협의');
+        line2=posts.length>1?('+'+(posts.length-1)+' more'):(p.price?(String(p.price)+' Leo'):'Negotiable');
       }
       c.font='bold 42px sans-serif';c.fillText(line1,256,44);
       c.font='28px sans-serif';c.fillStyle='#f5d98a';c.fillText(line2,256,92);
@@ -7959,13 +7995,13 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     function stallEnsureVisual(){var s=stallLoad();if(!s)return;if(!stallGroup||stallGroup.parent!==mapScene)stallBuildVisual(s);}
     function stallTryPlace(){
       if(!walkPlayer)return false;
-      if(walkPlayer.swimming){stallToast('물에서는 좌판을 펼칠 수 없습니다');return false;}
+      if(walkPlayer.swimming){stallToast('You cannot open a stall in the water');return false;}
       var x=walkPlayer.pos.x,z=walkPlayer.pos.z;
-      if(espilRecordDistAt(x,z)<1.2){stallToast('건물에 너무 가깝습니다. 열린 공간에서 펼쳐 주세요');return false;}
+      if(espilRecordDistAt(x,z)<1.2){stallToast('Too close to a building. Please open it in an open space');return false;}
       var s=stallLoad()||{posts:[]};
       s.x=x;s.z=z;s.y=walkPlayer.pos.y;s.yaw=walkPlayer.faceY||0;s.ts=Date.now();
       stallSave(s);stallBuildVisual(s);stallRender();
-      stallToast('좌판을 펼쳤습니다');return true;
+      stallToast('Stall opened');return true;
     }
     function stallEsc(t){return String(t==null?'':t).replace(/[&<>"']/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];});}
     function stallRender(){
@@ -7978,28 +8014,28 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       var form=document.getElementById('stall-form');
       if(!status||!board)return;
       var posts=(s&&s.posts)||[];
-      status.textContent=s?('이 도시에 좌판이 펼쳐져 있습니다. 글 '+posts.length+'건'):'아직 펼친 좌판이 없습니다.';
-      if(placeBtn)placeBtn.textContent=s?'지금 위치로 좌판 옮기기':'여기에 좌판 펼치기';
+      status.textContent=s?('Your stall is open in this city. '+posts.length+' post'+(posts.length===1?'':'s')):'No stall open yet.';
+      if(placeBtn)placeBtn.textContent=s?'Move stall here':'Open stall here';
       if(removeBtn)removeBtn.style.display=s?'':'none';
-      if(viewBtn){viewBtn.style.display=s?'':'none';viewBtn.textContent=stallVisitor?'관리로 돌아가기':'손님으로 보기';}
+      if(viewBtn){viewBtn.style.display=s?'':'none';viewBtn.textContent=stallVisitor?'Back to manage':'View as visitor';}
       if(form)form.style.display=(s&&!stallVisitor)?'':'none';
       var h='';
-      if(!s){h='<p class="st-foot">좌판을 펼치면 팝니다/구합니다 글을 올릴 수 있습니다.</p>';}
-      else if(!posts.length){h='<p class="st-foot">아직 글이 없습니다. 첫 글을 올려 보세요.</p>';}
+      if(!s){h='<p class="st-foot">Open a stall to add Selling and Buying posts.</p>';}
+      else if(!posts.length){h='<p class="st-foot">No posts yet. Add the first one.</p>';}
       else{
         for(var i=0;i<posts.length;i++){
           var p=posts[i];
           h+='<div style="display:flex;gap:8px;align-items:center;padding:7px 9px;margin:6px 0;border:1px solid rgba(134,238,228,.22);border-radius:8px;background:rgba(0,0,0,.25);">'
-            +'<span style="flex:none;padding:2px 8px;border-radius:99px;font-size:11px;background:'+(p.side==='buy'?'rgba(90,140,255,.35)':'rgba(255,150,60,.35)')+';color:#eaf6ff;">'+(p.side==='buy'?'구합니다':'팝니다')+'</span>'
-            +'<span style="flex:1;color:#ddfffc;font-size:13px;">'+stallEsc(p.title)+' <span style="opacity:.65;">('+(p.kind==='service'?'서비스':'물품')+')</span>'
+            +'<span style="flex:none;padding:2px 8px;border-radius:99px;font-size:11px;background:'+(p.side==='buy'?'rgba(90,140,255,.35)':'rgba(255,150,60,.35)')+';color:#eaf6ff;">'+(p.side==='buy'?'Buying':'Selling')+'</span>'
+            +'<span style="flex:1;color:#ddfffc;font-size:13px;">'+stallEsc(p.title)+' <span style="opacity:.65;">('+(p.kind==='service'?'Service':'Item')+')</span>'
             +(p.note?'<br><span style="opacity:.65;font-size:12px;">'+stallEsc(p.note)+'</span>':'')
             +'</span>'
-            +'<span style="flex:none;color:#ffe9a8;font-size:13px;">'+(p.price?stallEsc(p.price)+' Leo':'가격 협의')+'</span>'
-            +(stallVisitor?'':'<button class="pill-btn" data-stall-del="'+stallEsc(p.id)+'" type="button">삭제</button>')
+            +'<span style="flex:none;color:#ffe9a8;font-size:13px;">'+(p.price?stallEsc(p.price)+' Leo':'Negotiable')+'</span>'
+            +(stallVisitor?'':'<button class="pill-btn" data-stall-del="'+stallEsc(p.id)+'" type="button">Delete</button>')
             +'</div>';
         }
       }
-      if(stallVisitor&&s)h='<p class="st-foot">손님 눈에 보이는 좌판입니다.</p>'+h;
+      if(stallVisitor&&s)h='<p class="st-foot">This is how visitors see your stall.</p>'+h;
       board.innerHTML=h;
       if(!stallVisitor){
         var dels=board.querySelectorAll('[data-stall-del]');
@@ -8029,29 +8065,238 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       var place=document.getElementById('stall-place-btn');
       if(place)place.addEventListener('click',function(){stallTryPlace();});
       var rem=document.getElementById('stall-remove-btn');
-      if(rem)rem.addEventListener('click',function(){stallSave(null);stallRemoveVisual();stallVisitor=false;stallRender();stallToast('좌판을 치웠습니다');});
+      if(rem)rem.addEventListener('click',function(){stallSave(null);stallRemoveVisual();stallVisitor=false;stallRender();stallToast('Stall closed');});
       var view=document.getElementById('stall-view-btn');
       if(view)view.addEventListener('click',function(){stallVisitor=!stallVisitor;stallRender();});
       var add=document.getElementById('stall-add-btn');
       if(add)add.addEventListener('click',function(){
-        var s=stallLoad();if(!s){stallToast('먼저 좌판을 펼쳐 주세요');return;}
+        var s=stallLoad();if(!s){stallToast('Open a stall first');return;}
         var titleEl=document.getElementById('stall-title');
         var title=(titleEl.value||'').trim();
-        if(!title){stallToast('제목을 적어 주세요');return;}
+        if(!title){stallToast('Please enter a title');return;}
         s.posts=s.posts||[];
         s.posts.unshift({id:'p'+Date.now().toString(36)+Math.floor(Math.random()*999),side:document.getElementById('stall-side').value,kind:document.getElementById('stall-kind').value,title:title,price:(document.getElementById('stall-price').value||'').trim(),note:(document.getElementById('stall-note').value||'').trim(),ts:Date.now()});
         stallSave(s);stallRefreshSign();stallRender();
         titleEl.value='';document.getElementById('stall-price').value='';document.getElementById('stall-note').value='';
-        stallToast('글을 올렸습니다');
+        stallToast('Posted');
       });
     })();
     setInterval(function(){
       if(!document.body.classList.contains('in-map')){if(stallGroup)stallRemoveVisual();return;}
       stallEnsureVisual();
     },1200);
+    /* ============ OCCLUSION MARKER (Han 2026-10-20 #3) ============
+       Han's biggest complaint: a building between the camera and the
+       character hides the character completely and he gets lost. The
+       marker answers the criterion he set - never lose the
+       character's position: while a building taller than the player
+       covers the character's screen column, a glowing ring at the
+       feet plus a slim beam render on top of everything (depth test
+       off), fading in and out with the occlusion state. */
+    var espilOccG=null, espilOccVis=0, espilOccT=0, espilOccOn=false;
+    function espilOccBuild(){
+      espilOccG=new THREE.Group();
+      var ringMat=new THREE.MeshBasicMaterial({color:0x8ef7e8,transparent:true,opacity:0,side:THREE.DoubleSide,depthTest:false});
+      var ring=new THREE.Mesh(new THREE.RingGeometry(0.62,0.88,40),ringMat);
+      ring.rotation.x=-Math.PI/2; ring.renderOrder=9998; ring.frustumCulled=false;
+      var beamMat=new THREE.MeshBasicMaterial({color:0x8ef7e8,transparent:true,opacity:0,depthTest:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide});
+      var beam=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,7,8,1,true),beamMat);
+      beam.position.y=3.5; beam.renderOrder=9999; beam.frustumCulled=false;
+      espilOccG.add(ring); espilOccG.add(beam);
+      espilOccG.userData.ring=ring; espilOccG.userData.beam=beam;
+      espilOccG.visible=false;
+      mapScene.add(espilOccG);
+    }
+    function espilOccUpdate(p,dt,nowMs){
+      if(!espilOccG){ if(typeof mapScene!=='undefined'&&mapScene)espilOccBuild(); else return; }
+      if(nowMs-espilOccT>180){
+        espilOccT=nowMs; espilOccOn=false;
+        try{
+          if(espilP1&&espilP1.map&&espilP1.ready&&!espilP1.failed){
+            var ll=espilP1LngLat(p.pos.x,p.pos.z);
+            var pt=espilP1.map.project(ll);
+            var pts=[pt,{x:pt.x,y:pt.y-46}];
+            for(var qi=0;qi<pts.length&&!espilOccOn;qi++){
+              var fs=espilP1.map.queryRenderedFeatures(pts[qi],{layers:['espil-buildings-collision']});
+              for(var fi=0;fi<fs.length;fi++){
+                var fh=(fs[fi].properties&&fs[fi].properties.h)||0;
+                if(fh-p.pos.y>1.0){espilOccOn=true;break;}
+              }
+            }
+          }
+        }catch(e){ espilOccOn=false; }
+      }
+      espilOccVis+=(((espilOccOn)?1:0)-espilOccVis)*Math.min(1,dt*6);
+      if(espilOccVis<0.02){ espilOccG.visible=false; return; }
+      espilOccG.visible=true;
+      espilOccG.position.set(p.pos.x,p.pos.y+0.07,p.pos.z);
+      var pulse=1+0.07*Math.sin(nowMs*0.006);
+      espilOccG.userData.ring.scale.set(pulse,pulse,1);
+      espilOccG.userData.ring.material.opacity=espilOccVis*0.95;
+      espilOccG.userData.beam.material.opacity=espilOccVis*0.30;
+    }
+    /* ============ BUILDING PANEL + INTERIOR (Han 2026-10-20 #5) ====
+       Space at a building opens the selection window with the
+       building's name (Cauldron-style). Enter resolves like this:
+       a building with real stores opens its store page (the old
+       tryInteract behaviour); any other building enters the shared
+       interior room (v1) - one room at a far world offset, the
+       building's name on its sign, the door on the south wall. */
+    var espilBldgPanelRec=null, espilBldgPanelCand=null, espilBldgName='Building';
+    window.__espilInterior=null; window.__espilInteriorReturn=null;
+    var ESPIL_INT={x:0,z:8000};
+    function espilNearestRecord(px,pz){
+      var pb=espilPolyBucketAt(px,pz); if(!pb)return null;
+      var best=null,bestD=1e9;
+      for(var i=0;i<pb.length;i++){ var d=espilPolyProbe(pb[i],px,pz).d; if(d<bestD){bestD=d;best=pb[i];} }
+      return best?{rec:best,d:bestD}:null;
+    }
+    function espilBldgCandidate(rec){
+      var best=null,bestD=1e18;
+      for(var i=0;i<mapBuildings.length;i++){
+        var b=mapBuildings[i], dx=b.x-rec.cx, dz=b.z-rec.cz, d=dx*dx+dz*dz;
+        if(d<bestD){bestD=d;best=b;}
+      }
+      return (best&&bestD<3600)?best:null;
+    }
+    function openBuildingPanel(rec){
+      espilBldgPanelRec=rec;
+      espilBldgPanelCand=espilBldgCandidate(rec);
+      espilBldgName='Building';
+      var nameEl=document.getElementById('bldg-name'), metaEl=document.getElementById('bldg-meta');
+      if(nameEl)nameEl.textContent='Locating...';
+      if(metaEl)metaEl.textContent='Height '+Math.round(rec.h)+' m · about '+Math.max(1,Math.round(rec.h/3))+' floors · '+espilCityDisplayName();
+      var panel=document.getElementById('bldg-panel');
+      if(panel){panel.classList.add('open');panel.setAttribute('aria-hidden','false');}
+      /* Name resolution probes the record's own coordinates through
+         the same Places/OSM name path as the building pill (the
+         mapBuildings candidate only links stores on Enter - the
+         chunk-system buildings do not align with district records). */
+      fetchBuildingName({x:rec.cx,z:rec.cz},function(nm){
+        if(espilBldgPanelRec!==rec)return;
+        if(!nm||(nm==='Downtown Vancouver'&&espilCityKey()!=='vancouver'))nm='Unnamed Building';
+        espilBldgName=nm;
+        if(nameEl)nameEl.textContent=espilBldgName;
+      });
+    }
+    function closeBuildingPanel(){
+      espilBldgPanelRec=null;
+      var panel=document.getElementById('bldg-panel');
+      if(panel){panel.classList.remove('open');panel.setAttribute('aria-hidden','true');}
+    }
+    function espilFadeThrough(mid){
+      var f=document.getElementById('bldg-fade'); if(!f){mid();return;}
+      f.style.opacity='1';
+      setTimeout(function(){ mid(); f.style.opacity='0'; },210);
+    }
+    function espilEnterBuilding(){
+      var p=walkPlayer; if(!p||!espilBldgPanelRec)return;
+      var cand=espilBldgPanelCand;
+      var target=(cand&&cand.id&&typeof getBuildingById==='function'&&getBuildingById(cand.id))||cand;
+      closeBuildingPanel();
+      if(target&&typeof fetchNearbyStores==='function'){
+        fetchNearbyStores(target,function(stores){
+          if(stores&&stores.length>0){ showStoreModal(stores); }
+          else espilEnterInterior();
+        });
+      }else espilEnterInterior();
+    }
+    function espilEnterInterior(){
+      var p=walkPlayer; if(!p)return;
+      if(!window.__espilInteriorBuilt)espilBuildInterior();
+      window.__espilInteriorReturn={x:p.pos.x,y:p.pos.y,z:p.pos.z};
+      espilInteriorSetSign(espilBldgName);
+      espilFadeThrough(function(){
+        p.pos.set(ESPIL_INT.x,0.05,ESPIL_INT.z+5.2); p.velY=0; p.onGround=true;
+        window.__espilInterior={name:espilBldgName};
+        if(window.__espilToast)window.__espilToast(espilBldgName+' - the door is behind you, on the south wall');
+      });
+    }
+    function espilExitInterior(){
+      var p=walkPlayer, ret=window.__espilInteriorReturn; if(!p||!ret)return;
+      espilFadeThrough(function(){
+        p.pos.set(ret.x,ret.y,ret.z); p.velY=0;
+        window.__espilInterior=null; window.__espilInteriorReturn=null;
+      });
+    }
+    var espilIntSignCanvas=null;
+    function espilInteriorSetSign(name){
+      if(!espilIntSignCanvas)return;
+      var ctx=espilIntSignCanvas.getContext('2d');
+      ctx.fillStyle='#20242c'; ctx.fillRect(0,0,1024,256);
+      ctx.strokeStyle='rgba(142,247,232,.6)'; ctx.lineWidth=6; ctx.strokeRect(14,14,996,228);
+      ctx.fillStyle='#eaf6ff'; ctx.font='600 84px "Avenir Next","Segoe UI",sans-serif';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      var label=String(name||'Building'); if(label.length>26)label=label.slice(0,25)+'...';
+      ctx.fillText(label,512,128);
+      if(espilIntSignCanvas._tex)espilIntSignCanvas._tex.needsUpdate=true;
+    }
+    function espilBuildInterior(){
+      window.__espilInteriorBuilt=true;
+      var g=new THREE.Group(); g.position.set(ESPIL_INT.x,0,ESPIL_INT.z);
+      function M(geo,mat,x,y,z,ry){
+        var m=new THREE.Mesh(geo,mat); m.position.set(x,y,z); if(ry)m.rotation.y=ry;
+        m.frustumCulled=false; g.add(m); return m;
+      }
+      var floorMat=new THREE.MeshLambertMaterial({color:0x4a4238}); curvePatch(floorMat);
+      var fl=M(new THREE.PlaneGeometry(26,18),floorMat,0,0.01,0); fl.rotation.x=-Math.PI/2;
+      var rugMat=new THREE.MeshLambertMaterial({color:0x74353a}); curvePatch(rugMat);
+      var rug=M(new THREE.PlaneGeometry(10,7),rugMat,0,0.03,0); rug.rotation.x=-Math.PI/2;
+      var wallMat=new THREE.MeshLambertMaterial({color:0xcfc8bb}); curvePatch(wallMat);
+      M(new THREE.BoxGeometry(26,3.4,0.4),wallMat,0,1.7,-8.2);
+      M(new THREE.BoxGeometry(11.2,3.4,0.4),wallMat,-7.4,1.7,8.2);
+      M(new THREE.BoxGeometry(11.2,3.4,0.4),wallMat,7.4,1.7,8.2);
+      M(new THREE.BoxGeometry(2.6,0.7,0.4),wallMat,0,3.05,8.2);
+      M(new THREE.BoxGeometry(0.4,3.4,16),wallMat,-12.8,1.7,0);
+      M(new THREE.BoxGeometry(0.4,3.4,16),wallMat,12.8,1.7,0);
+      var propMat=new THREE.MeshLambertMaterial({color:0x6d5a41}); curvePatch(propMat);
+      M(new THREE.BoxGeometry(4.4,1.05,1.2),propMat,-6,0.53,-6.9);
+      M(new THREE.BoxGeometry(4.4,1.05,1.2),propMat,6,0.53,-6.9);
+      M(new THREE.BoxGeometry(0.7,2.2,6),propMat,-12.2,1.1,2);
+      M(new THREE.BoxGeometry(0.7,2.2,6),propMat,12.2,1.1,2);
+      var lightMat=new THREE.MeshBasicMaterial({color:0xfff2cc});
+      M(new THREE.PlaneGeometry(7,3),lightMat,0,3.35,0).rotation.x=Math.PI/2;
+      espilIntSignCanvas=document.createElement('canvas');
+      espilIntSignCanvas.width=1024; espilIntSignCanvas.height=256;
+      var signTex=new THREE.CanvasTexture(espilIntSignCanvas);
+      espilIntSignCanvas._tex=signTex;
+      var signMat=new THREE.MeshBasicMaterial({map:signTex});
+      M(new THREE.PlaneGeometry(8,2),signMat,0,2.0,-7.95);
+      var exitCvs=document.createElement('canvas'); exitCvs.width=256; exitCvs.height=96;
+      var ectx=exitCvs.getContext('2d');
+      ectx.fillStyle='#20242c'; ectx.fillRect(0,0,256,96);
+      ectx.fillStyle='#8ef7e8'; ectx.font='700 56px "Avenir Next","Segoe UI",sans-serif';
+      ectx.textAlign='center'; ectx.textBaseline='middle'; ectx.fillText('EXIT',128,50);
+      var exitMat=new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(exitCvs)});
+      var ex=M(new THREE.PlaneGeometry(1.5,0.56),exitMat,0,2.5,7.95); ex.rotation.y=Math.PI;
+      mapScene.add(g);
+      espilInteriorSetSign('Building');
+    }
+    var espilIntDoorHint=false;
+    function espilInteriorTick(p){
+      if(!window.__espilInterior)return;
+      if(!document.body.classList.contains('in-map')){ window.__espilInterior=null; window.__espilInteriorReturn=null; return; }
+      if(p.pos.x<ESPIL_INT.x-11.5)p.pos.x=ESPIL_INT.x-11.5;
+      if(p.pos.x>ESPIL_INT.x+11.5)p.pos.x=ESPIL_INT.x+11.5;
+      if(p.pos.z<ESPIL_INT.z-6.1)p.pos.z=ESPIL_INT.z-6.1;
+      if(p.pos.z>ESPIL_INT.z+7.3)p.pos.z=ESPIL_INT.z+7.3;
+      var inDoor=(p.pos.z>ESPIL_INT.z+6.0)&&Math.abs(p.pos.x-ESPIL_INT.x)<1.5;
+      if(inDoor&&!espilIntDoorHint){ espilIntDoorHint=true; if(window.__espilToast)window.__espilToast('Press Space to leave the building'); }
+      if(!inDoor)espilIntDoorHint=false;
+    }
+    (function wireBldgPanel(){
+      function onReady(){
+        var e=document.getElementById('bldg-enter'), c=document.getElementById('bldg-cancel'), x=document.getElementById('bldg-close');
+        if(e)e.addEventListener('click',espilEnterBuilding);
+        if(c)c.addEventListener('click',closeBuildingPanel);
+        if(x)x.addEventListener('click',closeBuildingPanel);
+      }
+      if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',onReady); else onReady();
+    })();
+
     function teleportHome(){
       /* QA #14 placeholder: no home set yet → go to spawn, toast notice. */
-      if(window.__espilToast)window.__espilToast('집 위치가 아직 설정되지 않았어요');
+      if(window.__espilToast)window.__espilToast('No home location set yet');
       if(typeof resetToSpawn==='function'){try{resetToSpawn();}catch(_){}}
     }
     /* ---- Chat window (2026-10-11, Han 2026-10-05 spec): always-on log,
@@ -8307,6 +8552,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         if(characterOpen)toggleCharacterPanel(false);
         if(friendsOpen)toggleFriendsPanel(false);
         if(stallOpen)toggleStallPanel(false);
+        if(espilBldgPanelRec)closeBuildingPanel();
         if(settingsOpen)toggleSettingsPanel(false);
         var _sm=document.getElementById('store-modal');
         if(_sm&&!_sm.classList.contains('hidden'))_sm.classList.add('hidden');
@@ -8534,6 +8780,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         var s=MAP_BOUND/distC;
         p.pos.x*=s;p.pos.z*=s;
       }
+      espilInteriorTick(p); /* BUILDING INTERIOR (Han 2026-10-20 #5): room clamp + door state while inside */
       /* 5km city: stream chunks around the player. Throttle to every ~0.25s. */
       p._chunkT=(p._chunkT||0)+dt;
       if(p._chunkT>.25){p._chunkT=0;updateChunks(p.pos.x,p.pos.z);}
@@ -8569,6 +8816,22 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
             if(p.pos.x>=srec.x0-PLAYER_R&&p.pos.x<=srec.x1+PLAYER_R&&p.pos.z>=srec.z0-PLAYER_R&&p.pos.z<=srec.z1+PLAYER_R&&espilPolyProbe(srec,p.pos.x,p.pos.z).d<=PLAYER_R){support=srec.h;supportCar=null;}
           }
         }
+        /* INSIDE-FOOTPRINT RECOVERY (Han 2026-10-20 #4): the design
+           always promised that a step arriving INSIDE a footprint is
+           recovered by the support law (the "roof lift" the qRF
+           comment cites), but the 0.55 step gate above blocks exactly
+           that lift when the player is deep below the top - leaving a
+           stuck state with no wall and no support response (a bad
+           resume state is one way in). If the centre is inside a
+           record and below its top, that record's roof is the
+           support. Buildings are solid on this line, so no legitimate
+           state is displaced by the lift. */
+        if(support<=.05&&!p._espilClimb&&!p._espilArrive&&spb){
+          for(var sri=0;sri<spb.length;sri++){
+            var rrec=spb[sri];
+            if(rrec.h>p.pos.y+.55&&espilPolyProbe(rrec,p.pos.x,p.pos.z).inside){support=rrec.h;supportCar=null;break;}
+          }
+        }
       }
       if(p.pos.y<=support){
         if(!p.onGround&&p.velY<-9)walkSfx('land');
@@ -8586,6 +8849,13 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       /* --- avatar pose --- */
       var g=p.av.group;
       g.position.copy(p.pos);
+      /* Swim sink (Han 2026-10-20): while swimming the VISUAL body
+         rides lower so about half of it sits under the waterline -
+         the physics float (WATER_Y) is unchanged; only the rendered
+         group sinks, eased in and out so water entry has no pop. */
+      p._espilSwimSink=(p._espilSwimSink||0)+(((p.swimming)?1.02:0)-(p._espilSwimSink||0))*Math.min(1,dt*4);
+      if(p._espilSwimSink>0.001)g.position.y=p.pos.y-p._espilSwimSink;
+      espilOccUpdate(p,dt,performance.now()); /* OCCLUSION MARKER (Han 2026-10-20 #3): never lose the character behind a building */
       if(p.moving){
         var targetFace=Math.atan2(-mx,-mz);
         var d=targetFace-p.faceY;
@@ -8680,13 +8950,25 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       cityList.appendChild(cityButton);marker.userData.button=cityButton;
     });
     var pinV=new THREE.Vector3();
+    var pinC=new THREE.Vector3(), pinCam=new THREE.Vector3();
     function updateCityPins(){
       var rect=canvas.getBoundingClientRect();
+      earthSpin.getWorldPosition(pinC);
+      pinCam.copy(camera.position).sub(pinC).normalize();
       for(var i=0;i<markers.length;i++){
         var marker=markers[i],pin=marker.userData.pin;
         if(!pin)continue;
         if(!marker.visible||window.__espilIntroActive){pin.style.display='none';continue;}
-        marker.getWorldPosition(pinV);pinV.project(camera);
+        marker.getWorldPosition(pinV);
+        /* Far-side occlusion (Han 2026-10-20): a pin whose city sits
+           on the back of the globe must be hidden BY the globe - the
+           projection alone happily draws it mirrored over the front.
+           Facing test: the marker's outward normal against the
+           camera direction from the globe centre; a small positive
+           threshold keeps pins from floating at the limb. */
+        var facing=pinV.clone().sub(pinC).normalize().dot(pinCam);
+        if(facing<0.03){pin.style.display='none';continue;}
+        pinV.project(camera);
         if(pinV.z>1){pin.style.display='none';continue;}
         var x=rect.left+(pinV.x*.5+.5)*rect.width;
         var y=rect.top+(-pinV.y*.5+.5)*rect.height;
