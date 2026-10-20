@@ -3018,13 +3018,18 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       }
     }
     function curveDropAt(x,z){
-      /* Han 2026-10-17 (reading confirmed): in the Mapbox (P1) line the
-         map is FLAT, and everything standing on it stands at map height -
-         the JS curve drop does not apply there. The frozen self-city
-         build (ESPIL_P1 off) keeps its curved-ground law unchanged.
-         Traffic/props carry no shader bend, so this gate is the whole
-         application of the ruling. */
-      if(typeof ESPIL_P1!=='undefined'&&ESPIL_P1)return 0;
+      /* Curve 1400 realized on the Mapbox line (Han 2026-10-19): the
+         drop law applies in P1 too. It always applied in the vertex
+         shader (every curvePatched material bends by this field);
+         the 2026-10-17 P1 gate here only froze the CPU mirror, which
+         left CPU-placed objects (traffic, markers, landmarks)
+         floating over the bent visuals and the buildings (a Mapbox
+         fill-extrusion) flat. The gate is lifted: CPU placements,
+         the probe and the extrusion's visual height now all read
+         the same law. Physics/collision/standing never read this
+         function (record law) and the anchor is the player, where
+         the drop is 0 - so visible == collision holds where the
+         player stands, and distant objects fall away by k x d^2. */
       var dx=x-curvePlayer.x,dz=z-curvePlayer.y;
       return Math.min((dx*dx*curveStrength.x+dz*dz*curveStrength.y)/120000,1000);
     }
@@ -3033,9 +3038,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        curveStrength object is handed to every curve-patched material's
        shader uniform (curveShader assigns the reference, not a copy),
        so this table is the shader path's table too. k reads 0.0014.
-       NOTE: in the P1 line the probe reads 0 at every distance BY
-       RULING (Han 2026-10-17: no curve drop on the flat map) - the
-       constant above is the self-city law's, kept intact. */
+       Since 2026-10-19 the probe reads the true law in P1 as well. */
     window.__espilCurveK=curveStrength.x/120000;
     window.__espilCurveProbe=function(x,z){ return curveDropAt(x,z); };
     window.__espilCurveAnchor=function(){ return {x:curvePlayer.x,z:curvePlayer.y}; };
@@ -3168,12 +3171,12 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         espilHideGeoPrompt();
         if(!navigator.geolocation)return;
         navigator.geolocation.getCurrentPosition(function(pos){
-          var p=walkPlayer; if(!p||!p._espilDescend)return; /* landed already - too late to retarget */
+          var p=walkPlayer; if(!p||!p._espilArrive)return; /* arrival over - too late to retarget */
           var gx=(pos.coords.longitude+123.1207)*111320*Math.cos(49.2827*Math.PI/180);
           var gz=-(pos.coords.latitude-49.2827)*111320;
           var pt=espilResolveSpawn({x:gx,z:gz});
           p.pos.x=pt.x; p.pos.z=pt.z;
-          if(p._espilDescend)p._espilDescend.surf=null; /* re-probe at the new target */
+          if(p._espilArrive)p._espilArrive.surf=null; /* re-probe at the new target */
         },function(){}, {timeout:8000,maximumAge:60000});
       };
       b2.onclick=function(){ espilHideGeoPrompt(); };
@@ -3199,49 +3202,39 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       document.body.classList.remove('espil-ui-pre');
       setTimeout(function(){ /* settled: pointer events return with the class gone */ },1800);
     }
-    /* --- sky descent: spawn at +160 m, probe-driven landing --- */
-    function espilBeginDescent(tx,tz){
+    /* --- entry arrival (Han 2026-10-19): the character no longer
+       falls from the sky. The player is placed on the ground at the
+       entry target and only the CAMERA dives in: walkCamDist sweeps
+       the old descent envelope (60 -> 14) on a timer, which also
+       leads the map zoom in P1 mode. The entry target itself (city
+       spawn or the resolved boundary point) is unchanged, so the
+       per-city spawn accuracy is exactly what the descent had. --- */
+    function espilBeginArrival(tx,tz){
       var p=walkPlayer; if(!p)return;
       espilInjectStyle();
       document.body.classList.add('espil-ui-pre');
       p.pos.x=tx; p.pos.z=tz;
       var base=espilTileBase(tx,tz);
       if(base===null)base=espilOwnSurfaceY(tx,tz); /* own-city surface (tiles shelved) */
-      p._espilDescend={surf:base,probeAt:0,startedAt:performance.now()};
-      p.pos.y=(base!==null?base:0)+160;
-      p.velY=0; p.onGround=false;
+      if(base===null||base===undefined)base=0;
+      p.pos.y=base;
+      p.velY=0; p.onGround=true; p.jumps=0;
+      p._espilArrive={surf:base,probeAt:0,startedAt:performance.now(),dur:1900};
       walkCamDist=60; /* wide sky framing; the step eases it to 14 */
-      if(typeof espilP1!=='undefined'&&espilP1)espilP1.zoomDrive=false; /* the descent envelope leads the map zoom for this entry */
-      if(p.av&&p.av.ready&&p.av.actions.dive)p.av.playAnim('dive');
+      if(typeof espilP1!=='undefined'&&espilP1)espilP1.zoomDrive=false; /* the arrival envelope leads the map zoom for this entry */
       espilShowGeoPrompt();
     }
-    function espilDescentStep(p,dt){
-      var d=p._espilDescend; if(!d)return;
+    function espilArrivalStep(p,dt){
+      var a=p._espilArrive; if(!a)return;
       var now=performance.now();
-      if(now-d.probeAt>150){ d.probeAt=now; var y=espilTileBase(p.pos.x,p.pos.z); if(y===null)y=espilOwnSurfaceY(p.pos.x,p.pos.z); if(y!==null)d.surf=y; }
-      if((d.surf===null||d.surf===undefined)&&now-d.startedAt>4000)d.surf=0; /* tiles unavailable: land on the flat frame */
-      var ground=(d.surf!==null&&d.surf!==undefined)?d.surf:0;
-      var h=p.pos.y-ground;
-      var f=Math.max(0,Math.min(1,h/160)); walkCamDist=14+46*f*f;
-      if(p.av&&p.av.ready&&p.av.actions.dive&&p.av.curAnim!=='dive'&&p.av.curAnim!=='land')p.av.playAnim('dive');
-      if(d.surf===null||d.surf===undefined){
-        p.pos.y=Math.max(p.pos.y-3.5*dt,30); /* surface unknown: slow sink, hold the last 30 m */
-        p.velY=0; p.onGround=false;
-        return;
-      }
-      var speed=h>60?55:Math.max(3.5,55*(h/60));
-      p.pos.y-=speed*dt;
-      p.velY=0; p.onGround=false;
-      if(p.pos.y<=ground+0.02){
-        p.pos.y=ground;
-        p._espilDescend=null;
-        p.onGround=true; p.jumps=0;
-        espilHideGeoPrompt();
-        if(p.av&&p.av.playOneShot)p.av.playOneShot('land');
-        p._espilLanding=true;
-        var landDur=(p.av&&p.av.actions.land)?p.av.actions.land.getClip().duration*1000:2400;
-        setTimeout(function(){ p._espilLanding=false; }, Math.min(landDur,2600));
+      if(now-a.probeAt>150){ a.probeAt=now; var y=espilTileBase(p.pos.x,p.pos.z); if(y===null)y=espilOwnSurfaceY(p.pos.x,p.pos.z); if(y!==null&&y!==undefined)a.surf=y; }
+      if(a.surf!==null&&a.surf!==undefined){ p.pos.y=a.surf; p.onGround=true; }
+      var t=Math.max(0,Math.min(1,(now-a.startedAt)/a.dur));
+      var f=1-t; walkCamDist=14+46*f*f;
+      if(t>=1){
+        p._espilArrive=null;
         walkCamDist=14;
+        espilHideGeoPrompt();
         espilUiRise();
       }
     }
@@ -3277,10 +3270,10 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(!walkPlayer)return false;
       if(!(walkPlayer.av&&walkPlayer.av.ready))return false;
       /* Han 2026-10-16 (PC feedback #16): gameplay starts only after
-         EVERYTHING is summoned - the district data AND its meshes,
-         and the descent clips the entry animation plays. */
+         EVERYTHING is summoned - the district data AND its meshes.
+         (The descent clips gated this until 2026-10-19; with the
+         fall removed they no longer gate entry.) */
       if(!espilDistrictBuilt||!window.__espilDistrictMeshesBuilt)return false;
-      if(!window.__espilDescentClipsReady)return false;
       if(!espilCityCfg().core)return true; /* offset city: avatar + its district + clips */
       if(typeof osmCityBuilt==='undefined'||!osmCityBuilt)return false;
       if(espilEntrySpawn){
@@ -3295,12 +3288,11 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     function espilCityProgress(){
       var f=0;
       if(walkPlayer&&walkPlayer.av&&walkPlayer.av.ready)f+=.25;
-      if(!espilCityCfg().core){ if(espilDistrictBuilt)f+=.45; if(window.__espilDistrictMeshesBuilt)f+=.15; if(window.__espilDescentClipsReady)f+=.15; return Math.min(1,f); }
+      if(!espilCityCfg().core){ if(espilDistrictBuilt)f+=.45; if(window.__espilDistrictMeshesBuilt)f+=.30; return Math.min(1,f); }
       if(typeof osmCityBuilt!=='undefined'&&osmCityBuilt)f+=.3;
       else if(typeof osmChunks!=='undefined'&&osmChunks)f+=.15;
       if(espilDistrictBuilt)f+=.3;
-      if(window.__espilDistrictMeshesBuilt)f+=.075;
-      if(window.__espilDescentClipsReady)f+=.075;
+      if(window.__espilDistrictMeshesBuilt)f+=.15;
       return Math.min(1,f);
     }
     /* The game's OWN ground law at a point: 0 plus the highest
@@ -3741,7 +3733,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
          a failsafe keeps a stuck load from ever blocking entry. */
       espilInjectStyle();
       document.body.classList.add('espil-ui-pre');
-      p.pos.x=target.x; p.pos.z=target.z; p.pos.y=160;
+      p.pos.x=target.x; p.pos.z=target.z; p.pos.y=0;
       espilEntrySpawn={x:target.x,z:target.z};
       espilShowMapLoader();
       var tries=0;
@@ -3751,8 +3743,8 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
            city is ready (avatar in, OSM city built, spawn chunk
            present) - the loader closes on this same tick, so the
            fall is the first thing seen. */
-        if(espilCitySettled()){ espilHideMapLoader(); espilBeginDescent(target.x,target.z); return; }
-        if(++tries>125){ espilHideMapLoader(); espilBeginDescent(target.x,target.z); return; } /* 25 s failsafe */
+        if(espilCitySettled()){ espilHideMapLoader(); espilBeginArrival(target.x,target.z); return; }
+        if(++tries>125){ espilHideMapLoader(); espilBeginArrival(target.x,target.z); return; } /* 25 s failsafe */
         setTimeout(beginWhenReady,200);
       })();
     }
@@ -3926,7 +3918,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
            contact - jump or fall into a wall while pressing toward
            it. Grounded walk-in contact just blocks (collideCircleAxis
            handles it); the old grounded grapple is discarded. */
-        if(!p.onGround&&!p.swimming&&!p._espilDescend&&(ix||iz))espilTryAttachClimb(p,mx,mz);
+        if(!p.onGround&&!p.swimming&&!p._espilArrive&&(ix||iz))espilTryAttachClimb(p,mx,mz);
         return;
       }
       if(walkKeys[' ']){
@@ -4427,7 +4419,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
            character; it does not track the movement keys. Descent
            keeps its own framing. */
         var _ccx=walkPlayer.pos.x, _ccz=walkPlayer.pos.z;
-        if(!walkPlayer._espilDescend){
+        if(!walkPlayer._espilArrive){
           var _hA=Math.max(0,Math.min(60,walkPlayer.pos.y));
           if(_hA>0.05){
             var _off=_hA*1.72/(1+_hA/55);
@@ -4445,7 +4437,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
            envelope leads the zoom (and the target tracks it), unless
            the player has taken the zoom over with the wheel. */
         if(espilP1.zoom===null){ espilP1.zoom=19.3; espilP1.zoomT=19.3; } /* default framing (Han PC QA 2026-10-18): pulled a full level closer, MapleStory-like presence */
-        if(walkPlayer._espilDescend&&!espilP1.zoomDrive){
+        if(walkPlayer._espilArrive&&!espilP1.zoomDrive){
           espilP1.zoom=espilP1.zoomT=espilP1ZoomFromDist(walkCamDist);
         }else{
           if(!espilP1.zoomDrive)espilP1.zoomT=19.3; /* until the player takes the wheel, the target is the default framing */
@@ -5055,15 +5047,16 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
             }catch(e){/* optional — fallback to built-in */}
           }
           if(gender==='female'){
-            /* Female action table (activation, Han 2026-10-18): the
-               five on-disk clips register now; the nine Meshy-made
-               clips (asset room) register automatically when their
-               files land in assets/character/ - a missing file just
-               leaves that action off and the state machine falls
-               back, exactly like the male table's optional clips. */
-            loadAnimClip('female_idle.glb','idle',true);
-            loadAnimClip('female_walk.glb','walk',true); /* original-rig 'Walking' (46 ch), the male_walk.glb precedent - not the walk_strut conversion */
-            loadAnimClip('female_run.glb','run',true); /* original-rig 'Running' (46 ch) - not the run_charge conversion */
+            /* Female action table (activation, Han 2026-10-18;
+               locomotion fix, Han 2026-10-19): idle/walk/run are NOT
+               loaded from separate files anymore - the female body
+               file (female_idle.glb) now embeds all three clips
+               ('Idle', 'Walking', 'Running'), exactly like male.glb,
+               and the body seeding above registers them the moment
+               the body lands. The separate 16 MB walk/run files made
+               the character slide in the idle pose for the whole
+               download window on a real connection. The remaining
+               actions load as animation-only files (KBs, not MBs). */
             loadAnimClip('female_stop.glb','stop',false);
             loadAnimClip('female_swim.glb','swim',true);
             loadAnimClip('female_swim_idle.glb','swimIdle',true);
@@ -5175,16 +5168,10 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
               });
             }catch(e){/* descent falls back to plain physics landing */}
           })();
-          /* Female clips staged (not activated — male character active) */
-          av.femaleClips={};
-          ['female_idle.glb','female_walk_strut.glb','female_run_charge.glb','female_stop.glb'].forEach(function(f){
-            try{
-              new THREE.GLTFLoader().load('assets/character/'+f,function(gltf){
-                if(gltf.animations&&gltf.animations.length)
-                  av.femaleClips[f]=stripRootMotion(gltf.animations[0]);
-              });
-            }catch(e){}
-          });
+          /* The pre-activation female staging loads (av.femaleClips)
+             were removed 2026-10-19: nothing consumed them since the
+             female branch went live, and they cost four 16 MB loads
+             on every male entry. */
           } /* end gender branch */
           /* One-shot animation player (for jump, attack, stop, checkout, chat).
              Plays the clip once, then returns to locomotion. */
@@ -6638,7 +6625,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(!cityPhaseActive||!walkPlayer)return;
       var p=walkPlayer;
       if(p.swimming)return; /* QA #17: no jumping while swimming */
-      if(p._espilDescend||p._espilLanding)return; /* ESPIL TILES BRIDGE: descent/landing owns the body */
+      if(p._espilArrive||p._espilLanding)return; /* ESPIL TILES BRIDGE: descent/landing owns the body */
       if(p.onGround||p.jumps<2){
         var _mj=moveSpeeds();
         p.velY=(p.jumps>0?_mj.djumpV:_mj.jumpV);p.onGround=false;p.jumps++;
@@ -8079,7 +8066,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         var cu=supportCar.userData.car;
         p.pos.x+=cu.x-cu.px;p.pos.z+=cu.z-cu.pz;
       }
-      if(p._espilDescend)espilDescentStep(p,dt); /* ESPIL TILES BRIDGE */
+      if(p._espilArrive)espilArrivalStep(p,dt); /* ESPIL TILES BRIDGE */
       espilClimbStep(p,dt); /* ESPIL CLIMB */
       /* --- avatar pose --- */
       var g=p.av.group;
