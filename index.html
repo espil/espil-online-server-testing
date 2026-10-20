@@ -2886,6 +2886,13 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        Physics, collision and the character stay on the flat plane. */
     var curveStrength=new THREE.Vector2(168,168); /* Han 2026-10-16: curvature k=1400 (= 1.4e-3: strength/120000), supersedes the tiles-prototype (180,180) */
     var curvePlayer=new THREE.Vector2(0,0);
+    /* Curve ramp (Han 2026-10-19): the law's constant never changes,
+       but its APPLICATION ramps 0 -> 1 across the entry dive-in -
+       as the camera closes on the character the world takes its
+       curved shape, fully formed on arrival. 1 outside entries. The
+       object is shared by reference into every curve shader uniform
+       and read by the CPU mirror, so one write drives both. */
+    var curveRampU={value:1};
     var curvedMatCache={};
     var CURVE_CHUNK=(
       'vec4 cwp4=vec4(transformed,1.0);\n'+
@@ -2895,14 +2902,15 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       'cwp4=modelMatrix*cwp4;\n'+
       'float cdx=cwp4.x-uCurvePlayer.x;\n'+
       'float cdz=cwp4.z-uCurvePlayer.y;\n'+
-      'cwp4.y-=min((cdx*cdx*uCurveStrength.x+cdz*cdz*uCurveStrength.y)/120000.0,1000.0);\n'+
+      'cwp4.y-=uCurveRamp*min((cdx*cdx*uCurveStrength.x+cdz*cdz*uCurveStrength.y)/120000.0,1000.0);\n'+
       'vec4 mvPosition=viewMatrix*cwp4;\n'+
       'gl_Position=projectionMatrix*mvPosition;'
     );
     function curveShader(shader){
       shader.uniforms.uCurvePlayer={value:curvePlayer};
       shader.uniforms.uCurveStrength={value:curveStrength};
-      shader.vertexShader=('uniform vec2 uCurvePlayer;\nuniform vec2 uCurveStrength;\n'+shader.vertexShader).replace('#include <project_vertex>',CURVE_CHUNK);
+      shader.uniforms.uCurveRamp=curveRampU;
+      shader.vertexShader=('uniform vec2 uCurvePlayer;\nuniform vec2 uCurveStrength;\nuniform float uCurveRamp;\n'+shader.vertexShader).replace('#include <project_vertex>',CURVE_CHUNK);
     }
     function curvedMat(color){
       var key='c'+color, m=curvedMatCache[key];
@@ -3031,7 +3039,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
          the drop is 0 - so visible == collision holds where the
          player stands, and distant objects fall away by k x d^2. */
       var dx=x-curvePlayer.x,dz=z-curvePlayer.y;
-      return Math.min((dx*dx*curveStrength.x+dz*dz*curveStrength.y)/120000,1000);
+      return curveRampU.value*Math.min((dx*dx*curveStrength.x+dz*dz*curveStrength.y)/120000,1000);
     }
     /* Curve verification probe (map room, 2026-10-17): exposes the LIVE
        law the game itself calls for object placement. The same
@@ -3220,6 +3228,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       p.pos.y=base;
       p.velY=0; p.onGround=true; p.jumps=0;
       p._espilArrive={surf:base,probeAt:0,startedAt:performance.now(),dur:1900};
+      curveRampU.value=0; /* the curve forms across the dive-in (Han 2026-10-19) */
       walkCamDist=60; /* wide sky framing; the step eases it to 14 */
       if(typeof espilP1!=='undefined'&&espilP1)espilP1.zoomDrive=false; /* the arrival envelope leads the map zoom for this entry */
       espilShowGeoPrompt();
@@ -3231,8 +3240,10 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(a.surf!==null&&a.surf!==undefined){ p.pos.y=a.surf; p.onGround=true; }
       var t=Math.max(0,Math.min(1,(now-a.startedAt)/a.dur));
       var f=1-t; walkCamDist=14+46*f*f;
+      curveRampU.value=t*t*(3-2*t); /* smoothstep: the world takes its curved shape as the camera closes in */
       if(t>=1){
         p._espilArrive=null;
+        curveRampU.value=1;
         walkCamDist=14;
         espilHideGeoPrompt();
         espilUiRise();
@@ -4160,21 +4171,68 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         if(hide){ espilP1FadeMat(o.material); o.visible=false; }
       });
     }
+    var espilP1BldCache=null; /* {feats, cents} - curve visual-height updates reuse the geometry */
     function espilP1BuildingsGeoJSON(){
       var feats=[], a=espilP1Anchor();
       var mLat=111320, mLng=111320*Math.cos(a.lat*Math.PI/180);
       var blds=(typeof espilDistrict!=='undefined'&&espilDistrict&&espilDistrict.buildings)||[];
+      var cfg=espilCityCfg(), cents=[];
       for(var i=0;i<blds.length;i++){
         var b=blds[i]; if(!b||b.w||!b.p||b.p.length<3)continue;
         var n=b.p.length-((b.p[0][0]===b.p[b.p.length-1][0]&&b.p[0][1]===b.p[b.p.length-1][1])?1:0);
         if(n<3)continue;
-        var ring=[];
-        for(var j=0;j<n;j++)ring.push([a.lng+b.p[j][0]/mLng, a.lat-b.p[j][1]/mLat]);
+        var ring=[], cx=0, cz=0;
+        for(var j=0;j<n;j++){ ring.push([a.lng+b.p[j][0]/mLng, a.lat-b.p[j][1]/mLat]); cx+=b.p[j][0]; cz+=b.p[j][1]; }
         ring.push([ring[0][0],ring[0][1]]);
-        feats.push({type:'Feature',properties:{h:b.h},geometry:{type:'Polygon',coordinates:[ring]}});
+        cents.push([cx/n+cfg.ox, cz/n+cfg.oz]);
+        feats.push({type:'Feature',properties:{h:b.h,hv:b.h},geometry:{type:'Polygon',coordinates:[ring]}});
       }
+      espilP1BldCache={feats:feats,cents:cents};
+      espilP1CurveApply();
       return {type:'FeatureCollection',features:feats};
     }
+    /* Curve 1400 on the extrusion (Han 2026-10-19): each building's
+       PAINT height (hv) is its record height minus the curve drop at
+       its centroid, measured from the live anchor (the player). The
+       record height (h) is never touched - qRF wall judgment, the
+       record sweep, rooftops and standing all keep reading it, so
+       visible == collision holds, and at the anchor hv == h. */
+    function espilP1CurveApply(){
+      if(!espilP1BldCache)return;
+      var cents=espilP1BldCache.cents, feats=espilP1BldCache.feats;
+      for(var i=0;i<feats.length;i++){
+        var hv=feats[i].properties.h-curveDropAt(cents[i][0],cents[i][1]);
+        feats[i].properties.hv=hv>0?hv:0;
+      }
+    }
+    var espilP1CurveLast=null;
+    function espilP1CurveUpdate(){
+      if(!espilP1.buildingsAdded||!espilP1BldCache||!espilP1.map)return;
+      var now=performance.now();
+      var ramping=curveRampU.value>0&&curveRampU.value<1;
+      if(espilP1CurveLast){
+        var dx=curvePlayer.x-espilP1CurveLast.x, dz=curvePlayer.y-espilP1CurveLast.z;
+        var rampMoved=Math.abs(curveRampU.value-espilP1CurveLast.r)>=0.03;
+        if(!rampMoved&&dx*dx+dz*dz<36)return; /* anchor still and ramp settled */
+        if(now-espilP1CurveLast.t<(ramping?150:400))return; /* finer cadence while the curve forms */
+      }
+      espilP1CurveLast={x:curvePlayer.x,z:curvePlayer.y,t:now,r:curveRampU.value};
+      espilP1CurveApply();
+      try{ espilP1.map.getSource('espil-buildings').setData({type:'FeatureCollection',features:espilP1BldCache.feats}); }catch(e){}
+    }
+    /* QA probes for the curve on the extrusion: the live ramp, and
+       the nearest cached building's record/visual heights to a
+       world point. */
+    window.__espilCurveRamp=function(){ return curveRampU.value; };
+    window.__espilCurveHv=function(wx,wz){
+      if(!espilP1BldCache)return null;
+      var best=null,bc=null,bd=900;
+      for(var i=0;i<espilP1BldCache.cents.length;i++){
+        var dx=espilP1BldCache.cents[i][0]-wx,dz=espilP1BldCache.cents[i][1]-wz,d2=dx*dx+dz*dz;
+        if(d2<bd){bd=d2;best=espilP1BldCache.feats[i];bc=espilP1BldCache.cents[i];}
+      }
+      return best?{h:best.properties.h,hv:best.properties.hv,cx:bc[0],cz:bc[1]}:null;
+    };
     /* STYLE 3D OFF (Han 2026-10-17): a Standard-based style serves its
        own 3D buildings through an IMPORT - those layers never appear
        in getStyle().layers, so the layer scan in espilP1AddBuildings
@@ -4224,7 +4282,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
              tone, #c9c4bb (light greige). The green was only the
              contract's display marker; collision is record-polygon
              based and colour-independent, unchanged. */
-          espilP1.map.addLayer({id:'espil-buildings-3d',type:'fill-extrusion',source:'espil-buildings',paint:{'fill-extrusion-color':'#c9c4bb','fill-extrusion-height':['get','h'],'fill-extrusion-base':0,'fill-extrusion-opacity':1}});
+          espilP1.map.addLayer({id:'espil-buildings-3d',type:'fill-extrusion',source:'espil-buildings',paint:{'fill-extrusion-color':'#c9c4bb','fill-extrusion-height':['get','hv'],'fill-extrusion-base':0,'fill-extrusion-opacity':1}}); /* paint height is hv (curve-dropped visual height); the record h stays in properties for collision */
           /* COLLISION LAYER (Han 2026-10-17, CarInMap method): a flat,
              invisible fill over the same footprints - the wall judge
              queries THIS layer with queryRenderedFeatures. The
@@ -8951,6 +9009,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         /* Walkable downtown map owns the frame. */
         updateWalkMap(dt,nowMs/1000);
         if(walkPlayer)curvePlayer.set(walkPlayer.pos.x,walkPlayer.pos.z);
+        if(typeof ESPIL_P1!=='undefined'&&ESPIL_P1)espilP1CurveUpdate(); /* curve 1400: keep the extrusion's visual heights on the law as the anchor moves */
         espilTilesCamPush(); espilTilesApplyMode(nowMs); espilP1Tick(); /* ESPIL TILES BRIDGE: state publish (tiles shelved - mode stays off) + MAPBOX PHASE 1 tick */
         if(typeof EspilFader!=='undefined')EspilFader.tick(dt,mapCamera,walkPlayer);
         updateMapSky();
