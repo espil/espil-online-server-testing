@@ -1316,28 +1316,48 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       box-shadow:0 0 18px rgba(64,255,205,.5); pointer-events:none;
     }
     @media (pointer:coarse) { .joystick { display:block; } }
-    /* Mobile layout (Han 2026-10-20): lighter UI sized in vw/vh,
-       far fewer buttons. RIGHT: the direction joystick at opacity
-       .1 (brightening while dragged). LEFT: JUMP + INTERACT as the
-       two moderate circles, the skill quickbar shrunk to small
-       circles above them. The separate ATTACK button folds away -
-       punch is already one of the move slots. The chat log becomes
-       touch-scrollable (its flow was already the classic
-       scroll-down: append at the bottom, pinned to the newest). */
+    /* Mobile layout (Han 2026-10-20; placement integrated with the
+       UI room's DOM pass, wiring and joystick geometry the map
+       room's): lighter UI sized in vw/vh, far fewer buttons.
+       RIGHT: the direction joystick at opacity .1 (brightening
+       while dragged). CENTRE-LEFT: USE + JUMP as the two moderate
+       circles with the move slots small above them on a borderless
+       quickbar (item row and menu hidden; ATTACK folded away -
+       punch is one of the move slots). Chat: the old scroll-down
+       way, plain lines with no bubble cards, touch-scrollable. */
     @media (pointer:coarse) {
       .joystick { left:auto; right:4vw; bottom:calc(4vh + env(safe-area-inset-bottom)); width:min(30vmin,148px); height:min(30vmin,148px); opacity:.1; }
       .joystick.joy-live { opacity:.35; }
       .joy-knob { width:38%; height:38%; margin:-19% 0 0 -19%; }
       body.in-map .map-attack { display:none !important; }
-      .map-jump { width:min(15vmin,72px); height:min(15vmin,72px); left:4vw; right:auto; bottom:calc(4vh + env(safe-area-inset-bottom)); }
-      .map-interact { left:calc(4vw + min(15vmin,72px) + 2.5vw); }
-      #quickbar { --kb:min(9.5vmin,46px); left:4vw; right:auto; bottom:calc(4vh + min(15vmin,72px) + 2vh + env(safe-area-inset-bottom)); grid-template-columns:repeat(5,var(--kb)); gap:1.4vmin; padding:1.2vmin; border-width:1px; background:rgba(8,8,12,.18); }
-      #quickbar .kb-menu, #quickbar #item-row { display:none; } /* button reduction (aligned with the UI room): move slots + flasks only on mobile */
-      #quickbar .move-slot { width:var(--kb); height:var(--kb); }
-      #quickbar .flask-wrap { width:var(--kb); height:var(--kb); }
-      #quickbar .flask { width:calc(var(--kb)*.82); height:calc(var(--kb)*.82); }
-      .chat-window { left:3vw; width:min(46vw,340px); bottom:calc(6vh + 39vmin + env(safe-area-inset-bottom)); }
+      body.in-map .map-jump { width:11vh; height:11vh; bottom:3.5vh; left:calc(37vw + 13.5vh); right:auto; }
+      body.in-map #map-interact {
+        position:fixed; z-index:30; display:block;
+        width:11vh; height:11vh; bottom:3.5vh; left:37vw; right:auto;
+        border-radius:50%; border:2px solid rgba(134,238,228,.55);
+        background:rgba(10,34,38,.6); color:#ddfffc;
+        font:800 .68rem/1 "Manrope",sans-serif; letter-spacing:.08em;
+        box-shadow:0 0 18px rgba(80,232,220,.25);
+        touch-action:none; user-select:none; -webkit-user-select:none; cursor:pointer;
+      }
+      #quickbar { display:flex; flex-wrap:wrap; align-items:flex-end; left:36vw; right:auto; bottom:17.5vh; width:calc(4 * 6.5vh + 3 * 1vh); padding:0; background:none; border:none; box-shadow:none; backdrop-filter:none; -webkit-backdrop-filter:none; }
+      #quickbar .kb-menu, #quickbar #item-row { display:none; }
+      #quickbar #move-row { display:grid; grid-template-columns:repeat(4, 6.5vh); gap:1vh; order:1; }
+      #quickbar .move-slot { width:6.5vh; height:6.5vh; }
+      #quickbar .move-slot .sicon { font-size:.85rem; }
+      #quickbar .move-slot .mn { font-size:.34rem; }
+      #quickbar .flask-wrap { width:6.5vh; height:6.5vh; order:2; margin-top:1vh; }
+      #quickbar .flask { width:5.6vh; height:5.6vh; }
+      .map-status { width:30vw; }
+      #minimap-wrap { width:20vh; height:20vh; }
+      .chat-window { left:2vw; bottom:3vh; width:34vw; padding:8px; }
+      .chat-head { display:none; }
+      .chat-log { min-height:0; max-height:24vh; gap:2px; padding:0 0 4px; font-size:.68rem; }
       #chat-log { pointer-events:auto; }
+      .chat-msg { display:block; padding:1px 2px; border:none; background:none; border-radius:0; }
+      .chat-msg::before { display:none; }
+      .chat-msg .who { display:inline; }
+      .chat-msg .txt { display:inline; }
     }
     /* 2026-10-12 (Han): landscape-first on mobile — rotate prompt in portrait. */
     #rotate-overlay { display:none; }
