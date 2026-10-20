@@ -2776,7 +2776,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       var panel=document.getElementById('char-custom');
       var note=document.getElementById('char-bypass');
       var csub=panel?panel.querySelector('.char-sub'):null;
-      if(csub)csub.textContent='Your traveler for '+(window.__espilCityKey==='auckland'?'Auckland':'Vancouver Downtown')+'.';
+      if(csub)csub.textContent='Your traveler for '+espilCityDisplayName()+'.';
       setChosen('male');
       if(note)note.hidden=true; /* no auto-entry note in the production flow */
       if(panel)panel.setAttribute('aria-hidden','false');
@@ -3630,24 +3630,37 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        at entry and a city switch reloads (see startCityEntry). --- */
     var ESPIL_CITIES={
       vancouver:{district:'assets/osm/vancouver_district_sample.json',collision:'assets/osm/vancouver_collision.json',ox:0,oz:0,core:true,bounds:{x0:-1799,z0:-2028,x1:2027,z1:1956},spawn:{x:3,z:31}}, /* bounds = the district extent, added 2026-10-19 for the last-place resume rule (Han PC verdict #9): resume judges the full playable extent, not the smaller downtown boundary polygon. First-summon place (Han 2026-10-18): the Vancouver Art Gallery's Robson Square plaza - gallery record bbox x[-46.9..52.9] z[-57.6..16.8], the point sits 14.2 m south of its south face on its centre axis, inside no footprint */
-      auckland:{district:'assets/osm/auckland_district.json',collision:'assets/osm/auckland_collision.json',ox:10000,oz:0,core:false,spawn:{x:10302.9,z:-1001.9},bounds:{x0:9243,z0:-1595,x1:11024,z1:1080}}
+      auckland:{district:'assets/osm/auckland_district.json',collision:'assets/osm/auckland_collision.json',ox:10000,oz:0,core:false,spawn:{x:10302.9,z:-1001.9},bounds:{x0:9243,z0:-1595,x1:11024,z1:1080},harbour:{w:3600,d:1750,dx:140,dz:-1865}},
+      newyork:{district:'assets/osm/newyork_district.json',collision:'assets/osm/newyork_collision.json',ox:-5000,oz:0,core:false,spawn:{x:-5000,z:0},bounds:{x0:-6906,z0:-2063,x1:-2972,z1:2058}} /* New York (2026-10-19): OSM extract radius 2 km on Times Square (40.75800, -73.98554), 9,020 buildings; spawn = local (0, 0), the Times Square pedestrian plaza at the anchor itself, 17.8 m clear of every footprint (offline scan of the shipped district records) */
     };
     function espilCityKey(){ var k=window.__espilCityKey||'vancouver'; return ESPIL_CITIES[k]?k:'vancouver'; }
     function espilCityCfg(){ return ESPIL_CITIES[espilCityKey()]; }
+    var ESPIL_CITY_KEYS={'Vancouver':'vancouver','Auckland':'auckland','Tokyo':'tokyo','New York':'newyork','Paris':'paris','London':'london'};
+    var ESPIL_CITY_DISPLAY={vancouver:'Vancouver Downtown',auckland:'Auckland',tokyo:'Tokyo',newyork:'New York',paris:'Paris',london:'London'};
+    function espilCityDisplayName(){ return ESPIL_CITY_DISPLAY[espilCityKey()]||'Vancouver Downtown'; }
     /* Ground for offset cities (Auckland phase 1): a land plane under
        the district plus a harbour plane north of the waterfront
        street. Gameplay reads the stored collision map; these planes
        are the visual surface only. */
     function espilBuildCityGround(cfg){
       if(typeof mapScene==='undefined'||!mapScene)return;
+      /* Generalized (Tokyo, 2026-10-18; restored with the New York
+         wiring, 2026-10-19): the land plane is sized from the city's
+         own bounds; the harbour slab is opt-in per city (cfg.harbour)
+         - Auckland's numbers carried over exactly, other cities get
+         no fake water (their water is the collision raster for
+         gameplay and the basemap for looks). */
+      var b=cfg.bounds||{x0:cfg.ox-1300,z0:cfg.oz-1600,x1:cfg.ox+1300,z1:cfg.oz+1600};
       var gmat=new THREE.MeshLambertMaterial({color:0x707a63}); curvePatch(gmat);
-      var ground=new THREE.Mesh(new THREE.PlaneGeometry(2600,3200,32,32),gmat);
-      ground.rotation.x=-Math.PI/2; ground.position.set(cfg.ox+140,-0.02,cfg.oz-250);
+      var ground=new THREE.Mesh(new THREE.PlaneGeometry((b.x1-b.x0)+800,(b.z1-b.z0)+800,32,32),gmat);
+      ground.rotation.x=-Math.PI/2; ground.position.set((b.x0+b.x1)/2,-0.02,(b.z0+b.z1)/2);
       ground.receiveShadow=true; ground.frustumCulled=false; mapScene.add(ground);
-      var wmat=new THREE.MeshLambertMaterial({color:0x2a6a9e,transparent:true,opacity:.92}); curvePatch(wmat);
-      var water=new THREE.Mesh(new THREE.PlaneGeometry(3600,1750,32,8),wmat);
-      water.rotation.x=-Math.PI/2; water.position.set(cfg.ox+140,0.02,cfg.oz-990-875);
-      water.receiveShadow=true; water.frustumCulled=false; mapScene.add(water);
+      if(cfg.harbour){
+        var wmat=new THREE.MeshLambertMaterial({color:0x2a6a9e,transparent:true,opacity:.92}); curvePatch(wmat);
+        var water=new THREE.Mesh(new THREE.PlaneGeometry(cfg.harbour.w,cfg.harbour.d,32,8),wmat);
+        water.rotation.x=-Math.PI/2; water.position.set(cfg.ox+cfg.harbour.dx,0.02,cfg.oz+cfg.harbour.dz);
+        water.receiveShadow=true; water.frustumCulled=false; mapScene.add(water);
+      }
     }
     function loadEspilDistrict(){
       if(espilDistrict||espilDistrictLoading)return; espilDistrictLoading=true;
@@ -4247,7 +4260,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       var e=window.__ESPIL_ENV__||{};
       return e.MAPBOX_TOKEN||'';
     }
-    var ESPIL_P1_ANCHORS={vancouver:{lat:49.2827,lng:-123.1207},auckland:{lat:-36.8523,lng:174.7635}};
+    var ESPIL_P1_ANCHORS={vancouver:{lat:49.2827,lng:-123.1207},auckland:{lat:-36.8523,lng:174.7635},newyork:{lat:40.75800,lng:-73.98554}};
     function espilP1Anchor(){ return ESPIL_P1_ANCHORS[espilCityKey()]||ESPIL_P1_ANCHORS.vancouver; }
     /* The shipped framing curve, kept as a pure scale lock: the overlay
        camera distance is DERIVED from the operated map zoom with it,
@@ -6788,7 +6801,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         setTimeout(function(){ci.classList.remove('show');},2700);
       }
       citySky.visible=false;
-      cityPhaseName.textContent=selected?selected.userData.name:(window.__espilCityKey==='auckland'?'Auckland':'Vancouver Downtown');
+      cityPhaseName.textContent=selected?selected.userData.name:espilCityDisplayName();
       var hint=document.getElementById('map-hint');
       var coarse=window.matchMedia&&window.matchMedia('(pointer:coarse)').matches;
       if(hint)hint.textContent=coarse?
@@ -6801,7 +6814,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       /* Landing/game separation (2026-10-07): hide city markers in 3D scene when in-game. */
       if(typeof markerGroup!=='undefined')markerGroup.visible=false;
       initSkillHud();
-      status.textContent=(selected?selected.userData.name:(window.__espilCityKey==='auckland'?'Auckland':'Vancouver Downtown'))+' \u2014 walk around';
+      status.textContent=(selected?selected.userData.name:espilCityDisplayName())+' \u2014 walk around';
       startDnaImprint(); /* the Cauldron sticks its DNA on the city: it evolves */
       if(window.EspilAudio&&window.EspilAudio.onCitySelect)window.EspilAudio.onCitySelect();
       if(window.EspilAudio&&window.EspilAudio.onMapEnter)window.EspilAudio.onMapEnter('vancouver');
@@ -8102,7 +8115,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         var el=document.getElementById(id);
         if(el)el.setAttribute('aria-hidden','false');
       });
-      if(!chatWelcomed){chatWelcomed=true;addChatMsg('','— '+(window.__espilCityKey==='auckland'?'Auckland':'Vancouver Downtown')+' —',true);addChatMsg('','Press Enter to chat.',true);}
+      if(!chatWelcomed){chatWelcomed=true;addChatMsg('','— '+espilCityDisplayName()+' —',true);addChatMsg('','Press Enter to chat.',true);}
       paintStatus();paintMoveSlots();paintCooldowns();
     }
     function hideSkillHud(){
@@ -8948,7 +8961,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     /* Production config (Han 2026-10-18): Vancouver is the only city
        that dives; the other five selectable cities show COMING SOON
        with the button disabled. */
-    function espilPlayableCity(name){return name==='Vancouver'||name==='Auckland';} /* per-city activation (Han 2026-10-18): Auckland opened after its Mapbox-line verification; Tokyo/New York/Paris/London join as each city's build verifies */
+    function espilPlayableCity(name){return name==='Vancouver'||name==='Auckland'||name==='New York';} /* per-city activation (Han 2026-10-18): Auckland opened after its Mapbox-line verification; New York joined 2026-10-19 with its Times Square build; Tokyo/Paris/London join as each city's build verifies */
     function showCityInfo(marker){
       infoShown=true;approachSlow=false;
       var facts=cityFacts[marker.userData.name]||{pop:'—',brands:[],img:''};
@@ -9122,7 +9135,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     function startCityEntry(){
       if(!selected||entryActive||cityPhaseActive)return;
       if(!espilPlayableCity(selected.userData.name))return;
-      var newCityKey=selected.userData.name==='Auckland'?'auckland':'vancouver';
+      var newCityKey=ESPIL_CITY_KEYS[selected.userData.name]||'vancouver';
       if(window.__espilLoadedCityKey&&window.__espilLoadedCityKey!==newCityKey){
         /* One district per page load: switching cities reloads and
            re-selects the target city on boot (phase 1, 2026-10-16). */
