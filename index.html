@@ -1464,6 +1464,20 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       overflow:hidden; transition:opacity .6s ease, visibility .6s;
     }
     #loader.done{opacity:0; visibility:hidden; pointer-events:none}
+    #loader.seg-a{pointer-events:none} /* Dive segment: the glass is feedback, the entry overlay keeps the clicks */
+    /* Brand cursor + light-dust pointer shadow (Han 2026-10-19): the
+       domain logo is the cursor everywhere on the site; text fields
+       keep the text beam. */
+    *:not(input):not(textarea){cursor:url('assets/espil-cursor-64.png') 32 32,url('assets/espil-cursor.png') 16 16,auto !important}
+    .espil-dust{
+      position:fixed; z-index:190; pointer-events:none; border-radius:50%;
+      transform:translate(-50%,-50%);
+      animation:espilDustFall .75s ease-out forwards;
+    }
+    @keyframes espilDustFall{
+      0%{opacity:.95; margin-top:0; margin-left:0}
+      100%{opacity:0; margin-top:26px}
+    }
     #loader .glass{
       position:relative; width:98px; height:98px; border-radius:50%;
       overflow:hidden; isolation:isolate;
@@ -2938,6 +2952,22 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         .catch(function(){cb('Downtown Vancouver');});
     }
     var nearBldg=null,nearCheckT=0;
+    /* Interact range (Han PC verdict 2026-10-19 #7): the SPACE prompt
+       and the interact itself are live only when the player is AT a
+       building - within 2 m of a record footprint (the same polygons
+       that draw and collide). The old rule (within 14 m of a building
+       CENTRE, footprint half-size deducted) lit the prompt across
+       whole blocks. Returns the nearest footprint distance (signed). */
+    function espilRecordDistAt(px,pz){
+      var pb=espilPolyBucketAt(px,pz);
+      if(!pb)return 1e9;
+      var best=1e9;
+      for(var i=0;i<pb.length;i++){
+        var d=espilPolyProbe(pb[i],px,pz).d;
+        if(d<best)best=d;
+      }
+      return best;
+    }
     function updateBuildingProximity(px,pz,nowMs){
       var bldgNameEl=document.getElementById('building-name');
       var bldgNameText=document.getElementById('building-name-text');
@@ -2971,6 +3001,14 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         nearBldg=null;
         bldgNameEl.classList.add('hidden');
         if(interactEl)interactEl.classList.add('hidden');
+      }
+      /* P1: the interact prompt follows the tight record gate, not
+         the loose centre rule above (the name pill keeps its own). */
+      if(interactEl&&typeof ESPIL_P1!=='undefined'&&ESPIL_P1){
+        var sm2=document.getElementById('store-modal');
+        var modalOpen2=sm2&&!sm2.classList.contains('hidden');
+        if(!modalOpen2&&espilRecordDistAt(px,pz)<=2)interactEl.classList.remove('hidden');
+        else if(!modalOpen2)interactEl.classList.add('hidden');
       }
     }
     var mapDragId=null,mapLastX=0,mapLastY=0;
@@ -3550,7 +3588,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        loads per page session; the landing sets window.__espilCityKey
        at entry and a city switch reloads (see startCityEntry). --- */
     var ESPIL_CITIES={
-      vancouver:{district:'assets/osm/vancouver_district_sample.json',collision:'assets/osm/vancouver_collision.json',ox:0,oz:0,core:true,spawn:{x:3,z:31}}, /* first-summon place (Han 2026-10-18): the Vancouver Art Gallery's Robson Square plaza - gallery record bbox x[-46.9..52.9] z[-57.6..16.8], the point sits 14.2 m south of its south face on its centre axis, inside no footprint */
+      vancouver:{district:'assets/osm/vancouver_district_sample.json',collision:'assets/osm/vancouver_collision.json',ox:0,oz:0,core:true,bounds:{x0:-1799,z0:-2028,x1:2027,z1:1956},spawn:{x:3,z:31}}, /* bounds = the district extent, added 2026-10-19 for the last-place resume rule (Han PC verdict #9): resume judges the full playable extent, not the smaller downtown boundary polygon. First-summon place (Han 2026-10-18): the Vancouver Art Gallery's Robson Square plaza - gallery record bbox x[-46.9..52.9] z[-57.6..16.8], the point sits 14.2 m south of its south face on its centre axis, inside no footprint */
       auckland:{district:'assets/osm/auckland_district.json',collision:'assets/osm/auckland_collision.json',ox:10000,oz:0,core:false,spawn:{x:10302.9,z:-1001.9},bounds:{x0:9243,z0:-1595,x1:11024,z1:1080}}
     };
     function espilCityKey(){ var k=window.__espilCityKey||'vancouver'; return ESPIL_CITIES[k]?k:'vancouver'; }
@@ -3775,19 +3813,22 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       }
       step();
     }
-    function espilShowMapLoader(){
-      var el=document.getElementById('loader'); if(!el)return;
-      el.classList.remove('done'); el.classList.add('show');
-      el.style.setProperty('--p',0);
-      var pct=document.getElementById('loader-pct'); if(pct)pct.textContent='0';
-      var st=document.getElementById('loader-status'); if(st)st.textContent='Opening the map';
-      espilLoaderShownAt=Date.now();
-      window.__espilCityProgress01=0; window.__espilCitySettledFlag=false;
-      if(ESPIL_P1)window.__espilMapProgress01=0; /* UI-room loader contract (2026-10-17): the map signal resets with the other indicators */
-      if(ESPIL_P1)espilP1Preload(); /* map preload (Han, 2026-10-17): Mapbox init runs parallel to the city preload from here */
-      /* the v10 standard driver + liquid physics, started by the bridge */
-      if(window.__espilStartMapLoader)window.__espilStartMapLoader();
-      if(window.__espilStartLoaderPhysics)window.__espilStartLoaderPhysics();
+    var espilPreloading=false;
+    function espilPreloadCity(){
+      /* Loading work only (Han PC verdict 2026-10-19 #2): the district
+         fetch, mesh build, avatar/map preload and the progress signals
+         start at the DIVE click, in parallel with the entry gate, so
+         the wait after the last gate step is short and the glass -
+         when it takes the screen at entry - already stands at the
+         real progress. Idempotent: a second call changes nothing. */
+      if(espilPreloading&&espilLoaderIv)return;
+      if(!espilPreloading){
+        espilPreloading=true;
+        espilLoaderShownAt=Date.now();
+        window.__espilCityProgress01=0; window.__espilCitySettledFlag=false;
+        if(ESPIL_P1)window.__espilMapProgress01=0; /* UI-room loader contract (2026-10-17): the map signal resets with the other indicators */
+        if(ESPIL_P1)espilP1Preload(); /* map preload (Han, 2026-10-17): Mapbox init runs parallel to the city preload from here */
+      }
       if(espilLoaderIv)clearInterval(espilLoaderIv);
       espilLoaderIv=setInterval(function(){
         if(!espilDistrictBuilt)loadEspilDistrict();
@@ -3795,6 +3836,18 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         window.__espilCityProgress01=espilCityProgress();
         if(espilCitySettled())window.__espilCitySettledFlag=true;
       },120);
+    }
+    window.__espilPreloadCityEntry=function(){ espilPreloadCity(); };
+    function espilShowMapLoader(){
+      var el=document.getElementById('loader'); if(!el)return;
+      el.classList.remove('done'); el.classList.remove('seg-a'); el.classList.add('show');
+      if(!espilPreloading){ el.style.setProperty('--p',0); }
+      var pct=document.getElementById('loader-pct'); if(pct)pct.textContent='0';
+      var st=document.getElementById('loader-status'); if(st)st.textContent='Opening the map';
+      espilPreloadCity();
+      /* the v10 standard driver + liquid physics, started by the bridge */
+      if(window.__espilStartMapLoader)window.__espilStartMapLoader();
+      if(window.__espilStartLoaderPhysics)window.__espilStartLoaderPhysics();
     }
     function espilHideMapLoader(){
       /* The v10 driver finishes itself once the settled flag is set
@@ -3824,7 +3877,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         /* Returning player INSIDE the downtown boundary: resume at the
            saved spot, no descent (unchanged). The loader still covers
            the tile loading interval and closes on settle. */
-        var inside=cfg.core?espilInBoundary(last.x,last.z,1):(cfg.bounds&&last.x>=cfg.bounds.x0&&last.x<=cfg.bounds.x1&&last.z>=cfg.bounds.z0&&last.z<=cfg.bounds.z1);
+        var inside=cfg.bounds?(last.x>=cfg.bounds.x0&&last.x<=cfg.bounds.x1&&last.z>=cfg.bounds.z0&&last.z<=cfg.bounds.z1):espilInBoundary(last.x,last.z,1); /* Han PC verdict 2026-10-19 #9: the resume test is the playable extent (cfg.bounds); the downtown boundary polygon now only resolves OUT-of-extent saves (option B below) */
         if(inside){
           espilEntrySpawn={x:last.x,z:last.z};
           espilShowMapLoader(); espilWatchLoaderSettle();
@@ -4090,11 +4143,12 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       p.moving=!!(ix||iz);
       if(p.av&&p.av.ready&&p.av.actions.climb&&p.av.curAnim!=='climb')p.av.playAnim('climb');
     }
-    /* --- pin navigation (prototype rules, on the game's Leaflet map):
-       on the LARGE stage a click drops a destination pin (water clicks
-       nudged to land); a dashed guidance line + readout track it, an
-       amber beacon pulses in the world, arrival within 15 m clears it. --- */
-    var espilPin=null, espilPinReadout=null, espilMbReadout=null, espilToastEl=null;
+    /* --- minimap pin navigation REMOVED (Han PC verdict 2026-10-19
+       #8): the user-placed destination pin (Leaflet click to drop,
+       guidance line, world beacon, arrival toast) is deleted as an
+       unnecessary feature. The streamed-MB readout that shared this
+       tick is unrelated and stays. --- */
+    var espilMbReadout=null, espilToastEl=null;
     function espilBridgeToast(msg){
       if(window.__espilToast){ try{ window.__espilToast(msg); return; }catch(e){} }
       if(!espilToastEl){
@@ -4105,48 +4159,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       espilToastEl.textContent=msg; espilToastEl.style.display='block';
       setTimeout(function(){ espilToastEl.style.display='none'; },3600);
     }
-    function espilSetPin(x,z){
-      espilClearPin();
-      var ll=gameToLatLng(x,z);
-      var marker=L.marker(ll,{interactive:false,icon:L.divIcon({className:'',
-        html:'<div style="width:14px;height:14px;border-radius:50%;background:#e5484d;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.55);"></div>',
-        iconSize:[14,14],iconAnchor:[7,7]})}).addTo(leafletMap);
-      var line=L.polyline([gameToLatLng(walkPlayer.pos.x,walkPlayer.pos.z),ll],
-        {color:'#e8b34a',weight:2,dashArray:'6 6',interactive:false}).addTo(leafletMap);
-      var beacon=new THREE.Mesh(
-        new THREE.CylinderGeometry(1.4,1.4,30,12,1,true),
-        new THREE.MeshBasicMaterial({color:0xe8b34a,transparent:true,opacity:.45,depthWrite:false,side:THREE.DoubleSide}));
-      var by=espilTileBase(x,z);
-      beacon.position.set(x,(by!==null?by:0)+15,z);
-      mapScene.add(beacon);
-      if(!espilPinReadout){
-        espilPinReadout=document.createElement('div');
-        espilPinReadout.style.cssText='position:fixed;left:50%;bottom:64px;transform:translateX(-50%);z-index:40;background:rgba(10,14,20,.82);color:#f2d38a;padding:6px 12px;border-radius:9px;font:600 .78rem "Manrope",sans-serif;pointer-events:none;display:none;';
-        document.body.appendChild(espilPinReadout);
-      }
-      espilPinReadout.style.display='block';
-      espilPin={x:x,z:z,marker:marker,line:line,beacon:beacon};
-    }
-    function espilClearPin(){
-      if(!espilPin)return;
-      try{ leafletMap.removeLayer(espilPin.marker); leafletMap.removeLayer(espilPin.line); }catch(e){}
-      if(espilPin.beacon){ mapScene.remove(espilPin.beacon); espilPin.beacon.geometry.dispose(); espilPin.beacon.material.dispose(); }
-      espilPin=null;
-      if(espilPinReadout)espilPinReadout.style.display='none';
-    }
-    var ESPIL_DIRS=['\u2191','\u2197','\u2192','\u2198','\u2193','\u2199','\u2190','\u2196'];
     function espilPinTick(){
-      if(typeof leafletMap!=='undefined'&&leafletMap&&!leafletMap.__espilPinHooked){
-        leafletMap.__espilPinHooked=true;
-        leafletMap.on('click',function(e){
-          if(typeof mapStage==='undefined'||mapStage!==3||!cityPhaseActive||!walkPlayer)return;
-          var gx=(e.latlng.lng-MAP_LNG0)*111320*Math.cos(MAP_LAT0*Math.PI/180);
-          var gz=-(e.latlng.lat-MAP_LAT0)*111320;
-          var pt=espilNudgeToLand(gx,gz);
-          espilSetPin(pt.x,pt.z);
-        });
-        leafletMap.on('contextmenu',function(){ espilClearPin(); });
-      }
       /* streamed-MB readout (real bytes, module-counted) */
       var st=window.__espilTilesState;
       if(!espilMbReadout){
@@ -4156,24 +4169,6 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       }
       if(st&&st.active){ espilMbReadout.textContent='3D tiles \u00B7 '+st.streamedMB.toFixed(1)+' MB'; espilMbReadout.style.display='block'; }
       else espilMbReadout.style.display='none';
-      /* pin upkeep */
-      if(espilPin&&walkPlayer){
-        var dx=espilPin.x-walkPlayer.pos.x, dz=espilPin.z-walkPlayer.pos.z;
-        var dist=Math.sqrt(dx*dx+dz*dz);
-        espilPin.line.setLatLngs([gameToLatLng(walkPlayer.pos.x,walkPlayer.pos.z),gameToLatLng(espilPin.x,espilPin.z)]);
-        var pll=mapToLatLng(espilPin.x,espilPin.z);
-        var rel=Math.atan2(dx,-dz)-Math.atan2(-Math.sin(walkCamYaw),Math.cos(walkCamYaw));
-        while(rel>Math.PI)rel-=Math.PI*2; while(rel<-Math.PI)rel+=Math.PI*2;
-        var sector=Math.round(rel/(Math.PI/4)); if(sector<0)sector+=8;
-        espilPinReadout.textContent='pin '+pll.lat.toFixed(5)+', '+pll.lng.toFixed(5)+' \u00B7 '+Math.round(dist)+'m '+ESPIL_DIRS[sector%8];
-        var pulse=1+0.16*Math.sin(performance.now()/300);
-        espilPin.beacon.scale.set(pulse,1,pulse);
-        espilPin.beacon.material.opacity=0.36+0.16*Math.sin(performance.now()/300);
-        if(dist<=15){
-          espilClearPin();
-          espilBridgeToast('\uD83D\uDCCD Arrived at pin');
-        }
-      }
     }
     setInterval(function(){ if(cityPhaseActive)espilPinTick(); },250);
     function espilTilesApplyMode(now){
@@ -5201,7 +5196,20 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
                 var clip=stripRootMotion(cs[0]);
                 var act=mixer.clipAction(clip);
                 if(!loop){act.setLoop(THREE.LoopOnce);act.clampWhenFinished=true;}
+                var oldAct=av.actions[actionName];
                 av.actions[actionName]=act;
+                /* Take over playback when the replaced action is the
+                   one on stage (Han PC verdict 2026-10-19 #6): male.glb's
+                   embedded 'baselayer' idle is a static bind pose (the
+                   T-pose), and the real idle arrives as male_idle.glb -
+                   the old code only swapped the table entry, so the
+                   bind pose kept playing and playAnim('idle') early-
+                   returned forever. The new clip now crossfades in. */
+                if(oldAct&&oldAct!==act&&av.curAnim===actionName){
+                  act.reset().fadeIn(.15).play();
+                  oldAct.fadeOut(.15);
+                  (function(pp){setTimeout(function(){pp.stop();},200);})(oldAct);
+                }
               });
             }catch(e){/* optional — fallback to built-in */}
           }
@@ -5356,9 +5364,20 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
             },dur);
             return true;
           };
-          /* Jump: single=jump, double=doubleJump */
+          /* Jump: single=jump, double=doubleJump. Han PC verdict
+             2026-10-19 #4: the transition is quicker, and the clip
+             must be FINISHED when the character lands - the raw clips
+             run 1.9-3.7 s against a ~0.69 s hop (jumpV 9, gravity 26),
+             so the action is time-scaled to the expected airtime at
+             launch and the one-shot ends with the touchdown. */
           av.playJump=function(isDouble){
-            return av.playOneShot(isDouble?'doubleJump':'jump');
+            var name=isDouble?'doubleJump':'jump';
+            var act=av.actions[name]||(name==='jump'?av.actions.jumpLegacy:null);
+            if(!act)return av.playOneShot(name);
+            var dur=act.getClip().duration||1;
+            var air=isDouble?1.15:(2*9/26);
+            act.timeScale=Math.min(6,Math.max(1,dur/air));
+            return av.playOneShot(name,Math.round(dur/act.timeScale*1000));
           };
         },undefined,function(err){
           if(window.__espilToast)window.__espilToast('Character failed to load');
@@ -6265,7 +6284,10 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       try{
         localStorage.setItem(LAST_POS_KEY,JSON.stringify({
           x:walkPlayer.pos.x,y:walkPlayer.pos.y,z:walkPlayer.pos.z,
-          yaw:walkCamYaw,ts:Date.now()
+          yaw:walkCamYaw,ts:Date.now(),city:window.__espilCityKey||null
+          /* Han PC verdict 2026-10-19 #9: the save names its city - the
+             old save carried none, so only a coordinate-range accident
+             kept one city's save from being read as another's. */
         }));
       }catch(e){}
     }
@@ -6274,6 +6296,11 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         var s=localStorage.getItem(LAST_POS_KEY);
         if(!s)return null;
         var d=JSON.parse(s);
+        /* City identity (Han PC verdict 2026-10-19 #9): a save belongs
+           to the city it names; another city's save is not a resume
+           candidate here (older saves without the field fall through
+           to the bounds sanity below). */
+        if(d.city&&window.__espilCityKey&&d.city!==window.__espilCityKey)return null;
         /* Sanity: must be within the ACTIVE city's playable bounds. The
            old origin-centred 5 km box predates offset cities - Auckland
            saves live near x=10000, so every one was discarded here and a
@@ -6971,6 +6998,8 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     }
     function tryInteract(){
       if(!cityPhaseActive||!walkPlayer)return;
+      /* Han PC verdict 2026-10-19 #7: interact works only at the building */
+      if(typeof ESPIL_P1!=='undefined'&&ESPIL_P1&&espilRecordDistAt(walkPlayer.pos.x,walkPlayer.pos.z)>2)return;
       /* Han 2026-10-14 #2: while the store list is open, SPACE confirms the
          selection (handled by the modal key handler) — never re-fetch here.
          (Re-applied 2026-10-14 after the working-copy overwrite.) */
@@ -7014,7 +7043,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           document.getElementById('store-modal').classList.add('hidden');
           /* Han: restore SPACE prompt and location pill if still near a building */
           var ip=document.getElementById('interact-prompt');
-          if(ip&&typeof nearBldg!=='undefined'&&nearBldg)ip.classList.remove('hidden');
+          if(ip&&typeof nearBldg!=='undefined'&&nearBldg&&!(typeof ESPIL_P1!=='undefined'&&ESPIL_P1))ip.classList.remove('hidden'); /* P1: the proximity tick restores it under the tight gate */
           var bn=document.getElementById('building-name');
           if(bn&&typeof nearBldg!=='undefined'&&nearBldg)bn.classList.remove('hidden');
         });
@@ -7043,7 +7072,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
             m.classList.add('hidden');
             /* Han: restore SPACE prompt and location pill if still near a building */
             var ip=document.getElementById('interact-prompt');
-            if(ip&&typeof nearBldg!=='undefined'&&nearBldg)ip.classList.remove('hidden');
+            if(ip&&typeof nearBldg!=='undefined'&&nearBldg&&!(typeof ESPIL_P1!=='undefined'&&ESPIL_P1))ip.classList.remove('hidden'); /* P1: the proximity tick restores it under the tight gate */
             var bn=document.getElementById('building-name');
             if(bn&&typeof nearBldg!=='undefined'&&nearBldg)bn.classList.remove('hidden');
           }else if(isList&&currentStores.length>0){
@@ -8712,6 +8741,12 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     function clearEntryTimers(){entryTimers.forEach(function(t){clearTimeout(t);});entryTimers=[];}
     var loginGateNext=null;
     function openLoginGate(prod){
+      /* The login screen is an interaction, not a loading segment:
+         the Dive-segment glass fades out and its driver sleeps until
+         the character-confirm segment (Han 2026-10-19 #2). */
+      var ldB=document.getElementById('loader');
+      if(ldB&&ldB.classList.contains('seg-a')){ ldB.classList.remove('show'); ldB.classList.remove('seg-a'); ldB.classList.add('done'); }
+      if(window.__espilSuspendMapLoader)window.__espilSuspendMapLoader();
       loginGateNext=prod? function(){ entrySubShown=true; finishCityEntry(); } : function(){ startCityPreload(); };
       /* The entry overlay (z 26) sits above the modal (z 20) and would
          swallow every click - hide it while the login gate is up. */
@@ -8857,6 +8892,16 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         location.reload(); return;
       }
       window.__espilCityKey=newCityKey;
+      if(window.__espilPreloadCityEntry)window.__espilPreloadCityEntry(); /* Han PC verdict 2026-10-19 #2: all city loading starts NOW, at the Dive click, in parallel with the entry gate - no dead time after the last gate step */
+      /* Immediate feedback (Han 2026-10-19, flow ruling #2): the glass
+         is on screen from the Dive click itself, over the glide and
+         the entry overlay, until the login gate opens. It takes no
+         clicks in this segment (class seg-a) so the overlay's own
+         click/key advance keeps working underneath it. */
+      var ldA=document.getElementById('loader');
+      if(ldA){ ldA.classList.remove('done'); ldA.classList.add('show'); ldA.classList.add('seg-a'); }
+      if(window.__espilStartMapLoader)window.__espilStartMapLoader();
+      if(window.__espilStartLoaderPhysics)window.__espilStartLoaderPhysics();
       entryActive=true;entryTypedDone=false;entrySubShown=false;entryStartedAt=performance.now();
       clearZoomStages();
       if(window.EspilAudio&&window.EspilAudio.pop)window.EspilAudio.pop();
@@ -9712,7 +9757,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
   (function(){
     var loader=document.getElementById('loader'); if(!loader) return;
     document.body.classList.add('loading');
-    var shown=0, real=0, start=Date.now(), finished=false, earthReady=false, tick=null, mapMode=false;
+    var shown=0, real=0, start=Date.now(), finished=false, earthReady=false, tick=null, mapMode=false, suspended=false;
     window.addEventListener('espil-earth-ready',function(){earthReady=true;});
     if(window.__espilEarthReady)earthReady=true;
     function render(){
@@ -9743,29 +9788,46 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       }
       return earthReady && document.readyState==='complete';
     }
+    function tickFn(){
+      measure();
+      /* Map mode: the liquid IS the real progress (Han PC verdict
+         2026-10-19 #3) - it rises toward the real level at a bounded
+         rate and never passes it, so a slow load fills the glass
+         slowly and the glass never sits full while the game still
+         loads. No chase curve, no +6 race-ahead allowance. */
+      var target=mapMode? real : Math.max(real, Math.min(92, (Date.now()-start)/55));
+      if(ready()) target=100;
+      if(mapMode){ if(target>shown)shown=Math.min(target,shown+1.6); }
+      else{ shown+=(target-shown)*0.14; if(target-shown<0.4) shown=target; }
+      render();
+      if(shown>=99.5 && ready() && Date.now()-start>=(mapMode?800:1000)) finish();
+      if(Date.now()-start>(mapMode?30000:8000)) finish(); /* never trap the reader */
+    }
     function begin(map){
+      if(map&&mapMode&&tick&&!finished)return; /* a map load is already running (preload began at the Dive click): keep the liquid where it is */
+      if(map&&mapMode&&suspended&&!finished){
+        /* Resume after a gate screen (Han 2026-10-19, flow ruling #2):
+           the glass ran from the Dive click until the login screen,
+           sleeps while the gate is up, and resumes here for the
+           character-confirm -> city segment - same liquid level, the
+           clock (min display + hard cap) rebases to this segment. */
+        suspended=false; start=Date.now();
+        loader.classList.remove('done');
+        document.body.classList.add('loading');
+        tick=setInterval(tickFn,50); render();
+        return;
+      }
       mapMode=!!map;
-      shown=0; real=0; start=Date.now(); finished=false;
+      shown=0; real=0; start=Date.now(); finished=false; suspended=false;
       loader.classList.remove('done');
       document.body.classList.add('loading');
       if(tick) clearInterval(tick);
-      tick=setInterval(function(){
-        measure();
-        /* Map mode follows the bridge's published progress exactly - no
-           time floor, so the glass cannot race ahead of the real load. */
-        var target=mapMode? real : Math.max(real, Math.min(92, (Date.now()-start)/55));
-        if(ready()) target=100;
-        shown+=(target-shown)*0.14; if(target-shown<0.4) shown=target;
-        if(mapMode && !ready()) shown=Math.min(shown, real+6); /* never race past the signals */
-        render();
-        if(shown>=99.5 && ready() && Date.now()-start>=(mapMode?800:1000)) finish();
-        if(Date.now()-start>(mapMode?30000:8000)) finish(); /* never trap the reader */
-      },50);
+      tick=setInterval(tickFn,50);
       render();
     }
     function finish(){
-      if(finished) return; finished=true;
-      shown=100; render(); if(tick)clearInterval(tick);
+      if(finished) return; finished=true; suspended=false;
+      shown=100; render(); if(tick){clearInterval(tick); tick=null;}
       setTimeout(function(){
         loader.classList.add('done');
         document.body.classList.remove('loading');
@@ -9775,7 +9837,45 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     /* Map-entry bridge (espilShowMapLoader): restart the standard driver in
        map mode - progress from the bridge, finish on its settled flag. */
     window.__espilStartMapLoader=function(){ begin(true); };
+    /* Segment pause (Han 2026-10-19 #2): the login gate is an
+       interaction screen, not a loading segment - the glass sleeps
+       while it is up and resumes at the character-confirm segment. */
+    window.__espilSuspendMapLoader=function(){
+      if(mapMode&&!finished){ if(tick){clearInterval(tick); tick=null;} suspended=true; }
+    };
     begin(false);
+  })();
+  </script>
+  <script>
+  /* Pointer shadow (Han 2026-10-19): green and yellow light-dust
+     trails the brand-logo cursor - a few grains per move, drifting
+     down and dissolving in under a second. Capped and throttled so
+     the map never pays for it; off for reduced-motion users. */
+  (function(){
+    if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+    var last=0, live=0;
+    document.addEventListener('pointermove',function(e){
+      var now=performance.now();
+      if(now-last<26||live>44)return;
+      last=now;
+      var n=2+(Math.random()<.5?1:0);
+      for(var i=0;i<n;i++){
+        var s=document.createElement('span');
+        s.className='espil-dust';
+        var sz=3+Math.random()*4;
+        var green=Math.random()<.5;
+        s.style.width=sz+'px'; s.style.height=sz+'px';
+        s.style.left=(e.clientX+(Math.random()*14-7))+'px';
+        s.style.top=(e.clientY+(Math.random()*10-5))+'px';
+        s.style.background=green
+          ? 'radial-gradient(circle,rgba(190,242,100,.95) 0%,rgba(120,220,120,0) 70%)'
+          : 'radial-gradient(circle,rgba(255,226,120,.95) 0%,rgba(242,211,138,0) 70%)';
+        s.style.marginLeft=(Math.random()*10-5)+'px';
+        document.body.appendChild(s);
+        live++;
+        (function(el){ el.addEventListener('animationend',function(){ el.remove(); live--; }); })(s);
+      }
+    },{passive:true});
   })();
   </script>
   <script>
