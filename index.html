@@ -1142,12 +1142,16 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     .notice-list li::before { content:"•"; position:absolute; left:0; color:#7fd8d0; }
     .notice-date { color:#8fb8b3; font-weight:700; white-space:nowrap; }
     #notice-open { font:700 .72rem/1 "Manrope",sans-serif; letter-spacing:.08em; }
-    /* Notice tabs + stacking (Han 2026-10-19, notice verdict): the
-       four sections are tabs now, one pane at a time; and the notice
-       backdrop leaves the shared modal layer (z 20) for its own fixed
-       layer ABOVE the landing intro overlay (z 60), so opening the
-       notice from the landing never buries it under the intro. */
-    #notice-modal { position:fixed; z-index:80; }
+    /* Notice tabs + stacking (Han 2026-10-19, notice verdict; raised
+       again on his PC verdict the same night): the four sections are
+       tabs now, one pane at a time; and the notice backdrop leaves
+       the shared modal layer (z 20) for its own fixed layer at the
+       very top of the page - above EVERY landing element, the
+       .city-readout text div and the loader family included. The
+       wiring also moves the backdrop to <body> (see wireNoticePanel):
+       inside #earth-frame its isolation stacking context would trap
+       any z-index under the body-level intro. */
+    #notice-modal { position:fixed; z-index:1000; }
     .notice-tabs { display:flex; flex-wrap:wrap; gap:6px; margin:16px 0 2px; padding-bottom:10px; border-bottom:1px solid rgba(134,238,228,.16); }
     .notice-tab {
       appearance:none; border:1px solid rgba(169,226,222,.18); border-radius:999px;
@@ -1488,14 +1492,6 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        keep the text beam. The trail is hard square pixels scattering
        outward, not soft dust. */
     *:not(input):not(textarea){cursor:url('assets/espil-cursor-32.png') 16 16,url('assets/espil-cursor-16.png') 8 8,auto !important}
-    .espil-dust{
-      position:fixed; z-index:190; pointer-events:none;
-      animation:espilPixelScatter .6s steps(6) forwards;
-    }
-    @keyframes espilPixelScatter{
-      0%{opacity:1; transform:translate(-50%,-50%) translate(0,0)}
-      100%{opacity:0; transform:translate(-50%,-50%) translate(var(--dx,0px),var(--dy,16px))}
-    }
     #loader .glass{
       position:relative; width:98px; height:98px; border-radius:50%;
       overflow:hidden; isolation:isolate;
@@ -2891,8 +2887,12 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         if(window.EspilAudio&&window.EspilAudio.tick)window.EspilAudio.tick();
       }
       ntabs.forEach(function(t){ t.addEventListener('click',function(){ selectNoticeTab(t.getAttribute('data-ntab')); }); });
-      function open(){ if(modal)modal.setAttribute('aria-hidden','false'); if(window.EspilAudio&&window.EspilAudio.pop)window.EspilAudio.pop(); }
-      function close(){ if(modal)modal.setAttribute('aria-hidden','true'); }
+      /* While the panel is up, city selection is blocked (Han
+         2026-10-19 PC verdict): selectCity and the arrow-key stepper
+         read this flag and refuse. */
+      window.__espilNoticeOpen=false;
+      function open(){ window.__espilNoticeOpen=true; if(modal)modal.setAttribute('aria-hidden','false'); if(window.EspilAudio&&window.EspilAudio.pop)window.EspilAudio.pop(); }
+      function close(){ window.__espilNoticeOpen=false; if(modal)modal.setAttribute('aria-hidden','true'); }
       if(openBtn)openBtn.addEventListener('click',open);
       if(closeBtn)closeBtn.addEventListener('click',close);
       if(modal)modal.addEventListener('click',function(e){ if(e.target===modal)close(); });
@@ -4364,32 +4364,59 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       var feats=[], a=espilP1Anchor();
       var mLat=111320, mLng=111320*Math.cos(a.lat*Math.PI/180);
       var blds=(typeof espilDistrict!=='undefined'&&espilDistrict&&espilDistrict.buildings)||[];
-      var cfg=espilCityCfg(), cents=[];
+      var cfg=espilCityCfg(), cents=[], wrings=[];
       for(var i=0;i<blds.length;i++){
         var b=blds[i]; if(!b||b.w||!b.p||b.p.length<3)continue;
         var n=b.p.length-((b.p[0][0]===b.p[b.p.length-1][0]&&b.p[0][1]===b.p[b.p.length-1][1])?1:0);
         if(n<3)continue;
-        var ring=[], cx=0, cz=0;
-        for(var j=0;j<n;j++){ ring.push([a.lng+b.p[j][0]/mLng, a.lat-b.p[j][1]/mLat]); cx+=b.p[j][0]; cz+=b.p[j][1]; }
+        var ring=[], cx=0, cz=0, wr=[];
+        for(var j=0;j<n;j++){ ring.push([a.lng+b.p[j][0]/mLng, a.lat-b.p[j][1]/mLat]); cx+=b.p[j][0]; cz+=b.p[j][1]; wr.push(b.p[j][0]+cfg.ox, b.p[j][1]+cfg.oz); }
         ring.push([ring[0][0],ring[0][1]]);
         cents.push([cx/n+cfg.ox, cz/n+cfg.oz]);
+        wrings.push(wr);
         feats.push({type:'Feature',properties:{h:b.h,hv:b.h},geometry:{type:'Polygon',coordinates:[ring]}});
       }
-      espilP1BldCache={feats:feats,cents:cents};
+      espilP1BldCache={feats:feats,cents:cents,rings:wrings};
       espilP1CurveApply();
       return {type:'FeatureCollection',features:feats};
     }
-    /* Curve 1400 on the extrusion (Han 2026-10-19): each building's
-       PAINT height (hv) is its record height minus the curve drop at
-       its centroid, measured from the live anchor (the player). The
-       record height (h) is never touched - qRF wall judgment, the
-       record sweep, rooftops and standing all keep reading it, so
-       visible == collision holds, and at the anchor hv == h. */
+    /* Curve 1400 on the extrusion (Han 2026-10-19; nearest-point law
+       2026-10-19 PC verdict #5): each building's PAINT height (hv) is
+       its record height minus the curve drop at the footprint point
+       NEAREST the live anchor (the player) - a player standing inside
+       the footprint measures the drop at their own position (zero),
+       so hv == h exactly wherever the player can stand on or touch
+       the building, and distant buildings fall away by their nearest
+       edge. The first pass measured the drop at the ring centroid:
+       any footprint reaching ~15 m or more from its centroid then
+       rendered lower than its collision (k x d^2: 74% of Vancouver
+       records by 0.3 m or more at the far corner, dozens per city
+       vanishing entirely while their roofs still collided at h).
+       The record height (h) is never touched - qRF wall judgment,
+       the record sweep, rooftops and standing all keep reading it,
+       so with the paint law fixed visible == collision holds. */
+    function espilP1FootprintNear(flat,px,pz){
+      /* flat: [x0,z0,x1,z1,...] world ring (no closing duplicate).
+         Returns [nx,nz]: the anchor itself when inside (even-odd
+         ray cast), else the nearest point on the ring segments. */
+      var n=flat.length/2, inside=false, bx=0, bz=0, bd=Infinity;
+      for(var i=0,j=n-1;i<n;j=i++){
+        var xi=flat[2*i], zi=flat[2*i+1], xj=flat[2*j], zj=flat[2*j+1];
+        if((zi>pz)!==(zj>pz)&&(px<(xj-xi)*(pz-zi)/(zj-zi)+xi))inside=!inside;
+        var ex=xj-xi, ez=zj-zi, L2=ex*ex+ez*ez;
+        var t=L2>0?((px-xi)*ex+(pz-zi)*ez)/L2:0; t=t<0?0:(t>1?1:t);
+        var qx=xi+ex*t, qz=zi+ez*t, dx=px-qx, dz=pz-qz, d2=dx*dx+dz*dz;
+        if(d2<bd){ bd=d2; bx=qx; bz=qz; }
+      }
+      return inside?[px,pz]:[bx,bz];
+    }
     function espilP1CurveApply(){
       if(!espilP1BldCache)return;
-      var cents=espilP1BldCache.cents, feats=espilP1BldCache.feats;
+      var feats=espilP1BldCache.feats, rings=espilP1BldCache.rings;
+      var px=curvePlayer.x, pz=curvePlayer.y;
       for(var i=0;i<feats.length;i++){
-        var hv=feats[i].properties.h-curveDropAt(cents[i][0],cents[i][1]);
+        var np=espilP1FootprintNear(rings[i],px,pz);
+        var hv=feats[i].properties.h-curveDropAt(np[0],np[1]);
         feats[i].properties.hv=hv>0?hv:0;
       }
     }
@@ -8703,6 +8730,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     /* Arrow / joystick city navigation: recenter on the city at the CURRENT zoom, no zoom change. */
     var navIndex=0;
     function stepCity(dir){
+      if(window.__espilNoticeOpen)return; /* notice panel open (Han 2026-10-19): no city stepping either */
       if(window.__espilIntroActive||cityPhaseActive||entryActive)return;
       /* Stepping away from a zoomed-in city eases back out to orbit first. */
       if(selected||infoShown)clearSelection(true);
@@ -8889,6 +8917,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       }
     }
     function selectCity(marker){
+      if(window.__espilNoticeOpen)return; /* notice panel open (Han 2026-10-19): city selection is blocked while it is up */
       if(!marker||!ESPIL_SELECTABLE_CITIES[marker.userData.name])return; /* inactive city (Han 2026-10-18): displayed, never selectable */
       selected=marker; if(status)status.textContent=status.textContent; /* landing line: city name only */setActiveButton(marker);centerReel(marker,true);
       ensureLandmarkGLB(marker); /* start fetching the real 3D model; swaps in when ready */
@@ -10140,39 +10169,6 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
   })();
   </script>
   <script>
-  /* Pointer trail (Han 2026-10-19, cursor verdict): yellow and
-     green PIXELS scatter off the brand-logo cursor as it moves -
-     hard square grains bursting outward in every direction and
-     winking out in steps, replacing the soft light-dust fall of the
-     first pass. Capped and throttled so the map never pays for it;
-     off for reduced-motion users. */
-  (function(){
-    if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
-    var last=0, live=0;
-    var COLORS=['#ffe14d','#ffd23e','#bef264','#4ade80','#fff3a0','#86efac'];
-    document.addEventListener('pointermove',function(e){
-      var now=performance.now();
-      if(now-last<22||live>70)return;
-      last=now;
-      var n=4+(Math.random()<.6?1:0)+(Math.random()<.3?1:0);
-      for(var i=0;i<n;i++){
-        var s=document.createElement('span');
-        s.className='espil-dust';
-        var sz=Math.random()<.6?3:(Math.random()<.7?2:4);
-        s.style.width=sz+'px'; s.style.height=sz+'px';
-        s.style.left=(e.clientX+(Math.random()*8-4))+'px';
-        s.style.top=(e.clientY+(Math.random()*8-4))+'px';
-        s.style.background=COLORS[(Math.random()*COLORS.length)|0];
-        s.style.setProperty('--dx',((Math.random()*56-28)|0)+'px');
-        s.style.setProperty('--dy',((Math.random()*52-20)|0)+'px');
-        document.body.appendChild(s);
-        live++;
-        (function(el){ el.addEventListener('animationend',function(){ el.remove(); live--; }); })(s);
-      }
-    },{passive:true});
-  })();
-  </script>
-  <script>
   /* Liquid physics for the loading glass (2026-10-15, Han): the surface is a
      spring chain — each column pulls on its neighbours — rocked by an
      oscillating lateral force that grows with --p. Fast crests throw
@@ -10299,6 +10295,40 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       ctx.lineTo(W+4,H+4);
       ctx.closePath();
       ctx.fillStyle=grad; ctx.fill();
+      /* luminous sheen pooled in the upper liquid, so it glows in the glass */
+      var sheen=ctx.createLinearGradient(0,Math.max(0,baseY-8),0,Math.min(H,baseY+64));
+      sheen.addColorStop(0,'rgba(255,255,232,0.36)');
+      sheen.addColorStop(1,'rgba(255,255,232,0)');
+      ctx.fillStyle=sheen; ctx.fill();
+      /* surface glint along the simulated line */
+      ctx.beginPath();
+      for(var gx=0;gx<N;gx++){ var gy=baseY+h[gx]; if(gx===0) ctx.moveTo((gx+0.5)/N*W,gy); else ctx.lineTo((gx+0.5)/N*W,gy); }
+      ctx.strokeStyle='rgba(245,255,220,0.75)'; ctx.lineWidth=2; ctx.stroke();
+      /* bubbles */
+      ctx.strokeStyle='rgba(255,255,255,0.45)'; ctx.lineWidth=1;
+      for(var bu=0;bu<bubbles.length;bu++){ var q=bubbles[bu]; ctx.beginPath(); ctx.arc(q.x,q.y,q.r,0,6.2832); ctx.stroke(); }
+      /* droplets */
+      for(var dr=0;dr<drops.length;dr++){
+        var o=drops[dr];
+        ctx.beginPath(); ctx.arc(o.x,o.y,o.r,0,6.2832);
+        ctx.fillStyle='rgba(250,255,224,0.95)'; ctx.fill();
+        ctx.beginPath(); ctx.arc(o.x-o.r*0.3,o.y-o.r*0.3,o.r*0.38,0,6.2832);
+        ctx.fillStyle='rgba(255,255,255,0.9)'; ctx.fill();
+      }
+      requestAnimationFrame(frame);
+    }
+    running=true; requestAnimationFrame(frame);
+    /* Map-entry bridge (espilShowMapLoader): restart the liquid physics so
+       the re-shown glass fills and sloshes again. */
+    window.__espilStartLoaderPhysics=function(){
+      drops.length=0; last=performance.now();
+      if(!running){ running=true; requestAnimationFrame(frame); }
+    };
+  })();
+  </script>
+</body>
+</html>
+tx.fillStyle=grad; ctx.fill();
       /* luminous sheen pooled in the upper liquid, so it glows in the glass */
       var sheen=ctx.createLinearGradient(0,Math.max(0,baseY-8),0,Math.min(H,baseY+64));
       sheen.addColorStop(0,'rgba(255,255,232,0.36)');
