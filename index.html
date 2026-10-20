@@ -4086,15 +4086,11 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         if(!p.onGround&&!p.swimming&&!p._espilArrive&&(ix||iz))espilTryAttachClimb(p,mx,mz);
         return;
       }
-      if(walkKeys[' ']){
-        /* Han 2026-10-16: a real JUMP off the wall - the game's own
-           jump velocity plus an outward drift, one air jump left. */
-        var jv=(typeof moveSpeeds==='function')?moveSpeeds().jumpV:9;
-        espilClimbDetach(p,false);
-        p.velY=jv; p.jumps=1; p.onGround=false;
-        p._espilWallDrift={nx:cl.nx,nz:cl.nz,t:.22};
-        return;
-      }
+      /* Space wall jump: the trigger moved to the Space keydown
+         (espilSpaceWallJump) on 2026-10-19 - Cauldron calls its wall
+         jump from the keydown (EspilPort.onSpace) rather than polling
+         a held key, so a press held since before the attach no longer
+         fires it the instant the climb starts. */
       /* Detach-away must not eat the slide-down input: with the camera
          behind the character, ArrowDown points away from the wall AND
          means slide. Away-detach therefore requires an up-input (the
@@ -6996,15 +6992,46 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         }
       });
     }
+    /* Cauldron alignment (Han 2026-10-19): in Cauldron the Space
+       keydown first offers the press to the wall jump (EspilPort
+       .onSpace) and only then falls through to interact - the same
+       order as the keydown below. The jump mechanics are Han's
+       2026-10-16 wall jump unchanged: the game's own jump velocity
+       plus an outward drift, one air jump left. */
+    function espilSpaceWallJump(){
+      var p=walkPlayer; if(!p||!p._espilClimb)return false;
+      var cl=p._espilClimb;
+      var jv=(typeof moveSpeeds==='function')?moveSpeeds().jumpV:9;
+      espilClimbDetach(p,false);
+      p.velY=jv; p.jumps=1; p.onGround=false;
+      p._espilWallDrift={nx:cl.nx,nz:cl.nz,t:.22};
+      return true;
+    }
+    /* Cauldron's no-target answer (interactWithNearestPoi shows this
+       exact guidance when nothing resolves), carried on this build's
+       toast channel instead of Cauldron's dialogue panel. */
+    function espilSpaceTooFar(){
+      var t=document.getElementById('toast'); if(!t)return;
+      t.textContent='상호작용할 건물이나 가게가 너무 멉니다. 캐릭터를 건물/가게 쪽으로 더 붙인 뒤 Space를 누르세요.';
+      t.classList.add('show');
+      clearTimeout(t._sf);
+      t._sf=setTimeout(function(){t.classList.remove('show');},3400);
+    }
     function tryInteract(){
       if(!cityPhaseActive||!walkPlayer)return;
-      /* Han PC verdict 2026-10-19 #7: interact works only at the building */
-      if(typeof ESPIL_P1!=='undefined'&&ESPIL_P1&&espilRecordDistAt(walkPlayer.pos.x,walkPlayer.pos.z)>2)return;
       /* Han 2026-10-14 #2: while the store list is open, SPACE confirms the
          selection (handled by the modal key handler) — never re-fetch here.
          (Re-applied 2026-10-14 after the working-copy overwrite.) */
       var _sm=document.getElementById('store-modal');
       if(_sm&&!_sm.classList.contains('hidden'))return;
+      /* Han PC verdict 2026-10-19 #7: interact executes only at the
+         building face (record distance <= 2 m). Cauldron alignment
+         (Han 2026-10-19): past that gate the press is no longer
+         swallowed silently - Cauldron resolves in tiers (strict 14 m
+         edge / loose 44 m / POI 120 m) and answers with the too-far
+         guidance whenever nothing resolves; here the #7 execution
+         gate stands and every press past it gets Cauldron's answer. */
+      if(typeof ESPIL_P1!=='undefined'&&ESPIL_P1&&espilRecordDistAt(walkPlayer.pos.x,walkPlayer.pos.z)>2){espilSpaceTooFar();return;}
       /* Play checkout/chat animation */
       if(walkPlayer.av&&walkPlayer.av.playOneShot){
         var useCheckout=Math.random()>.5;
@@ -7995,7 +8022,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       walkKeys[k.toLowerCase()]=true;
       /* QA #8 (2026-10-06): Shift=jump, Space=interact. Shift-run deprecated. */
       if((k==='Shift')&&!e.repeat)tryJump();
-      if(k===' '&&!e.repeat)tryInteract();
+      if(k===' '&&!e.repeat){ if(!espilSpaceWallJump())tryInteract(); }
       /* Han 2026-10-10 #8: B summons/dismounts fly vehicle */
       if(k.toLowerCase()==='b'&&!e.repeat){
         if(typeof summonVehicle==='function')summonVehicle();
