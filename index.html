@@ -1969,13 +1969,13 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         <div class="st-grid" id="char-grid"><p class="st-foot">Outfit system arrives with the character update.</p></div>
       </div>
     </div>
-    <!-- QA #18 (UI room, 2026-10-09): Friends/Party panel (Y key). Local UI only — sync needs server. -->
+    <!-- QA #18 (UI room, 2026-10-09): Friends/Party panel (U key since 2026-10-19 - Y is the stall). Local UI only — sync needs server. -->
     <div class="skill-tree" id="friends-panel" aria-hidden="true" role="dialog" aria-label="Friends and party">
       <div class="st-card">
         <div class="st-head">
           <div>
             <h2>FRIENDS / PARTY</h2>
-            <p class="st-sub">Press Y to close. Friend sync needs the server.</p>
+            <p class="st-sub">Press U to close. Friend sync needs the server.</p>
           </div>
           <button class="st-close" id="friends-close" type="button" aria-label="Close friends panel">&#10005;</button>
         </div>
@@ -1989,6 +1989,47 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           <div id="friends-list"><p class="st-foot">Friend list is local only until the server is ready.</p></div>
           <p class="st-foot" style="margin-top:12px;">PARTY</p>
           <p class="st-foot">Party invites need the server — coming with multiplayer.</p>
+        </div>
+      </div>
+    </div>
+    <!-- Stall system Phase A (Han, 2026-10-19): personal stall on the Y key. Postings are local signboards - real trade and Leo settlement arrive with the server (Phase B). -->
+    <div class="skill-tree" id="stall-panel" aria-hidden="true" role="dialog" aria-label="My stall">
+      <div class="st-card">
+        <div class="st-head">
+          <div>
+            <h2>나의 좌판</h2>
+            <p class="st-sub">Y 키로 닫습니다. 좌판은 도시마다 하나만 펼칠 수 있습니다.</p>
+          </div>
+          <button class="st-close" id="stall-close" type="button" aria-label="Close stall panel">&#10005;</button>
+        </div>
+        <div class="st-grid" id="stall-grid">
+          <p class="st-foot" id="stall-status">아직 펼친 좌판이 없습니다.</p>
+          <div style="display:flex;gap:8px;margin:8px 0;flex-wrap:wrap;">
+            <button class="pill-btn" id="stall-place-btn" type="button">여기에 좌판 펼치기</button>
+            <button class="pill-btn" id="stall-remove-btn" type="button" style="display:none;">좌판 치우기</button>
+            <button class="pill-btn" id="stall-view-btn" type="button" style="display:none;">손님으로 보기</button>
+          </div>
+          <div id="stall-board"></div>
+          <div id="stall-form">
+            <p class="st-foot" style="margin-top:12px;">글 올리기</p>
+            <div style="display:flex;gap:8px;margin:8px 0;">
+              <select id="stall-side" style="padding:8px;border-radius:8px;border:1px solid rgba(134,238,228,.3);background:rgba(0,0,0,.3);color:#ddfffc;">
+                <option value="sell">팝니다</option>
+                <option value="buy">구합니다</option>
+              </select>
+              <select id="stall-kind" style="padding:8px;border-radius:8px;border:1px solid rgba(134,238,228,.3);background:rgba(0,0,0,.3);color:#ddfffc;">
+                <option value="item">물품</option>
+                <option value="service">서비스</option>
+              </select>
+            </div>
+            <input type="text" id="stall-title" placeholder="제목 (예: 에스필 하우스 모델)" style="width:100%;box-sizing:border-box;padding:8px;border-radius:8px;border:1px solid rgba(134,238,228,.3);background:rgba(0,0,0,.3);color:#ddfffc;" />
+            <div style="display:flex;gap:8px;margin:8px 0;">
+              <input type="text" id="stall-price" placeholder="가격 (Leo 숫자, 비우면 협의)" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(134,238,228,.3);background:rgba(0,0,0,.3);color:#ddfffc;" />
+              <input type="text" id="stall-note" placeholder="메모 (선택)" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(134,238,228,.3);background:rgba(0,0,0,.3);color:#ddfffc;" />
+            </div>
+            <button class="pill-btn" id="stall-add-btn" type="button">글 등록</button>
+          </div>
+          <p class="st-foot" style="margin-top:12px;">지금은 간판 글만 올릴 수 있습니다. 실제 물건 거래와 Leo 정산은 서버가 열리면 이어집니다.</p>
         </div>
       </div>
     </div>
@@ -7713,7 +7754,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       panel.setAttribute('aria-hidden',String(!open));
       if(open&&window.EspilAudio&&window.EspilAudio.tick)window.EspilAudio.tick();
     }
-    /* QA #18 (UI room, 2026-10-09): Y toggles friends/party. Local only — sync needs server. */
+    /* QA #18 (UI room, 2026-10-09): friends/party panel. Local only — sync needs server. (Key: U since 2026-10-19; Y is the stall.) */
     var friendsOpen=false;
     /* Han 2026-10-14: Settings panel — city selection lives in Options, with
        the current city as the default selected value. */
@@ -7769,6 +7810,156 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         if(window.EspilAudio&&window.EspilAudio.tick)window.EspilAudio.tick();
       }
     }
+    /* Stall system Phase A (Han, 2026-10-19): Y opens your stall at
+       your spot; friends/party moved to U. Postings are local
+       signboards (팝니다/구합니다 free-text offers) persisted per
+       city in localStorage, shaped like the future server schema -
+       no fee field: trading is person-to-person on trust. Real
+       settlement arrives with the server (Phase B). */
+    var stallOpen=false,stallVisitor=false,stallGroup=null,stallSignMat=null;
+    function stallKey(){return 'espil_stall_'+(window.__espilCityKey||'vancouver');}
+    function stallLoad(){try{var s=JSON.parse(localStorage.getItem(stallKey())||'null');return (s&&typeof s.x==='number'&&typeof s.z==='number')?s:null;}catch(_){return null;}}
+    function stallSave(s){try{if(s)localStorage.setItem(stallKey(),JSON.stringify(s));else localStorage.removeItem(stallKey());}catch(_){}}
+    function stallToast(msg){if(window.__espilToast)window.__espilToast(msg);}
+    function stallPatch(mat){if(typeof curvePatch==='function')curvePatch(mat);return mat;}
+    function stallRemoveVisual(){if(stallGroup){if(stallGroup.parent)stallGroup.parent.remove(stallGroup);stallGroup=null;stallSignMat=null;}}
+    function stallSignTexture(s){
+      var cv=document.createElement('canvas');cv.width=512;cv.height=128;
+      var c=cv.getContext('2d');
+      c.fillStyle='#54381e';c.fillRect(0,0,512,128);
+      c.strokeStyle='#c9a15a';c.lineWidth=6;c.strokeRect(4,4,504,120);
+      c.fillStyle='#ffe9a8';c.textAlign='center';c.textBaseline='middle';
+      var posts=(s&&s.posts)||[];
+      var line1='나의 좌판',line2='Y 키로 글을 올릴 수 있습니다';
+      if(posts.length){
+        var p=posts[0];
+        line1=((p.side==='buy')?'구합니다: ':'팝니다: ')+(p.title||'');
+        if(line1.length>26)line1=line1.slice(0,26)+'…';
+        line2=posts.length>1?('외 '+(posts.length-1)+'건'):(p.price?(String(p.price)+' Leo'):'가격 협의');
+      }
+      c.font='bold 42px sans-serif';c.fillText(line1,256,44);
+      c.font='28px sans-serif';c.fillStyle='#f5d98a';c.fillText(line2,256,92);
+      return new THREE.CanvasTexture(cv);
+    }
+    function stallBuildVisual(s){
+      stallRemoveVisual();
+      if(typeof THREE==='undefined'||typeof mapScene==='undefined'||!mapScene)return;
+      var g=new THREE.Group();
+      var wood=stallPatch(new THREE.MeshLambertMaterial({color:0x8a6844}));
+      var dark=stallPatch(new THREE.MeshLambertMaterial({color:0x54381e}));
+      var cloth=stallPatch(new THREE.MeshLambertMaterial({color:0xb8452e}));
+      var table=new THREE.Mesh(new THREE.BoxGeometry(1.8,0.08,0.9),wood);table.position.y=0.78;g.add(table);
+      [[-0.82,-0.38],[0.82,-0.38],[-0.82,0.38],[0.82,0.38]].forEach(function(pt){
+        var leg=new THREE.Mesh(new THREE.BoxGeometry(0.08,0.78,0.08),dark);
+        leg.position.set(pt[0],0.39,pt[1]);g.add(leg);
+      });
+      [-0.95,0.95].forEach(function(px){
+        var pole=new THREE.Mesh(new THREE.BoxGeometry(0.07,2.02,0.07),dark);
+        pole.position.set(px,1.01,-0.5);g.add(pole);
+      });
+      var canopy=new THREE.Mesh(new THREE.BoxGeometry(2.2,0.06,1.4),cloth);
+      canopy.position.set(0,2.05,-0.1);canopy.rotation.x=0.1;g.add(canopy);
+      stallSignMat=stallPatch(new THREE.MeshLambertMaterial({map:stallSignTexture(s)}));
+      var sign=new THREE.Mesh(new THREE.BoxGeometry(1.7,0.44,0.05),stallSignMat);
+      sign.position.set(0,1.52,0.47);g.add(sign);
+      g.position.set(s.x,(typeof s.y==='number'?s.y:0),s.z);
+      g.rotation.y=(typeof s.yaw==='number'?s.yaw:0);
+      mapScene.add(g);stallGroup=g;
+    }
+    function stallRefreshSign(){var s=stallLoad();if(stallSignMat&&s){stallSignMat.map=stallSignTexture(s);stallSignMat.needsUpdate=true;}}
+    function stallEnsureVisual(){var s=stallLoad();if(!s)return;if(!stallGroup||stallGroup.parent!==mapScene)stallBuildVisual(s);}
+    function stallTryPlace(){
+      if(!walkPlayer)return false;
+      if(walkPlayer.swimming){stallToast('물에서는 좌판을 펼칠 수 없습니다');return false;}
+      var x=walkPlayer.pos.x,z=walkPlayer.pos.z;
+      if(espilRecordDistAt(x,z)<1.2){stallToast('건물에 너무 가깝습니다. 열린 공간에서 펼쳐 주세요');return false;}
+      var s=stallLoad()||{posts:[]};
+      s.x=x;s.z=z;s.y=walkPlayer.pos.y;s.yaw=walkPlayer.faceY||0;s.ts=Date.now();
+      stallSave(s);stallBuildVisual(s);stallRender();
+      stallToast('좌판을 펼쳤습니다');return true;
+    }
+    function stallEsc(t){return String(t==null?'':t).replace(/[&<>"']/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];});}
+    function stallRender(){
+      var s=stallLoad();
+      var status=document.getElementById('stall-status');
+      var placeBtn=document.getElementById('stall-place-btn');
+      var removeBtn=document.getElementById('stall-remove-btn');
+      var viewBtn=document.getElementById('stall-view-btn');
+      var board=document.getElementById('stall-board');
+      var form=document.getElementById('stall-form');
+      if(!status||!board)return;
+      var posts=(s&&s.posts)||[];
+      status.textContent=s?('이 도시에 좌판이 펼쳐져 있습니다. 글 '+posts.length+'건'):'아직 펼친 좌판이 없습니다.';
+      if(placeBtn)placeBtn.textContent=s?'지금 위치로 좌판 옮기기':'여기에 좌판 펼치기';
+      if(removeBtn)removeBtn.style.display=s?'':'none';
+      if(viewBtn){viewBtn.style.display=s?'':'none';viewBtn.textContent=stallVisitor?'관리로 돌아가기':'손님으로 보기';}
+      if(form)form.style.display=(s&&!stallVisitor)?'':'none';
+      var h='';
+      if(!s){h='<p class="st-foot">좌판을 펼치면 팝니다/구합니다 글을 올릴 수 있습니다.</p>';}
+      else if(!posts.length){h='<p class="st-foot">아직 글이 없습니다. 첫 글을 올려 보세요.</p>';}
+      else{
+        for(var i=0;i<posts.length;i++){
+          var p=posts[i];
+          h+='<div style="display:flex;gap:8px;align-items:center;padding:7px 9px;margin:6px 0;border:1px solid rgba(134,238,228,.22);border-radius:8px;background:rgba(0,0,0,.25);">'
+            +'<span style="flex:none;padding:2px 8px;border-radius:99px;font-size:11px;background:'+(p.side==='buy'?'rgba(90,140,255,.35)':'rgba(255,150,60,.35)')+';color:#eaf6ff;">'+(p.side==='buy'?'구합니다':'팝니다')+'</span>'
+            +'<span style="flex:1;color:#ddfffc;font-size:13px;">'+stallEsc(p.title)+' <span style="opacity:.65;">('+(p.kind==='service'?'서비스':'물품')+')</span>'
+            +(p.note?'<br><span style="opacity:.65;font-size:12px;">'+stallEsc(p.note)+'</span>':'')
+            +'</span>'
+            +'<span style="flex:none;color:#ffe9a8;font-size:13px;">'+(p.price?stallEsc(p.price)+' Leo':'가격 협의')+'</span>'
+            +(stallVisitor?'':'<button class="pill-btn" data-stall-del="'+stallEsc(p.id)+'" type="button">삭제</button>')
+            +'</div>';
+        }
+      }
+      if(stallVisitor&&s)h='<p class="st-foot">손님 눈에 보이는 좌판입니다.</p>'+h;
+      board.innerHTML=h;
+      if(!stallVisitor){
+        var dels=board.querySelectorAll('[data-stall-del]');
+        for(var j=0;j<dels.length;j++){dels[j].addEventListener('click',function(ev){
+          var id=ev.currentTarget.getAttribute('data-stall-del');
+          var st=stallLoad();if(!st||!st.posts)return;
+          st.posts=st.posts.filter(function(p){return p.id!==id;});
+          stallSave(st);stallRefreshSign();stallRender();
+        });}
+      }
+    }
+    function toggleStallPanel(force){
+      var panel=document.getElementById('stall-panel');if(!panel)return;
+      var open=typeof force==='boolean'?force:!stallOpen;
+      if(open&&!stallLoad()){
+        /* Y at a spot with no stall yet opens the stall right here
+           (Han 2026-10-19). If the spot cannot hold one, the panel
+           still opens so the reason (toast) and the retry are clear. */
+        stallTryPlace();
+      }
+      stallOpen=open;panel.setAttribute('aria-hidden',String(!open));
+      if(open){stallEnsureVisual();stallRender();}
+    }
+    (function stallWire(){
+      var close=document.getElementById('stall-close');
+      if(close)close.addEventListener('click',function(){toggleStallPanel(false);});
+      var place=document.getElementById('stall-place-btn');
+      if(place)place.addEventListener('click',function(){stallTryPlace();});
+      var rem=document.getElementById('stall-remove-btn');
+      if(rem)rem.addEventListener('click',function(){stallSave(null);stallRemoveVisual();stallVisitor=false;stallRender();stallToast('좌판을 치웠습니다');});
+      var view=document.getElementById('stall-view-btn');
+      if(view)view.addEventListener('click',function(){stallVisitor=!stallVisitor;stallRender();});
+      var add=document.getElementById('stall-add-btn');
+      if(add)add.addEventListener('click',function(){
+        var s=stallLoad();if(!s){stallToast('먼저 좌판을 펼쳐 주세요');return;}
+        var titleEl=document.getElementById('stall-title');
+        var title=(titleEl.value||'').trim();
+        if(!title){stallToast('제목을 적어 주세요');return;}
+        s.posts=s.posts||[];
+        s.posts.unshift({id:'p'+Date.now().toString(36)+Math.floor(Math.random()*999),side:document.getElementById('stall-side').value,kind:document.getElementById('stall-kind').value,title:title,price:(document.getElementById('stall-price').value||'').trim(),note:(document.getElementById('stall-note').value||'').trim(),ts:Date.now()});
+        stallSave(s);stallRefreshSign();stallRender();
+        titleEl.value='';document.getElementById('stall-price').value='';document.getElementById('stall-note').value='';
+        stallToast('글을 올렸습니다');
+      });
+    })();
+    setInterval(function(){
+      if(!document.body.classList.contains('in-map')){if(stallGroup)stallRemoveVisual();return;}
+      stallEnsureVisual();
+    },1200);
     function teleportHome(){
       /* QA #14 placeholder: no home set yet → go to spawn, toast notice. */
       if(window.__espilToast)window.__espilToast('집 위치가 아직 설정되지 않았어요');
@@ -8026,6 +8217,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         if(inventoryOpen)toggleInventory(false);
         if(characterOpen)toggleCharacterPanel(false);
         if(friendsOpen)toggleFriendsPanel(false);
+        if(stallOpen)toggleStallPanel(false);
         if(settingsOpen)toggleSettingsPanel(false);
         var _sm=document.getElementById('store-modal');
         if(_sm&&!_sm.classList.contains('hidden'))_sm.classList.add('hidden');
@@ -8062,7 +8254,13 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           /* QA #14 (UI room): P toggles character status + outfit. */
           if(!e.repeat)toggleCharacterPanel();
         }else if(lk==='y'){
-          /* QA #18 (UI room, 2026-10-09): Y toggles friends/party. */
+          /* Stall system (Han, 2026-10-19): Y toggles the personal
+             stall panel (and opens a stall at your spot if none is
+             out yet). Friends/party moved to U. */
+          if(!e.repeat)toggleStallPanel();
+        }else if(lk==='u'){
+          /* QA #18 (UI room, 2026-10-09): friends/party - moved from
+             Y to U on 2026-10-19 when Y became the stall key. */
           if(!e.repeat)toggleFriendsPanel();
         }else if(lk==='m'){
           /* QA #7 (UI room, 2026-10-09): M cycles map stages 1→2→3→1. */
