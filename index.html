@@ -1316,6 +1316,29 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       box-shadow:0 0 18px rgba(64,255,205,.5); pointer-events:none;
     }
     @media (pointer:coarse) { .joystick { display:block; } }
+    /* Mobile layout (Han 2026-10-20): lighter UI sized in vw/vh,
+       far fewer buttons. RIGHT: the direction joystick at opacity
+       .1 (brightening while dragged). LEFT: JUMP + INTERACT as the
+       two moderate circles, the skill quickbar shrunk to small
+       circles above them. The separate ATTACK button folds away -
+       punch is already one of the move slots. The chat log becomes
+       touch-scrollable (its flow was already the classic
+       scroll-down: append at the bottom, pinned to the newest). */
+    @media (pointer:coarse) {
+      .joystick { left:auto; right:4vw; bottom:calc(4vh + env(safe-area-inset-bottom)); width:min(30vmin,148px); height:min(30vmin,148px); opacity:.1; }
+      .joystick.joy-live { opacity:.35; }
+      .joy-knob { width:38%; height:38%; margin:-19% 0 0 -19%; }
+      body.in-map .map-attack { display:none !important; }
+      .map-jump { width:min(15vmin,72px); height:min(15vmin,72px); left:4vw; right:auto; bottom:calc(4vh + env(safe-area-inset-bottom)); }
+      .map-interact { left:calc(4vw + min(15vmin,72px) + 2.5vw); }
+      #quickbar { --kb:min(9.5vmin,46px); left:4vw; right:auto; bottom:calc(4vh + min(15vmin,72px) + 2vh + env(safe-area-inset-bottom)); grid-template-columns:repeat(5,var(--kb)); gap:1.4vmin; padding:1.2vmin; border-width:1px; background:rgba(8,8,12,.18); }
+      #quickbar .kb-menu, #quickbar #item-row { display:none; } /* button reduction (aligned with the UI room): move slots + flasks only on mobile */
+      #quickbar .move-slot { width:var(--kb); height:var(--kb); }
+      #quickbar .flask-wrap { width:var(--kb); height:var(--kb); }
+      #quickbar .flask { width:calc(var(--kb)*.82); height:calc(var(--kb)*.82); }
+      .chat-window { left:3vw; width:min(46vw,340px); bottom:calc(6vh + 39vmin + env(safe-area-inset-bottom)); }
+      #chat-log { pointer-events:auto; }
+    }
     /* 2026-10-12 (Han): landscape-first on mobile — rotate prompt in portrait. */
     #rotate-overlay { display:none; }
     @media (pointer:coarse) and (orientation:portrait) {
@@ -1870,6 +1893,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     </div>
     <div id="rotate-overlay" aria-hidden="true"><div class="rotate-phone">&#128241;</div><div>Please rotate your device to landscape</div></div>
     <button class="map-jump" id="map-jump" type="button" aria-label="Jump">JUMP</button>
+    <button class="map-jump map-interact" id="map-interact" type="button" aria-label="Interact">USE</button>
     <button class="map-attack" id="map-attack" type="button" aria-label="Attack">&#9876;&#65039;</button>
     <div class="map-status" id="map-status" aria-hidden="true">
       <!-- Han 2026-10-14: HP/MP moved to the glass potion flasks in the bottom HUD. -->
@@ -8453,6 +8477,11 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     (function wireSkillHud(){
       var atk=document.getElementById('map-attack');
       if(atk)atk.addEventListener('pointerdown',function(e){e.preventDefault();doMove('punch');});
+      /* INTERACT button (Han 2026-10-20 mobile layout): the touch
+         twin of Space - wall jump first while climbing, then the
+         building/store interact, exactly the keydown order. */
+      var itb=document.getElementById('map-interact');
+      if(itb)itb.addEventListener('pointerdown',function(e){e.preventDefault();if(!espilSpaceWallJump())tryInteract();});
       var tt=document.getElementById('tree-toggle');
       if(tt)tt.addEventListener('click',function(e){e.stopPropagation();toggleSkillTree();});
       var sc=document.getElementById('st-close');
@@ -9071,21 +9100,24 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     (function(){
       var joy=document.getElementById('joystick'),knob=document.getElementById('joy-knob');
       if(!joy)return;
-      var joyActive=false,joyCX=0,joyCY=0;
+      var joyActive=false,joyCX=0,joyCY=0,joyMax=44;
       function setKnob(dx,dy){
-        if(knob)knob.style.transform='translate('+Math.max(-28,Math.min(28,dx))+'px,'+Math.max(-28,Math.min(28,dy))+'px)';
+        var kc=joyMax*0.64;
+        if(knob)knob.style.transform='translate('+Math.max(-kc,Math.min(kc,dx))+'px,'+Math.max(-kc,Math.min(kc,dy))+'px)';
       }
       joy.addEventListener('pointerdown',function(e){
         if(!document.body.classList.contains('in-map'))return;
         joyActive=true;
+        joy.classList.add('joy-live');
         try{joy.setPointerCapture(e.pointerId);}catch(err){}
         var r=joy.getBoundingClientRect();joyCX=r.left+r.width/2;joyCY=r.top+r.height/2;
+        joyMax=Math.max(30,r.width*0.32); /* knob travel scales with the stick (Han 2026-10-20: vmin-sized) */
         e.preventDefault();
       });
       joy.addEventListener('pointermove',function(e){
         if(!joyActive||!document.body.classList.contains('in-map'))return;
         var dx=e.clientX-joyCX,dy=e.clientY-joyCY;
-        var len=Math.sqrt(dx*dx+dy*dy),max=44;
+        var len=Math.sqrt(dx*dx+dy*dy),max=joyMax;
         if(len>max){dx=dx/len*max;dy=dy/len*max;}
         setKnob(dx,dy);
         window.__joyVec.x=dx/max;window.__joyVec.y=dy/max;
@@ -9093,6 +9125,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       });
       function joyEnd(){
         joyActive=false;
+        joy.classList.remove('joy-live');
         window.__joyVec.x=0;window.__joyVec.y=0;
         if(knob)knob.style.transform='';
       }
