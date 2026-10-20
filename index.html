@@ -5146,7 +5146,8 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         var prev=av.actions[av.curAnim],next=av.actions[name];
         av.curAnim=name;
         next.reset().fadeIn(.18).play();
-        if(prev&&prev!==next){prev.fadeOut(.18);(function(pp){setTimeout(function(){pp.stop();},220);})(prev);}
+        next.__espilGen=(next.__espilGen||0)+1;
+        if(prev&&prev!==next){prev.fadeOut(.18);(function(pp,gg){setTimeout(function(){if(pp.__espilGen===gg)pp.stop();},220);})(prev,prev.__espilGen||0);}
       };
       try{
         if(typeof THREE.GLTFLoader==='undefined')throw new Error('no GLTFLoader');
@@ -5202,9 +5203,10 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
                    bind pose kept playing and playAnim('idle') early-
                    returned forever. The new clip now crossfades in. */
                 if(oldAct&&oldAct!==act&&av.curAnim===actionName){
+                  act.__espilGen=(act.__espilGen||0)+1;
                   act.reset().fadeIn(.15).play();
                   oldAct.fadeOut(.15);
-                  (function(pp){setTimeout(function(){pp.stop();},200);})(oldAct);
+                  (function(pp,gg){setTimeout(function(){if(pp.__espilGen===gg)pp.stop();},200);})(oldAct,oldAct.__espilGen||0);
                 }
               });
             }catch(e){/* optional — fallback to built-in */}
@@ -5346,16 +5348,27 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
             if(!act)return false;
             var cur=av.actions[av.curAnim];
             av.curAnim=name;
+            /* Generation guard (Han jump-bug report, 2026-10-19): every
+               scheduled stop below captures the action's generation and
+               fires only if the action was not restarted meanwhile. The
+               blind timers used to kill a live action whenever the same
+               clip restarted inside the fade window (land -> selector
+               crossfade schedules stop(jump) at +220 ms -> instant
+               re-jump restarts that same action -> the stale stop fires
+               mid-jump and the model slides with no driving action
+               until the one-shot timer clears). */
+            act.__espilGen=(act.__espilGen||0)+1;
+            var actGen=act.__espilGen;
             act.reset().fadeIn(.12).play();
             if(cur&&cur!==act){
               cur.fadeOut(.12);
-              (function(pp){setTimeout(function(){pp.stop();},180);})(cur);
+              (function(pp,gg){setTimeout(function(){if(pp.__espilGen===gg)pp.stop();},180);})(cur,cur.__espilGen||0);
             }
             var dur=durMs||((act.getClip().duration||2)*1000);
             setTimeout(function(){
               if(av.curAnim!==name)return;
               act.fadeOut(.15);
-              setTimeout(function(){act.stop();},180);
+              setTimeout(function(){if(act.__espilGen===actGen)act.stop();},180);
               av.curAnim=null;
             },dur);
             return true;
