@@ -1122,6 +1122,26 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       color:var(--muted); font-size:1.5rem; line-height:1; cursor:pointer; padding:4px 8px;
     }
     .modal-close:hover { color:#fff; }
+    /* ---- Notice panel (Han 2026-10-19): same modal family, wider,
+       left-aligned sections. Content lives in ESPIL_NOTICE_CONTENT
+       (one array per section) so a notice update is a one-push edit. ---- */
+    .notice-modal { width:min(580px,100%); text-align:left; }
+    .notice-modal h2 { text-align:center; }
+    .notice-modal .modal-sub { text-align:center; }
+    .notice-sec { margin-top:18px; }
+    .notice-sec h3 {
+      margin:0 0 8px; font:800 .78rem/1.3 "Manrope",sans-serif; letter-spacing:.14em;
+      color:#a9ecec; text-transform:uppercase;
+      border-bottom:1px solid rgba(134,238,228,.16); padding-bottom:6px;
+    }
+    .notice-list { margin:0; padding:0 0 0 2px; list-style:none; }
+    .notice-list li {
+      position:relative; margin:0 0 7px; padding-left:14px;
+      font-size:.84rem; line-height:1.55; color:#dcebe9;
+    }
+    .notice-list li::before { content:"•"; position:absolute; left:0; color:#7fd8d0; }
+    .notice-date { color:#8fb8b3; font-weight:700; white-space:nowrap; }
+    #notice-open { font:700 .72rem/1 "Manrope",sans-serif; letter-spacing:.08em; }
     .provider-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px; }
     .provider {
       position:relative; appearance:none; display:flex; align-items:center; gap:10px;
@@ -1666,6 +1686,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     <div id="city-pins" aria-hidden="true"></div>
     <header class="topbar">
       <div class="topbar-actions">
+        <button class="pill-btn" id="notice-open" type="button" aria-label="공지사항 열기">공지</button>
         <button class="pill-btn" id="bgm-toggle" type="button" aria-pressed="true" aria-label="Toggle theme music" aria-describedby="bgm-card">&#9834;</button>
         <!-- Exit city (Han 2026-10-18): top-right next to the music
              button, visible only while inside a city. -->
@@ -1701,6 +1722,29 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           <button class="provider" type="button" data-provider="Facebook" disabled><span class="p-dot" style="background:#1877F2;color:#1877F2"></span>Facebook</button>
         </div>
         <button class="provider guest-enter" id="guest-enter" type="button">ENTER AS GUEST</button>
+      </div>
+    </div>
+    <!-- Notice panel (Han 2026-10-19): opened from the landing topbar.
+         Sections render from ESPIL_NOTICE_CONTENT below - edit the
+         arrays to update the notice; the markup never changes. -->
+    <div class="modal-backdrop" id="notice-modal" aria-hidden="true">
+      <div class="modal notice-modal" role="dialog" aria-modal="true" aria-label="공지사항">
+        <button class="modal-close" id="notice-close" type="button" aria-label="공지사항 닫기">&times;</button>
+        <h2>공지사항</h2>
+        <p class="modal-sub">Espil Online 소식과 업데이트</p>
+        <ul class="notice-list" id="notice-announce"></ul>
+        <div class="notice-sec">
+          <h3>업데이트</h3>
+          <ul class="notice-list" id="notice-updates"></ul>
+        </div>
+        <div class="notice-sec">
+          <h3>예정</h3>
+          <ul class="notice-list" id="notice-planned"></ul>
+        </div>
+        <div class="notice-sec">
+          <h3>알려진 이슈와 버그 신고</h3>
+          <ul class="notice-list" id="notice-issues"></ul>
+        </div>
       </div>
     </div>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -2703,6 +2747,63 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(panel)panel.setAttribute('aria-hidden','true');
       enterWalkMap();
     }
+    /* Notice panel content (Han 2026-10-19, from the git record,
+       wording by the COO): to update the notice, edit these arrays
+       only - the panel renders from them at boot. */
+    var ESPIL_NOTICE_CONTENT={
+      announce:[
+        'Espil Online은 현재 게스트 입장으로 누구나 플레이할 수 있습니다. 계정 시스템 (구글 로그인)은 준비 중입니다.',
+        '플레이 가능 도시: 밴쿠버, 오클랜드. 도쿄는 제작이 끝나 개방을 앞두고 있고, 뉴욕을 제작 중입니다.',
+        '캐릭터는 남성과 여성 중 선택할 수 있습니다. 캐릭터 커스터마이즈는 준비 중입니다.'
+      ],
+      updates:[
+        {d:'2026-10-18',t:'정식 오픈 구성: 게스트 입장만으로 플레이할 수 있게 됐고, 밴쿠버가 첫 플레이 도시로 열렸습니다.'},
+        {d:'2026-10-18',t:'여성 아바타: 여성 캐릭터와 전용 애니메이션 14종이 적용됐습니다.'},
+        {d:'2026-10-18',t:'첫 소환 위치 변경: 처음 입장하면 밴쿠버 아트갤러리 앞 광장에 도착합니다.'},
+        {d:'2026-10-18',t:'오클랜드 개방: 두 번째 플레이 가능 도시로 오클랜드 (Queen Street)가 열렸습니다.'},
+        {d:'2026-10-17',t:'지도 엔진 전환: 세계가 Mapbox 지도를 기반으로 재구축됐습니다. 보이는 건물이 곧 벽과 지붕이 되는 충돌 구조, 건물 오르기, 카메라 중심 프레이밍이 들어갔습니다.'},
+        {d:'2026-10-16',t:'글래스 로더: 로딩 화면이 유리 글래스 로더로 표준화됐습니다. 퍼센트와 상태 문구 없이 액체가 차오르는 것으로 진행을 표시합니다.'},
+        {d:'2026-10-14',t:'장소 검색 개선: 도시 안 장소 검색이 서버 경유로 바뀌어 안정화됐습니다.'},
+        {d:'2026-10-11',t:'초기 구축: 캐릭터 모델 세트, 인게임 채팅 창, 상태 HUD와 미니맵이 갖춰졌습니다.'}
+      ],
+      planned:[
+        '도쿄 개방, 뉴욕과 파리, 런던 제작',
+        '구글 로그인 (계정 시스템)',
+        '좌판: Y키로 여는 개인 상점, 유저 간 물품과 서비스 거래',
+        '세계 곡률 (curve 1400): Dive 전환과 함께 지형의 굴곡이 형성되는 연출'
+      ],
+      issues:[
+        '알려진 이슈: 여성 캐릭터의 걷기와 뛰기 애니메이션이 회선이 느리면 늦게 붙을 수 있습니다. 파일 경량화 수정이 진행 중입니다.',
+        '알려진 이슈: 첫 로딩이 길게 느껴질 수 있습니다. 로딩 구조 개선이 진행 중입니다.',
+        '버그 신고 채널: 이메일 han@espil.online (제목에 [버그]를 붙여 주십시오), 또는 인스타그램 @espil_online DM.',
+        '신고에 함께 보내 주시면 좋은 것: 도시 이름과 위치, 무엇을 했을 때 생겼는지, 가능하면 스크린샷 한 장.'
+      ]
+    };
+    (function wireNoticePanel(){
+      function fill(id,items,withDate){
+        var ul=document.getElementById(id); if(!ul)return;
+        ul.innerHTML='';
+        items.forEach(function(it){
+          var li=document.createElement('li');
+          if(withDate){ var s=document.createElement('span'); s.className='notice-date'; s.textContent=it.d+' - '; li.appendChild(s); li.appendChild(document.createTextNode(it.t)); }
+          else li.textContent=it;
+          ul.appendChild(li);
+        });
+      }
+      fill('notice-announce',ESPIL_NOTICE_CONTENT.announce,false);
+      fill('notice-updates',ESPIL_NOTICE_CONTENT.updates,true);
+      fill('notice-planned',ESPIL_NOTICE_CONTENT.planned,false);
+      fill('notice-issues',ESPIL_NOTICE_CONTENT.issues,false);
+      var modal=document.getElementById('notice-modal');
+      var openBtn=document.getElementById('notice-open');
+      var closeBtn=document.getElementById('notice-close');
+      function open(){ if(modal)modal.setAttribute('aria-hidden','false'); if(window.EspilAudio&&window.EspilAudio.pop)window.EspilAudio.pop(); }
+      function close(){ if(modal)modal.setAttribute('aria-hidden','true'); }
+      if(openBtn)openBtn.addEventListener('click',open);
+      if(closeBtn)closeBtn.addEventListener('click',close);
+      if(modal)modal.addEventListener('click',function(e){ if(e.target===modal)close(); });
+      document.addEventListener('keydown',function(e){ if(e.key==='Escape')close(); });
+    })();
     (function wireCharCustom(){
       var male=document.getElementById('char-male');
       var female=document.getElementById('char-female');
