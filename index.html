@@ -3490,14 +3490,15 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     /* --- GLOBE DIVE ARRIVAL (guide step 5, Han 2026-10-21; profile
        fixed with the Assets room: 25 m fall, about 1.4 s at the game's
        own gravity 26, existing dive/land clips - pose entry + clamp
-       hold, land into recovery). Runs only for a fresh summon that
-       crossed the page split (espil_pending_city set) at the city
-       spawn; resumed positions never dive. Seam contract with the UI
-       room: espil-arrival and the guide arrival fire at FALL START so
-       their 1.7 s cloud pierce plays over the fall; control unlocks
-       when the 2.9 s envelope ends. --- */
-    var espilDivePending=false;
-    try{ espilDivePending=!!sessionStorage.getItem('espil_pending_city'); }catch(e){}
+       hold, land into recovery). Scope: EVERY city entry dives
+       (Han, 2026-10-21, via the reporting room: "모든 도시 진입은
+       다이브가 필요합니다") - fresh summons, direct visits, city
+       switches, out-of-bounds saves resolved to the boundary, and
+       in-bounds resumes at the saved spot alike; the earlier
+       pending-city / fresh-spawn-only gating is removed. Seam
+       contract with the UI room: espil-arrival and the guide arrival
+       fire at FALL START so their 1.7 s cloud pierce plays over the
+       fall; control unlocks when the 2.9 s envelope ends. --- */
     function espilBeginDiveArrival(tx,tz){
       var p=walkPlayer; if(!p)return;
       espilInjectStyle();
@@ -3511,6 +3512,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       walkCamDist=60;
       if(typeof espilP1!=='undefined'&&espilP1)espilP1.zoomDrive=false;
       if(typeof walkAvatar!=='undefined'&&walkAvatar&&walkAvatar.playDive)walkAvatar.playDive();
+      espilShowGeoPrompt();
       espilUiRise();
       window.__espilLastDive={city:espilCityKey(),at:Date.now()};
       window.__espilLastArrival={city:espilCityKey(),at:Date.now()};
@@ -4058,8 +4060,19 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
            the tile loading interval and closes on settle. */
         var inside=cfg.bounds?(last.x>=cfg.bounds.x0&&last.x<=cfg.bounds.x1&&last.z>=cfg.bounds.z0&&last.z<=cfg.bounds.z1):espilInBoundary(last.x,last.z,1); /* Han PC verdict 2026-10-19 #9: the resume test is the playable extent (cfg.bounds); the downtown boundary polygon now only resolves OUT-of-extent saves (option B below) */
         if(inside){
+          /* Han 2026-10-21 (reporting room): ALL city entries dive -
+             an in-bounds resume now also drops the last 25 m onto the
+             saved spot once the city is ready (supersedes the
+             2026-10-19 no-descent resume). */
           espilEntrySpawn={x:last.x,z:last.z};
-          espilShowMapLoader(); espilWatchLoaderSettle();
+          espilShowMapLoader();
+          var rtries=0;
+          (function resumeDiveWhenReady(){
+            if(!walkPlayer)return;
+            if(espilCitySettled()&&espilP1EntryLive()){ espilHideMapLoader(); espilBeginDiveArrival(last.x,last.z); return; }
+            if(++rtries>125){ espilHideMapLoader(); espilBeginDiveArrival(last.x,last.z); return; }
+            setTimeout(resumeDiveWhenReady,200);
+          })();
           return;
         }
         /* Han 2026-10-15 (option B): a saved position OUTSIDE the
@@ -4087,8 +4100,8 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
            city is ready (avatar in, OSM city built, spawn chunk
            present) - the loader closes on this same tick, so the
            fall is the first thing seen. */
-        if(espilCitySettled()&&espilP1EntryLive()){ espilHideMapLoader(); ((espilDivePending&&cfg.spawn&&target.x===cfg.spawn.x&&target.z===cfg.spawn.z)?espilBeginDiveArrival:espilBeginArrival)(target.x,target.z); return; }
-        if(++tries>125){ espilHideMapLoader(); ((espilDivePending&&cfg.spawn&&target.x===cfg.spawn.x&&target.z===cfg.spawn.z)?espilBeginDiveArrival:espilBeginArrival)(target.x,target.z); return; } /* 25 s failsafe */
+        if(espilCitySettled()&&espilP1EntryLive()){ espilHideMapLoader(); espilBeginDiveArrival(target.x,target.z); return; }
+        if(++tries>125){ espilHideMapLoader(); espilBeginDiveArrival(target.x,target.z); return; } /* 25 s failsafe */
         setTimeout(beginWhenReady,200);
       })();
     }
@@ -6925,7 +6938,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       /* 5km city: load initial chunks around spawn. */
       if(walkPlayer)updateChunks(walkPlayer.pos.x,walkPlayer.pos.z);
       cityPhaseActive=true;
-      espilEntryStart(); /* ESPIL TILES BRIDGE (self-city port, 2026-10-16): fresh entries arrive by sky descent; inside-boundary saves resume directly */
+      espilEntryStart(); /* ESPIL TILES BRIDGE (self-city port, 2026-10-16): entries arrive by sky descent; since Han 2026-10-21 ALL entries dive, in-bounds resumes included */
       targetDistance=1.34; /* continue the entry dive (2026-10-06 QA #3) */
       /* Han 2026-10-14: city name shows ONCE, big and front-center, on entry. */
       var ci=document.getElementById('city-intro'),cin=document.getElementById('city-intro-name');
