@@ -3487,6 +3487,36 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        leads the map zoom in P1 mode. The entry target itself (city
        spawn or the resolved boundary point) is unchanged, so the
        per-city spawn accuracy is exactly what the descent had. --- */
+    /* --- GLOBE DIVE ARRIVAL (guide step 5, Han 2026-10-21; profile
+       fixed with the Assets room: 25 m fall, about 1.4 s at the game's
+       own gravity 26, existing dive/land clips - pose entry + clamp
+       hold, land into recovery). Runs only for a fresh summon that
+       crossed the page split (espil_pending_city set) at the city
+       spawn; resumed positions never dive. Seam contract with the UI
+       room: espil-arrival and the guide arrival fire at FALL START so
+       their 1.7 s cloud pierce plays over the fall; control unlocks
+       when the 2.9 s envelope ends. --- */
+    var espilDivePending=false;
+    try{ espilDivePending=!!sessionStorage.getItem('espil_pending_city'); }catch(e){}
+    function espilBeginDiveArrival(tx,tz){
+      var p=walkPlayer; if(!p)return;
+      espilInjectStyle();
+      document.body.classList.add('espil-ui-pre');
+      var base=espilTileBase(tx,tz);
+      if(base===null)base=espilOwnSurfaceY(tx,tz);
+      if(base===null||base===undefined)base=0;
+      p.pos.x=tx; p.pos.z=tz; p.pos.y=base+25;
+      p.velY=0; p.onGround=false; p.jumps=0;
+      p._espilArrive={dive:true,surf:base,velY:0,landed:false,startedAt:performance.now(),dur:2900};
+      walkCamDist=60;
+      if(typeof espilP1!=='undefined'&&espilP1)espilP1.zoomDrive=false;
+      if(typeof walkAvatar!=='undefined'&&walkAvatar&&walkAvatar.playDive)walkAvatar.playDive();
+      espilUiRise();
+      window.__espilLastDive={city:espilCityKey(),at:Date.now()};
+      window.__espilLastArrival={city:espilCityKey(),at:Date.now()};
+      try{ window.dispatchEvent(new CustomEvent('espil-arrival',{detail:{city:espilCityKey()}})); }catch(e){}
+      try{ window.dispatchEvent(new CustomEvent('espil-guide',{detail:{type:'arrival',city:espilCityKey()}})); }catch(e){}
+    }
     function espilBeginArrival(tx,tz){
       var p=walkPlayer; if(!p)return;
       espilInjectStyle();
@@ -3504,6 +3534,18 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     }
     function espilArrivalStep(p,dt){
       var a=p._espilArrive; if(!a)return;
+      if(a.dive){
+        var nowD=performance.now();
+        if(!a.landed){
+          a.velY-=26*dt; p.pos.y+=a.velY*dt;
+          if(p.pos.y<=a.surf){ p.pos.y=a.surf; p.onGround=true; a.landed=true;
+            if(typeof walkAvatar!=='undefined'&&walkAvatar&&walkAvatar.playLand)walkAvatar.playLand(); }
+        }
+        var td=Math.max(0,Math.min(1,(nowD-a.startedAt)/a.dur));
+        var fd=1-td; walkCamDist=14+46*fd*fd;
+        if(td>=1){ p._espilArrive=null; walkCamDist=14; espilHideGeoPrompt(); }
+        return;
+      }
       var now=performance.now();
       if(now-a.probeAt>150){ a.probeAt=now; var y=espilTileBase(p.pos.x,p.pos.z); if(y===null)y=espilOwnSurfaceY(p.pos.x,p.pos.z); if(y!==null&&y!==undefined)a.surf=y; }
       if(a.surf!==null&&a.surf!==undefined){ p.pos.y=a.surf; p.onGround=true; }
@@ -3514,6 +3556,17 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         walkCamDist=14;
         espilHideGeoPrompt();
         espilUiRise();
+        /* GUIDE HOOKS (joint guide project, 2026-10-21): the guide
+           layer watches ACTIONS, not clicks, so the build reports the
+           moments a taught action completes. Contract with the UI room:
+           one event, 'espil-guide', with detail.type in arrival /
+           interior / bought / stall-open / stall-listed. This site also
+           fires 'espil-arrival' (the Time Machine quest's Dive hook)
+           and sets the latch window.__espilLastArrival. Listeners can
+           never break play: every dispatch is guarded. */
+        window.__espilLastArrival={city:espilCityKey(),at:Date.now()};
+        try{ window.dispatchEvent(new CustomEvent('espil-arrival',{detail:{city:espilCityKey()}})); }catch(e){}
+        try{ window.dispatchEvent(new CustomEvent('espil-guide',{detail:{type:'arrival',city:espilCityKey()}})); }catch(e){}
       }
     }
     /* --- map loading screen (Han 2026-10-16): the standard water-
@@ -4034,8 +4087,8 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
            city is ready (avatar in, OSM city built, spawn chunk
            present) - the loader closes on this same tick, so the
            fall is the first thing seen. */
-        if(espilCitySettled()&&espilP1EntryLive()){ espilHideMapLoader(); espilBeginArrival(target.x,target.z); return; }
-        if(++tries>125){ espilHideMapLoader(); espilBeginArrival(target.x,target.z); return; } /* 25 s failsafe */
+        if(espilCitySettled()&&espilP1EntryLive()){ espilHideMapLoader(); ((espilDivePending&&cfg.spawn&&target.x===cfg.spawn.x&&target.z===cfg.spawn.z)?espilBeginDiveArrival:espilBeginArrival)(target.x,target.z); return; }
+        if(++tries>125){ espilHideMapLoader(); ((espilDivePending&&cfg.spawn&&target.x===cfg.spawn.x&&target.z===cfg.spawn.z)?espilBeginDiveArrival:espilBeginArrival)(target.x,target.z); return; } /* 25 s failsafe */
         setTimeout(beginWhenReady,200);
       })();
     }
@@ -7995,9 +8048,195 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        no fee field: trading is person-to-person on trust. Real
        settlement arrives with the server (Phase B). */
     var stallOpen=false,stallVisitor=false,stallGroup=null,stallSignMat=null;
+    /* --- TIME STONE (Time Machine quest, joint production 2026-10-21):
+       the gateway beat before Zealandia. The stone stands in Auckland
+       on the spawn-to-portal axis (fall point confirmed by the map
+       room: world (10382, -1018), 80.7 m from the spawn and 79.5 m
+       from the portal, 14.6 m clear of every footprint, land class).
+       Wiring contract with the UI room: 'espil-arrival' (detail.city)
+       is the Dive entry point; entering 3.2 m fires
+       'espil-timemachine-near' once per approach (re-arms past 4.5 m);
+       the interact key within the 2 m execution range fires
+       'espil-timemachine-interact' and records the completion flag
+       espil_timemachine_done. The crack reveal is the UI layer's. The
+       final stone mesh comes from the Plushy pipeline; this standing
+       placeholder keeps the portal's teal language. --- */
+    var ESPIL_TIMESTONE={x:10382,z:-1018};
+    window.__espilTimeStonePos={x:ESPIL_TIMESTONE.x,z:ESPIL_TIMESTONE.z};
+    var espilTimeStoneGroup=null, espilTimeStoneNear=false, espilTimeStoneArmed=true;
+    window.__espilTimeStoneNear=false;
+    function espilBuildTimeStone(){
+      if(espilTimeStoneGroup||typeof mapScene==='undefined'||!mapScene)return;
+      var y=0; try{ var sy=espilOwnSurfaceY(ESPIL_TIMESTONE.x,ESPIL_TIMESTONE.z); if(typeof sy==='number')y=sy; }catch(e){}
+      var g=new THREE.Group();
+      var stoneMat=new THREE.MeshLambertMaterial({color:0x0f3f3a,emissive:0x14e5c5,emissiveIntensity:0.85});
+      var stone=new THREE.Mesh(new THREE.OctahedronGeometry(0.95),stoneMat);
+      stone.position.set(0,1.5,0); stone.name='espilTimeStoneCore';
+      g.add(stone);
+      var ringMat=new THREE.MeshBasicMaterial({color:0x14e5c5,transparent:true,opacity:0.55,side:THREE.DoubleSide});
+      var ring=new THREE.Mesh(new THREE.RingGeometry(1.7,2.15,40),ringMat);
+      ring.rotation.x=-Math.PI/2; ring.position.y=0.06;
+      g.add(ring);
+      var beamMat=new THREE.MeshBasicMaterial({color:0x9ff5e6,transparent:true,opacity:0.16,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide});
+      var beam=new THREE.Mesh(new THREE.CylinderGeometry(0.5,1.5,60,12,1,true),beamMat);
+      beam.position.y=30;
+      g.add(beam);
+      g.position.set(ESPIL_TIMESTONE.x,y,ESPIL_TIMESTONE.z);
+      mapScene.add(g);
+      espilTimeStoneGroup=g;
+      window.__espilTimeStoneBuilt=true;
+      window.__espilTimeStoneGroup=g;
+    }
+    setInterval(function(){
+      if(!document.body.classList.contains('in-map'))return;
+      if(!espilTimeStoneGroup){
+        if(espilCityKey()==='auckland'&&typeof mapScene!=='undefined'&&mapScene)espilBuildTimeStone();
+        return;
+      }
+      var core=espilTimeStoneGroup.getObjectByName?espilTimeStoneGroup.getObjectByName('espilTimeStoneCore'):null;
+      if(core){ core.rotation.y+=0.02; core.position.y=1.5+Math.sin(performance.now()/700)*0.12; }
+      var p=walkPlayer; if(!p||espilCityKey()!=='auckland')return;
+      var d=Math.hypot(p.pos.x-ESPIL_TIMESTONE.x,p.pos.z-ESPIL_TIMESTONE.z);
+      if(d<=3.2&&!espilTimeStoneNear){
+        espilTimeStoneNear=true; window.__espilTimeStoneNear=true;
+        if(espilTimeStoneArmed){ espilTimeStoneArmed=false;
+          try{ window.dispatchEvent(new CustomEvent('espil-timemachine-near',{detail:{x:ESPIL_TIMESTONE.x,z:ESPIL_TIMESTONE.z}})); }catch(e){} }
+      }else if(d>4.5&&espilTimeStoneNear){
+        espilTimeStoneNear=false; window.__espilTimeStoneNear=false; espilTimeStoneArmed=true;
+      }
+    },150);
+    document.addEventListener('keydown',function(e){
+      if(e.repeat)return;
+      if(!document.body.classList.contains('in-map'))return;
+      var ae=document.activeElement,at=(ae&&ae.tagName)||'';
+      if(/INPUT|TEXTAREA|SELECT/.test(at))return;
+      var binds={}; try{ binds=JSON.parse(localStorage.getItem('espil_keybinds')||'{}'); }catch(_){}
+      if(e.key!==(binds.interact||' '))return;
+      if(espilCityKey()!=='auckland'||!espilTimeStoneGroup)return;
+      var p=walkPlayer; if(!p)return;
+      if(Math.hypot(p.pos.x-ESPIL_TIMESTONE.x,p.pos.z-ESPIL_TIMESTONE.z)>2)return; /* execution range stays 2 m */
+      try{ localStorage.setItem('espil_timemachine_done','1'); }catch(_){}
+      window.__espilTimeStoneDone=true;
+      try{ window.dispatchEvent(new CustomEvent('espil-timemachine-interact',{detail:{x:ESPIL_TIMESTONE.x,z:ESPIL_TIMESTONE.z}})); }catch(_){}
+    });
+    /* --- NAV PATH (guide step 8, joint production 2026-10-21): a
+       glowing green route on the ground from the player to a target,
+       routed over the city's own walkable class grid (A* on the 2 m
+       collision classes, then line-of-sight smoothing), with flow
+       discs running toward a ring-and-beam destination marker.
+       First target: Konbiniya Japan Centre, 1238 Robson St
+       (49.286423, -123.127872; anchor-converted point (-520.8, -414.4)
+       sits inside its footprint, so the route ends at the nearest
+       walkable street point below). Contract with the UI room:
+       window.__espilNavShow({x,z,name}) / __espilNavToKonbiniya() /
+       __espilNavHide(); arrival within 5 m fires espil-guide
+       {type:'nav-arrived', name} once per showing. --- */
+    var ESPIL_KONBINIYA={x:-518.8,z:-416.4};
+    window.__espilKonbiniyaPos={x:ESPIL_KONBINIYA.x,z:ESPIL_KONBINIYA.z};
+    var espilNavGroup=null, espilNavPath=null, espilNavPathCum=null, espilNavPathTotal=0, espilNavTarget=null, espilNavFlow=[], espilNavFlowT=0, espilNavArrived=false, espilNavArrivedAt=0, espilNavLastRoute=0;
+    function espilNavWalkable(x,z){ var pr=window.__espilCollisionProbe?window.__espilCollisionProbe(x,z):null; return !!(pr&&pr.walkable); }
+    function espilNavSnap(x,z){ if(espilNavWalkable(x,z))return {x:x,z:z};
+      for(var r=2;r<=30;r+=2)for(var a=0;a<8;a++){ var nx=x+Math.cos(a*Math.PI/4)*r, nz=z+Math.sin(a*Math.PI/4)*r; if(espilNavWalkable(nx,nz))return {x:nx,z:nz}; }
+      return null; }
+    function espilNavLos(x1,z1,x2,z2){ var d=Math.hypot(x2-x1,z2-z1), n=Math.max(1,Math.ceil(d));
+      for(var i=1;i<n;i++){ if(!espilNavWalkable(x1+(x2-x1)*i/n,z1+(z2-z1)*i/n))return false; } return true; }
+    function espilNavRoute(sx,sz,tx,tz){
+      var CELL=2, minx=Math.min(sx,tx)-80, maxx=Math.max(sx,tx)+80, minz=Math.min(sz,tz)-80, maxz=Math.max(sz,tz)+80;
+      var W=Math.ceil((maxx-minx)/CELL), H=Math.ceil((maxz-minz)/CELL);
+      if(W*H>400000)return null;
+      var cost=new Float32Array(W*H).fill(-1), from=new Int32Array(W*H).fill(-1), closed=new Uint8Array(W*H);
+      function cwalk(ix,iz){ if(ix<0||iz<0||ix>=W||iz>=H)return false; return espilNavWalkable(minx+(ix+0.5)*CELL,minz+(iz+0.5)*CELL); }
+      var six=Math.max(0,Math.min(W-1,Math.round((sx-minx)/CELL-0.5))), siz=Math.max(0,Math.min(H-1,Math.round((sz-minz)/CELL-0.5)));
+      var tix=Math.max(0,Math.min(W-1,Math.round((tx-minx)/CELL-0.5))), tiz=Math.max(0,Math.min(H-1,Math.round((tz-minz)/CELL-0.5)));
+      var heap=[];
+      function hpush(node,f){ heap.push([node,f]); var i=heap.length-1; while(i>0){ var par=(i-1)>>1; if(heap[par][1]<=heap[i][1])break; var t=heap[par]; heap[par]=heap[i]; heap[i]=t; i=par; } }
+      function hpop(){ var top=heap[0], last=heap.pop(); if(heap.length){ heap[0]=last; var i=0; for(;;){ var l=2*i+1, r=l+1, m=i; if(l<heap.length&&heap[l][1]<heap[m][1])m=l; if(r<heap.length&&heap[r][1]<heap[m][1])m=r; if(m===i)break; var t=heap[m]; heap[m]=heap[i]; heap[i]=t; i=m; } } return top; }
+      var start=siz*W+six, goal=tiz*W+tix; cost[start]=0; hpush(start,0);
+      var DIRS=[[1,0,1],[-1,0,1],[0,1,1],[0,-1,1],[1,1,1.414],[1,-1,1.414],[-1,1,1.414],[-1,-1,1.414]];
+      var found=false;
+      while(heap.length){ var cur=hpop()[0]; if(closed[cur])continue; closed[cur]=1; if(cur===goal){ found=true; break; }
+        var cx=cur%W, cz=(cur/W)|0;
+        for(var di=0;di<8;di++){ var nx=cx+DIRS[di][0], nz=cz+DIRS[di][1]; if(!cwalk(nx,nz))continue;
+          if(DIRS[di][0]&&DIRS[di][1]&&(!cwalk(cx+DIRS[di][0],cz)||!cwalk(cx,cz+DIRS[di][1])))continue;
+          var ni=nz*W+nx, nc=cost[cur]+DIRS[di][2];
+          if(cost[ni]<0||nc<cost[ni]){ cost[ni]=nc; from[ni]=cur; hpush(ni,nc+Math.hypot(nx-tix,nz-tiz)); } } }
+      if(!found)return null;
+      var cells=[], cur2=goal;
+      while(cur2>=0){ cells.push({x:minx+(cur2%W+0.5)*CELL, z:minz+(((cur2/W)|0)+0.5)*CELL}); if(cur2===start)break; cur2=from[cur2]; }
+      cells.reverse(); cells[0]={x:sx,z:sz}; cells[cells.length-1]={x:tx,z:tz};
+      var out=[cells[0]], anch=0;
+      for(var i=2;i<cells.length;i++){ if(!espilNavLos(cells[anch].x,cells[anch].z,cells[i].x,cells[i].z)){ out.push(cells[i-1]); anch=i-1; } }
+      out.push(cells[cells.length-1]);
+      return out;
+    }
+    function espilNavClear(){ if(espilNavGroup){ try{ mapScene.remove(espilNavGroup); }catch(e){} espilNavGroup=null; }
+      espilNavPath=null; espilNavTarget=null; espilNavFlow=[]; window.__espilNavActive=false; window.__espilNavTarget=null; }
+    function espilNavShow(target){
+      var p=walkPlayer; if(!p||!target||typeof mapScene==='undefined'||!mapScene)return false;
+      var s=espilNavSnap(p.pos.x,p.pos.z), t=espilNavSnap(target.x,target.z);
+      if(!s||!t)return false;
+      var path=espilNavRoute(s.x,s.z,t.x,t.z); if(!path||path.length<2)return false;
+      espilNavClear();
+      espilNavTarget={x:t.x,z:t.z,name:target.name||''}; espilNavPath=path; espilNavArrived=false; espilNavLastRoute=performance.now();
+      var cum=[0]; for(var i=1;i<path.length;i++)cum.push(cum[i-1]+Math.hypot(path[i].x-path[i-1].x,path[i].z-path[i-1].z));
+      espilNavPathCum=cum; espilNavPathTotal=cum[cum.length-1];
+      var g=new THREE.Group(), verts=[], WID=0.38;
+      for(var j=0;j<path.length;j++){ var a=path[Math.max(0,j-1)], b=path[Math.min(path.length-1,j+1)];
+        var dx=b.x-a.x, dz=b.z-a.z, L=Math.hypot(dx,dz)||1; dx/=L; dz/=L;
+        var px=-dz, pz=dx, y=0; try{ var sy=espilOwnSurfaceY(path[j].x,path[j].z); if(typeof sy==='number')y=sy; }catch(e){}
+        verts.push(path[j].x+px*WID,y+0.22,path[j].z+pz*WID, path[j].x-px*WID,y+0.22,path[j].z-pz*WID); }
+      var geo=new THREE.BufferGeometry();
+      geo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(verts),3));
+      var idxArr=[]; for(var k=0;k<path.length-1;k++){ var a0=2*k; idxArr.push(a0,a0+1,a0+2, a0+1,a0+3,a0+2); }
+      geo.setIndex(idxArr);
+      g.add(new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:0x2bff62,transparent:true,opacity:0.5,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide})));
+      var ty=0; try{ var sy2=espilOwnSurfaceY(t.x,t.z); if(typeof sy2==='number')ty=sy2; }catch(e){}
+      var ring=new THREE.Mesh(new THREE.RingGeometry(1.6,2.05,36),new THREE.MeshBasicMaterial({color:0x2bff62,transparent:true,opacity:0.85,side:THREE.DoubleSide}));
+      ring.rotation.x=-Math.PI/2; ring.position.set(t.x,ty+0.25,t.z); g.add(ring);
+      var beam=new THREE.Mesh(new THREE.CylinderGeometry(0.45,1.3,42,10,1,true),new THREE.MeshBasicMaterial({color:0x9dffb0,transparent:true,opacity:0.15,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));
+      beam.position.set(t.x,ty+21,t.z); g.add(beam);
+      espilNavFlow=[];
+      for(var f=0;f<9;f++){ var disc=new THREE.Mesh(new THREE.CircleGeometry(0.34,14),new THREE.MeshBasicMaterial({color:0x63ff85,transparent:true,opacity:0.95,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));
+        disc.rotation.x=-Math.PI/2; g.add(disc); espilNavFlow.push(disc); }
+      mapScene.add(g); espilNavGroup=g;
+      window.__espilNavActive=true; window.__espilNavTarget=espilNavTarget; window.__espilNavPathLen=Math.round(espilNavPathTotal);
+      try{ window.dispatchEvent(new CustomEvent('espil-guide',{detail:{type:'nav-shown',name:espilNavTarget.name}})); }catch(e){}
+      return true;
+    }
+    function espilNavPointAt(d){
+      var path=espilNavPath, cum=espilNavPathCum; if(!path||!cum)return null;
+      if(d<=0)return path[0]; if(d>=espilNavPathTotal)return path[path.length-1];
+      var i=1; while(cum[i]<d)i++;
+      var f=(d-cum[i-1])/Math.max(0.001,cum[i]-cum[i-1]);
+      return {x:path[i-1].x+(path[i].x-path[i-1].x)*f, z:path[i-1].z+(path[i].z-path[i-1].z)*f};
+    }
+    setInterval(function(){
+      if(!espilNavGroup||!espilNavPath||!document.body.classList.contains('in-map'))return;
+      var p=walkPlayer; if(!p)return;
+      espilNavFlowT+=0.7;
+      for(var i=0;i<espilNavFlow.length;i++){ var pt=espilNavPointAt((espilNavFlowT+i*espilNavPathTotal/espilNavFlow.length)%espilNavPathTotal);
+        if(pt){ var y=0; try{ var sy=espilOwnSurfaceY(pt.x,pt.z); if(typeof sy==='number')y=sy; }catch(e){}
+          espilNavFlow[i].position.set(pt.x,y+0.24,pt.z); } }
+      var dT=Math.hypot(p.pos.x-espilNavTarget.x,p.pos.z-espilNavTarget.z);
+      if(!espilNavArrived&&dT<=5){ espilNavArrived=true; espilNavArrivedAt=performance.now();
+        try{ window.dispatchEvent(new CustomEvent('espil-guide',{detail:{type:'nav-arrived',name:espilNavTarget.name}})); }catch(e){} }
+      if(espilNavArrived&&performance.now()-espilNavArrivedAt>2500){ espilNavClear(); return; }
+      if(!espilNavArrived&&performance.now()-espilNavLastRoute>4000){
+        var dMin=1e9; for(var v=0;v<espilNavPath.length;v++){ var dv=Math.hypot(p.pos.x-espilNavPath[v].x,p.pos.z-espilNavPath[v].z); if(dv<dMin)dMin=dv; }
+        if(dMin>30){ var tgt=espilNavTarget; if(espilNavShow(tgt))return; }
+        espilNavLastRoute=performance.now();
+      }
+    },100);
+    window.__espilNavShow=espilNavShow;
+    window.__espilNavHide=espilNavClear;
+    window.__espilNavToKonbiniya=function(){ return espilNavShow({x:ESPIL_KONBINIYA.x,z:ESPIL_KONBINIYA.z,name:'Konbiniya'}); };
     function stallKey(){return 'espil_stall_'+(window.__espilCityKey||'vancouver');}
     function stallLoad(){try{var s=JSON.parse(localStorage.getItem(stallKey())||'null');return (s&&typeof s.x==='number'&&typeof s.z==='number')?s:null;}catch(_){return null;}}
-    function stallSave(s){try{if(s)localStorage.setItem(stallKey(),JSON.stringify(s));else localStorage.removeItem(stallKey());}catch(_){}}
+    function stallSave(s){var __old=null; try{__old=stallLoad();}catch(_){}
+      try{if(s)localStorage.setItem(stallKey(),JSON.stringify(s));else localStorage.removeItem(stallKey());}catch(_){}
+      try{ var __oc=(__old&&__old.posts)?__old.posts.length:0;
+        if(s&&s.posts&&s.posts.length>__oc){ var __np=s.posts[s.posts.length-1];
+          window.dispatchEvent(new CustomEvent('espil-guide',{detail:{type:'stall-listed',item:(__np&&__np.title)||''}})); } }catch(_){} /* guide hook: fires only when a NEW post lands in a slot */ }
     function stallToast(msg){if(window.__espilToast)window.__espilToast(msg);}
     function stallPatch(mat){return mat;} /* materials ship unpatched since the curve removal (Han 2026-10-20) */
     function stallRemoveVisual(){if(stallGroup){if(stallGroup.parent)stallGroup.parent.remove(stallGroup);stallGroup=null;stallSignMat=null;}}
@@ -8135,7 +8374,8 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         stallTryPlace();
       }
       stallOpen=open;panel.setAttribute('aria-hidden',String(!open));
-      if(open){stallEnsureVisual();stallRender();}
+      if(open){stallEnsureVisual();stallRender();
+        try{ window.dispatchEvent(new CustomEvent('espil-guide',{detail:{type:'stall-open'}})); }catch(e){} /* guide hook */ }
     }
     (function stallWire(){
       var nameEl=document.getElementById('stall-name');
@@ -8352,6 +8592,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         p.pos.set(ESPIL_INT.x,0.05,ESPIL_INT.z+5.2); p.velY=0; p.onGround=true;
         window.__espilInside={name:espilBldgName,interior:true,door:{x:ESPIL_INT.x,z:ESPIL_INT.z+7.3}};
         espilOpenShop();
+        try{ window.dispatchEvent(new CustomEvent('espil-guide',{detail:{type:'interior',name:espilBldgName}})); }catch(e){} /* guide hook */
       });
     }
     function espilLeaveBuilding(){
@@ -8488,6 +8729,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       espilShopBag.push(it[0]);
       var bag=document.getElementById('shop-bag'); if(bag)bag.textContent='Your bag: '+espilShopBag.join(', ');
       if(window.__espilToast)window.__espilToast('Bought '+it[0]+' for Leo '+it[1]);
+      try{ window.dispatchEvent(new CustomEvent('espil-guide',{detail:{type:'bought',item:it[0]}})); }catch(e){} /* guide hook */
     }
     function espilShopShowTab(which){
       var g=document.getElementById('shop-grid'), c=document.getElementById('shop-contact');
@@ -8745,6 +8987,24 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         } else chatBubble.style.display='none';
       } else chatBubble.style.display='none';
     },50);
+    /* Guide (SELL) bubble (joint guide project, 2026-10-21): the UI
+       guide layer writes the chat line and emits 'sell-bubble'; the
+       world side shows the bubble over the character and marks it
+       with the layer's .sell class for the bubble's own 4.5 s life. */
+    function espilSellBubble(text){
+      try{
+        showChatBubble(text||'(SELL) Onigiri');
+        if(!chatBubble)chatBubble=document.getElementById('chat-bubble');
+        if(chatBubble){ chatBubble.classList.add('sell');
+          setTimeout(function(){ try{ chatBubble.classList.remove('sell'); }catch(_){} },4500); }
+      }catch(_){}
+    }
+    window.addEventListener('sell-bubble',function(e){
+      espilSellBubble(e&&e.detail&&e.detail.text);
+    });
+    window.addEventListener('espil-guide',function(e){
+      if(e&&e.detail&&e.detail.type==='sell-bubble')espilSellBubble(e.detail.text);
+    });
     function sendChat(){
       if(!chatInput)return;
       var t=chatInput.value.trim();
@@ -9906,7 +10166,27 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
            The game page's boot poller re-selects this city and
            clicks through its ENTER button. */
         try{sessionStorage.setItem('espil_pending_city',selected.userData.name);}catch(e){}
-        location.href='vancouver.html'; return;
+        /* Globe dive (guide step 5, Han 2026-10-21): the Earth camera
+           dives to the selected city over 2.6 s (accelerating) while
+           the UI layer closes its clouds on espil-dive-start;
+           navigation fires at the bottom of the dive, inside the
+           cover. The game page starts covered and the character
+           drops the last 25 m there (espilBeginDiveArrival). */
+        try{ window.dispatchEvent(new CustomEvent('espil-dive-start',{detail:{city:newCityKey,ms:2600}})); }catch(e){}
+        entryActive=true;
+        hideCityInfo();
+        (function(){
+          var gen=++zoomStageGen;
+          var fromD=targetDistance, startT=performance.now();
+          (function diveTick(){
+            if(gen!==zoomStageGen)return;
+            var t=Math.min(1,(performance.now()-startT)/2600);
+            targetDistance=fromD+(1.15-fromD)*t*t;
+            if(t<1){ requestAnimationFrame(diveTick); return; }
+            location.href='vancouver.html';
+          })();
+        })();
+        return;
       }
       if(window.__espilLoadedCityKey&&window.__espilLoadedCityKey!==newCityKey){
         /* One district per page load: switching cities reloads and
