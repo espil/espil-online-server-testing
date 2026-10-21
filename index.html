@@ -519,10 +519,6 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        menu as Return to Earth. */
     #city-settings { display:none; }
     body.in-map #city-settings { display:inline-flex; }
-    /* Day/night (Han batch 6 #1): the world canvases take a
-       brightness filter by the clock; DOM UI never does. */
-    .mapboxgl-canvas { transition:filter 1.2s linear; }
-    #globe-canvas { transition:filter 1.2s linear; }
     /* #6: Direct entry (/vancouver) — hide landing immediately */
     body.direct-entry #intro,
     body.direct-entry #city-info,
@@ -3289,65 +3285,16 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        drop applied to static map geometry, evaluated relative to the player every frame.
        The ground stays flat under the player and curves down toward the horizon.
        Physics, collision and the character stay on the flat plane. */
-    var curveStrength=new THREE.Vector2(132,132); /* Han batch 6 (2026-10-20): steepened again on his verdict - near-field slope k = 132/120000 = 1.1e-3. History: 168 (curve 1400) -> 54 (batch 5) -> 132 with the horizon floor. */
-    var curveCap=90; /* the falloff's asymptote in metres (batch 6: 130 -> 90, the bowl closes inside the view) */
-    var curvePlayer=new THREE.Vector2(0,0);
-    /* Curve ramp (Han 2026-10-19): the law's constant never changes,
-       but its APPLICATION ramps 0 -> 1 across the entry dive-in -
-       as the camera closes on the character the world takes its
-       curved shape, fully formed on arrival. 1 outside entries. The
-       object is shared by reference into every curve shader uniform
-       and read by the CPU mirror, so one write drives both. */
-    var curveRampU={value:1};
+    /* The world is flat (Han 2026-10-20 cleanup): the curve law
+       (k=1400 and its retunes), its GLSL chunk and every patched
+       material were removed - Han judged the curve never applied
+       on his screen, and only what runs ships. District palette
+       materials keep their cache as plain Lamberts. */
     var curvedMatCache={};
-    var CURVE_CHUNK=(
-      'vec4 cwp4=vec4(transformed,1.0);\n'+
-      '#ifdef USE_INSTANCING\n'+
-      'cwp4=instanceMatrix*cwp4;\n'+
-      '#endif\n'+
-      'cwp4=modelMatrix*cwp4;\n'+
-      'float cdx=cwp4.x-uCurvePlayer.x;\n'+
-      'float cdz=cwp4.z-uCurvePlayer.y;\n'+
-      'cwp4.y-=uCurveRamp*uCurveCap*tanh(((cdx*cdx*uCurveStrength.x+cdz*cdz*uCurveStrength.y)/120000.0)/uCurveCap);\n'+
-      'vec4 mvPosition=viewMatrix*cwp4;\n'+
-      'gl_Position=projectionMatrix*mvPosition;'
-    );
-    function curveShader(shader){
-      shader.uniforms.uCurvePlayer={value:curvePlayer};
-      shader.uniforms.uCurveStrength={value:curveStrength};
-      shader.uniforms.uCurveRamp=curveRampU;
-      shader.uniforms.uCurveCap={value:curveCap};
-      shader.vertexShader=('uniform vec2 uCurvePlayer;\nuniform vec2 uCurveStrength;\nuniform float uCurveRamp;\nuniform float uCurveCap;\n'+shader.vertexShader).replace('#include <project_vertex>',CURVE_CHUNK);
-    }
     function curvedMat(color){
       var key='c'+color, m=curvedMatCache[key];
-      if(!m){
-        m=new THREE.MeshLambertMaterial({color:color});
-        m.onBeforeCompile=curveShader;
-        m.customProgramCacheKey=function(){return 'espil-curved-lambert';};
-        curvedMatCache[key]=m;
-      }
+      if(!m){ m=new THREE.MeshLambertMaterial({color:color}); curvedMatCache[key]=m; }
       return m;
-    }
-    /* Patch an already-created material in place (procedural landmark meshes). */
-    var curvedPatched=[];
-    function curvePatch(mat){
-      if(!mat||curvedPatched.indexOf(mat)!==-1)return mat;
-      var prev=mat.onBeforeCompile;
-      mat.onBeforeCompile=function(shader){ if(prev)prev(shader); curveShader(shader); };
-      /* Program cache-key separation (Architecture ruling 2026-10-15,
-         mandatory): three r128 concatenates this key with the
-         material parameters (type, maps, instancing), and the key
-         must ALSO distinguish the injection chain - the unpatched
-         default shares one program, a material carrying its own
-         onBeforeCompile must never collide with it (the fade code
-         proved this collision class). Hash the wrapped source. */
-      var prevSrc=prev?String(prev):'', ph=0;
-      for(var pi=0;pi<prevSrc.length;pi++)ph=((ph<<5)-ph+prevSrc.charCodeAt(pi))|0;
-      mat.customProgramCacheKey=function(){return 'espil-curved-patched|'+ph;};
-      curvedPatched.push(mat);
-      mat.needsUpdate=true;
-      return mat;
     }
     /* Real sky for the map: shares the landing's astronomical sun vector; daylight is the
        solar altitude over Vancouver, same formula as the landing's sky dome. */
@@ -3432,110 +3379,11 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         if(m.userData.prop.kind===kind){m.material.map=tex;m.material.needsUpdate=true;}
       }
     }
-    function curveDropAt(x,z){
-      /* Curve 1400 realized on the Mapbox line (Han 2026-10-19): the
-         drop law applies in P1 too. It always applied in the vertex
-         shader (every curvePatched material bends by this field);
-         the 2026-10-17 P1 gate here only froze the CPU mirror, which
-         left CPU-placed objects (traffic, markers, landmarks)
-         floating over the bent visuals and the buildings (a Mapbox
-         fill-extrusion) flat. The gate is lifted: CPU placements,
-         the probe and the extrusion's visual height now all read
-         the same law. Physics/collision/standing never read this
-         function (record law) and the anchor is the player, where
-         the drop is 0 - so visible == collision holds where the
-         player stands, and distant objects fall away by k x d^2. */
-      var dx=x-curvePlayer.x,dz=z-curvePlayer.y;
-      /* Retuned law (Han batch 5, reshaped again batch 6,
-         2026-10-20): the old quadratic (k=0.0014, cap 1000) erased
-         every 12 m building past ~93 m; batch 5's gentle tanh
-         (K 4.5e-4, cap 130) survived buildings but Han still felt
-         no curve - the falloff lived beyond his camera's view.
-         Batch 6 brings the bowl INTO the view and keeps the
-         skyline readable: drop = CAP * tanh(d^2 * K / CAP) with
-         K = 1.1e-3, CAP = 90 m (100 m: 10.9 m, 200 m: 41 m,
-         300 m: 72 m), and the paint applies a horizon floor
-         (hv >= 18% of h) so distant buildings compress toward a
-         curved skyline instead of vanishing. The basemap is the
-         ground and cannot bend; the falloff lives in the
-         placements, player-anchored, 0 at the player - so
-         visible == collision where the player stands. The GLSL
-         chunk above computes the identical law. */
-      return curveRampU.value*curveCap*Math.tanh(((dx*dx*curveStrength.x+dz*dz*curveStrength.y)/120000)/curveCap);
-    }
-    /* Curve verification probe (map room, 2026-10-17): exposes the LIVE
-       law the game itself calls for object placement. The same
-       curveStrength object is handed to every curve-patched material's
-       shader uniform (curveShader assigns the reference, not a copy),
-       so this table is the shader path's table too. k reads 0.0014.
-       Since 2026-10-19 the probe reads the true law in P1 as well. */
-    window.__espilCurveK=curveStrength.x/120000;
-    window.__espilCurveProbe=function(x,z){ return curveDropAt(x,z); };
-    window.__espilCurveAnchor=function(){ return {x:curvePlayer.x,z:curvePlayer.y}; };
-    /* ==== ESPIL TILES BRIDGE (isolated tiles module interface) ====
-       The Google 3D Tiles layer lives in tiles/tiles-module.js (ES
-       module, own three@0.186, own canvas UNDER the game canvas).
-       The only crossings are two window state objects:
-         window.__espilCamState   game -> module (camera + character)
-         window.__espilTilesState module -> game (active flag, probe)
-       In tiles mode the game's own ground meshes hide and its building
-       meshes swap to depth-only materials, so the photoreal tiles
-       show through while the OSM boxes still occlude the character
-       (interaction data stays authoritative). Removing the module's
-       script tags returns the game to standalone behaviour. */
-    window.__espilCamState={cityPhase:false,tilesRequested:false,px:0,py:0,pz:0,qx:0,qy:0,qz:0,qw:1,fov:55,aspect:1,near:.1,far:8000,charX:0,charY:0,charZ:0,fogColor:0x9ec8e8,fogNear:200,fogFar:1500};
-    if(!window.__espilTilesState)window.__espilTilesState={active:false,ready:false,gated:false,streamedMB:0,probe:null};
-    var espilTilesApplied=false,espilDepthMat=null,espilDepthMatInst=null,espilTilesSweepAt=0;
-    function espilTilesCamPush(){
-      var cs=window.__espilCamState; if(!cs)return;
-      cs.cityPhase=!!cityPhaseActive;
-      if(mapCamera){ cs.px=mapCamera.position.x; cs.py=mapCamera.position.y; cs.pz=mapCamera.position.z;
-        cs.qx=mapCamera.quaternion.x; cs.qy=mapCamera.quaternion.y; cs.qz=mapCamera.quaternion.z; cs.qw=mapCamera.quaternion.w;
-        cs.fov=mapCamera.fov; cs.aspect=mapCamera.aspect; cs.near=mapCamera.near; cs.far=mapCamera.far; }
-      if(walkPlayer){ cs.charX=walkPlayer.pos.x; cs.charY=walkPlayer.pos.y||0; cs.charZ=walkPlayer.pos.z; }
-      if(mapScene&&mapScene.fog){ cs.fogColor=mapScene.fog.color.getHex(); cs.fogNear=mapScene.fog.near; cs.fogFar=mapScene.fog.far; }
-      /* The curve constant has ONE source: the game's own curveStrength.
-         The tiles layer reads it from here - it never tunes its own. */
-      cs.curveK=(typeof curveStrength!=='undefined'&&curveStrength)?curveStrength.x/120000:0.0015;
-    }
-    function espilTilesSweep(on){
-      if(!mapScene)return;
-      if(on&&!espilDepthMat){
-        espilDepthMat=new THREE.MeshBasicMaterial({colorWrite:false,depthWrite:true});
-        if(typeof curvePatch==='function')curvePatch(espilDepthMat);
-        espilDepthMatInst=new THREE.MeshBasicMaterial({colorWrite:false,depthWrite:true});
-      }
-      mapScene.traverse(function(o){
-        if(!o.isMesh)return;
-        if(o.userData.espilGround){ o.visible=!on; return; }
-        if(o.userData.espilBuilding){
-          if(on){
-            if(!o.userData._espilOrigMat)o.userData._espilOrigMat=o.material;
-            var dm=o.isInstancedMesh?espilDepthMatInst:espilDepthMat;
-            if(o.material!==dm)o.material=dm;
-          }else if(o.userData._espilOrigMat){ o.material=o.userData._espilOrigMat; }
-        }
-      });
-      if(typeof mapSkyDome!=='undefined'&&mapSkyDome)mapSkyDome.visible=!on;
-      /* Attribution hygiene: while Google tiles are the imagery, the
-         game's Esri satellite credit must not show (and vice versa). */
-      var _sa=document.getElementById('sat-attribution');
-      if(_sa)_sa.style.display=on?'none':'';
-      if(on)renderer.setClearColor(0x000000,0); else renderer.setClearColor(0x010306,1);
-    }
-    /* --- tile ground: the module probe, cached (the bend is zero at
-       the character by construction, so the unbent raycast height IS
-       the visual surface height at the probe point) --- */
-    var espilTileBaseCache={x:1e9,z:1e9,y:null,at:0};
-    function espilTileBase(x,z){
-      var st=window.__espilTilesState;
-      if(!st||!st.active||!st.probe)return null;
-      var now=performance.now();
-      if(Math.abs(x-espilTileBaseCache.x)<2&&Math.abs(z-espilTileBaseCache.z)<2&&now-espilTileBaseCache.at<120)return espilTileBaseCache.y;
-      var y=null; try{ y=st.probe(x,z); }catch(e){}
-      espilTileBaseCache={x:x,z:z,y:(typeof y==='number'?y:null),at:now};
-      return espilTileBaseCache.y;
-    }
+    /* The Google 3D Tiles layer was removed (Han 2026-10-20
+       cleanup): the shipped line is the Mapbox world only, so the
+       tile ground probe answers null and the ground law reads the
+       record sources, exactly as it did while tiles stayed off. */
+    function espilTileBase(x,z){ return null; }
     /* --- spawn resolution (prototype rules): real location inside the
        boundary plays there; outside resolves to the nearest boundary
        land point; water is always nudged to land; no geo = downtown. --- */
@@ -3650,7 +3498,6 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       p.pos.y=base;
       p.velY=0; p.onGround=true; p.jumps=0;
       p._espilArrive={surf:base,probeAt:0,startedAt:performance.now(),dur:1900};
-      curveRampU.value=0; /* the curve forms across the dive-in (Han 2026-10-19) */
       walkCamDist=60; /* wide sky framing; the step eases it to 14 */
       if(typeof espilP1!=='undefined'&&espilP1)espilP1.zoomDrive=false; /* the arrival envelope leads the map zoom for this entry */
       espilShowGeoPrompt();
@@ -3662,10 +3509,8 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(a.surf!==null&&a.surf!==undefined){ p.pos.y=a.surf; p.onGround=true; }
       var t=Math.max(0,Math.min(1,(now-a.startedAt)/a.dur));
       var f=1-t; walkCamDist=14+46*f*f;
-      curveRampU.value=t*t*(3-2*t); /* smoothstep: the world takes its curved shape as the camera closes in */
       if(t>=1){
         p._espilArrive=null;
-        curveRampU.value=1;
         walkCamDist=14;
         espilHideGeoPrompt();
         espilUiRise();
@@ -3896,13 +3741,11 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
          no fake water (their water is the collision raster for
          gameplay and the basemap for looks). */
       var b=cfg.bounds||{x0:cfg.ox-1300,z0:cfg.oz-1600,x1:cfg.ox+1300,z1:cfg.oz+1600};
-      var gmat=new THREE.MeshLambertMaterial({color:0x707a63}); curvePatch(gmat);
-      var ground=new THREE.Mesh(new THREE.PlaneGeometry((b.x1-b.x0)+800,(b.z1-b.z0)+800,32,32),gmat);
+      var gmat=new THREE.MeshLambertMaterial({color:0x707a63});       var ground=new THREE.Mesh(new THREE.PlaneGeometry((b.x1-b.x0)+800,(b.z1-b.z0)+800,32,32),gmat);
       ground.rotation.x=-Math.PI/2; ground.position.set((b.x0+b.x1)/2,-0.02,(b.z0+b.z1)/2);
       ground.receiveShadow=true; ground.frustumCulled=false; mapScene.add(ground);
       if(cfg.harbour){
-        var wmat=new THREE.MeshLambertMaterial({color:0x2a6a9e,transparent:true,opacity:.92}); curvePatch(wmat);
-        var water=new THREE.Mesh(new THREE.PlaneGeometry(cfg.harbour.w,cfg.harbour.d,32,8),wmat);
+        var wmat=new THREE.MeshLambertMaterial({color:0x2a6a9e,transparent:true,opacity:.92});         var water=new THREE.Mesh(new THREE.PlaneGeometry(cfg.harbour.w,cfg.harbour.d,32,8),wmat);
         water.rotation.x=-Math.PI/2; water.position.set(cfg.ox+cfg.harbour.dx,0.02,cfg.oz+cfg.harbour.dz);
         water.receiveShadow=true; water.frustumCulled=false; mapScene.add(water);
       }
@@ -3956,7 +3799,6 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     var espilDistrictMats=null;
     var ESPIL_TILE={tower:[28.8,24],midrise:[21.6,24],lowrise:[18,24],warehouse:[14.4,12],house:[10.8,12]}; /* sized to the building_texture kit facades (tools/compose_facades.py) */
     var ESPIL_ROOF_BASE={tower:0x4c4a48,midrise:0x5a4636,lowrise:0x8a6f4d,warehouse:0x55584e,house:0x7a5b40};
-    var ESPIL_FACADE_TEXTURES=false; /* Han 2026-10-16: textures off (dormant registry) */
     function espilDistrictMaterials(){
       if(espilDistrictMats)return espilDistrictMats;
       var wc=document.createElement('canvas'); wc.width=wc.height=1;
@@ -3970,39 +3812,11 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
            UVs) stays in place dormant: ESPIL_FACADE_TEXTURES=false
            means no map is created or loaded; flipping it back
            re-enables textures with no geometry rework. */
-        var wm;
-        if(ESPIL_FACADE_TEXTURES){
-          var tex=facadeTexture(k), tex2=tex.clone();
-          tex2.wrapS=THREE.RepeatWrapping; tex2.wrapT=THREE.RepeatWrapping; tex2.needsUpdate=true;
-          wm=new THREE.MeshLambertMaterial({map:tex2,vertexColors:true,side:THREE.DoubleSide});
-        }else{
-          wm=new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide});
-        }
+        var wm=new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide});
         var rm=new THREE.MeshLambertMaterial({map:whiteTex,vertexColors:true,side:THREE.DoubleSide});
-        if(typeof curvePatch==='function'){curvePatch(wm);curvePatch(rm);}
         reg[k]={wall:wm,roof:rm};
       }
       espilDistrictMats=reg; window.__espilDistrictMaterials=reg;
-      /* Han 2026-10-16: the wall slots take the building_texture kit
-         facades (assets/facades/facade_<archetype>.png, composed by
-         tools/compose_facades.py from pixel_facades_100 - tower:
-         modern, midrise: art_deco, lowrise: limestone, warehouse:
-         warehouse, house: brownstone). This is the swap the registry
-         was built for: map only, no geometry is rebuilt. Until a
-         file lands (or if it fails) the canvas facade stays. The kit
-         has no roof textures, so the roof slots keep their
-         placeholder map + tint for now. */
-      if(ESPIL_FACADE_TEXTURES)try{
-        var kitLoader=new THREE.TextureLoader();
-        for(var kk in reg){ (function(entry){
-          kitLoader.load('assets/facades/facade_'+entry+'.png',function(tx){
-            tx.wrapS=THREE.RepeatWrapping; tx.wrapT=THREE.RepeatWrapping;
-            if('colorSpace' in tx)tx.colorSpace=THREE.SRGBColorSpace;
-            tx.needsUpdate=true;
-            reg[entry].wall.map=tx; reg[entry].wall.needsUpdate=true;
-          });
-        })(kk); }
-      }catch(e){ console.warn('[District] kit facade load skipped:',e); }
       return reg;
     }
     var espilMeshBuildState=null;
@@ -4443,35 +4257,6 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        guidance line, world beacon, arrival toast) is deleted as an
        unnecessary feature. The streamed-MB readout that shared this
        tick is unrelated and stays. --- */
-    var espilMbReadout=null, espilToastEl=null;
-    function espilBridgeToast(msg){
-      if(window.__espilToast){ try{ window.__espilToast(msg); return; }catch(e){} }
-      if(!espilToastEl){
-        espilToastEl=document.createElement('div');
-        espilToastEl.style.cssText='position:fixed;left:50%;bottom:96px;transform:translateX(-50%);z-index:66;background:rgba(10,14,20,.9);color:#e8eef4;padding:8px 14px;border-radius:10px;font:500 .82rem "Manrope",sans-serif;display:none;';
-        document.body.appendChild(espilToastEl);
-      }
-      espilToastEl.textContent=msg; espilToastEl.style.display='block';
-      setTimeout(function(){ espilToastEl.style.display='none'; },3600);
-    }
-    function espilPinTick(){
-      /* streamed-MB readout (real bytes, module-counted) */
-      var st=window.__espilTilesState;
-      if(!espilMbReadout){
-        espilMbReadout=document.createElement('div');
-        espilMbReadout.style.cssText='position:fixed;right:10px;bottom:26px;z-index:36;font:500 .65rem "Manrope",sans-serif;color:rgba(255,255,255,.6);text-shadow:0 1px 3px rgba(0,0,0,.7);pointer-events:none;display:none;';
-        document.body.appendChild(espilMbReadout);
-      }
-      if(st&&st.active){ espilMbReadout.textContent='3D tiles \u00B7 '+st.streamedMB.toFixed(1)+' MB'; espilMbReadout.style.display='block'; }
-      else espilMbReadout.style.display='none';
-    }
-    setInterval(function(){ if(cityPhaseActive)espilPinTick(); },250);
-    function espilTilesApplyMode(now){
-      var st=window.__espilTilesState; if(!st)return;
-      var on=!!st.active;
-      if(on!==espilTilesApplied){ espilTilesApplied=on; espilTilesSweep(on); espilTilesSweepAt=now; }
-      else if(on&&now-espilTilesSweepAt>1000){ espilTilesSweep(true); espilTilesSweepAt=now; }
-    }
     /* ============ MAPBOX MAIN LINE - PHASE 1 (Han 2026-10-17) ============
        Han's ruling: the main line is the Cauldron (Mapbox) way. In this
        build the Three.js building layers (district polygons, chunk
@@ -4577,10 +4362,10 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         ring.push([ring[0][0],ring[0][1]]);
         cents.push([cx/n+cfg.ox, cz/n+cfg.oz]);
         wrings.push(wr);
-        feats.push({type:'Feature',properties:{h:b.h,hv:b.h,op:1,i:feats.length},geometry:{type:'Polygon',coordinates:[ring]}});
+        feats.push({type:'Feature',properties:{h:b.h,hv:b.h,i:feats.length},geometry:{type:'Polygon',coordinates:[ring]}});
       }
       espilP1BldCache={feats:feats,cents:cents,rings:wrings};
-      espilP1CurveApply();
+      espilP1PaintApply();
       return {type:'FeatureCollection',features:feats};
     }
     /* Curve 1400 on the extrusion (Han 2026-10-19; nearest-point law
@@ -4598,34 +4383,8 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        The record height (h) is never touched - qRF wall judgment,
        the record sweep, rooftops and standing all keep reading it,
        so with the paint law fixed visible == collision holds. */
-    function espilP1FootprintNear(flat,px,pz){
-      /* flat: [x0,z0,x1,z1,...] world ring (no closing duplicate).
-         Returns [nx,nz]: the anchor itself when inside (even-odd
-         ray cast), else the nearest point on the ring segments. */
-      var n=flat.length/2, inside=false, bx=0, bz=0, bd=Infinity;
-      for(var i=0,j=n-1;i<n;j=i++){
-        var xi=flat[2*i], zi=flat[2*i+1], xj=flat[2*j], zj=flat[2*j+1];
-        if((zi>pz)!==(zj>pz)&&(px<(xj-xi)*(pz-zi)/(zj-zi)+xi))inside=!inside;
-        var ex=xj-xi, ez=zj-zi, L2=ex*ex+ez*ez;
-        var t=L2>0?((px-xi)*ex+(pz-zi)*ez)/L2:0; t=t<0?0:(t>1?1:t);
-        var qx=xi+ex*t, qz=zi+ez*t, dx=px-qx, dz=pz-qz, d2=dx*dx+dz*dz;
-        if(d2<bd){ bd=d2; bx=qx; bz=qz; }
-      }
-      return inside?[px,pz]:[bx,bz];
-    }
-    /* ============ PAINT REFRESH: curve heights + occlusion fade ==
-       (Han batch 6 #2/#3/#5) One pass owns the GeoJSON the map
-       paints from: hv (the curve-dropped visual height, batch 6
-       floor rule below) and op (the occlusion fade). Perf law: a
-       pass scans only feats whose bbox comes within 820 m of the
-       player (the drop sits at its cap beyond that), rewrites a
-       feat only when its hv moved more than 0.05 m or its opacity
-       is still travelling, and setData ships only when something
-       changed. Measurements land on window.__espilPaintStats. */
     var espilPaintMeta=null, espilPaintMetaCache=null;
-    var espilFadeIdx={}; /* feat index -> 1 while faded (sampler column hits feed this from the occlusion module) */
-    var espilFadeSig='';
-    window.__espilFadeSet=function(){ return Object.keys(espilFadeIdx).map(Number); };
+    var espilPaintAnchor=new THREE.Vector2(0,0); /* player anchor for the paint pass; the walker tick keeps it current */
     function espilPaintMetaFor(){
       var cache=espilP1BldCache; if(!cache)return null;
       if(espilPaintMetaCache===cache&&espilPaintMeta)return espilPaintMeta;
@@ -4638,59 +4397,23 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       }
       espilPaintMetaCache=cache; espilPaintMeta=meta; return meta;
     }
-    function espilFadeSignature(){
-      var B=0; try{ B=Math.round(espilP1.map.getBearing()/5); }catch(e){}
-      return B+'|'+Object.keys(espilOccIdx).join(',');
-    }
-    function espilFadeCompute(px,pz,py){
-      /* The blockers (Han batch 6 #2): a building between the
-         camera and the player fades to 0.12 so the character AND
-         the street behind it stay visible - a marker could never
-         show the road; a cutaway can. Two sources, one set:
-         (a) the occlusion sampler's column hits (what actually
-         covers the player on screen right now);
-         (b) record math: footprints within 34 m of the player on
-         the camera side of him (the map bearing gives the view
-         direction), taller than his head - these cover the road
-         disc around him. Paint-only: collision never reads op. */
-      var set={}, i, m;
-      for(var k in espilOccIdx)set[k]=1;
-      var meta=espilPaintMetaFor(); if(!meta)return set;
-      if(!espilP1.map||typeof espilP1.map.getBearing!=='function')return set;
-      var B=espilP1.map.getBearing()*Math.PI/180;
-      var vx=Math.sin(B), vz=-Math.cos(B); /* view direction (camera -> player -> beyond) in local x/z */
-      for(i=0;i<meta.length;i++){
-        m=meta[i];
-        var dx=m.cx-px, dz=m.cz-pz, d2=dx*dx+dz*dz;
-        if(d2>34*34)continue;
-        if(espilP1BldCache.feats[i].properties.h-py<1.2)continue;
-        var d=Math.sqrt(d2)||1;
-        if((dx*vx+dz*vz)/d<-0.25)set[i]=1; /* centroid toward the camera from the player */
-      }
-      return set;
-    }
     function espilP1PaintApply(){
       if(!espilP1BldCache)return 0;
       var t0=performance.now();
       var feats=espilP1BldCache.feats, rings=espilP1BldCache.rings;
       var meta=espilPaintMetaFor(); if(!meta)return 0;
-      var px=curvePlayer.x, pz=curvePlayer.y;
+      var px=espilPaintAnchor.x, pz=espilPaintAnchor.y;
       var py=(typeof walkPlayer!=='undefined'&&walkPlayer)?walkPlayer.pos.y:0;
-      espilFadeIdx=espilFadeCompute(px,pz,py);
-      var fade=espilFadeIdx;
       var scanned=0, changed=0, lodFlat=0;
       var zm=(typeof espilP1!=='undefined'&&espilP1&&typeof espilP1.zoom==='number')?espilP1.zoom:19.3;
       for(var i=0;i<feats.length;i++){
         var m=meta[i];
         var bx=px<m.mnx?m.mnx-px:(px>m.mxx?px-m.mxx:0), bz=pz<m.mnz?m.mnz-pz:(pz>m.mxz?pz-m.mxz:0);
-        var targetOp=fade[i]?0.12:1;
         var prop=feats[i].properties;
-        if(bx*bx+bz*bz>820*820&&prop.op===targetOp)continue;
+        if(bx*bx+bz*bz>820*820&&!m.lod)continue;
         scanned++;
-        var np=espilP1FootprintNear(rings[i],px,pz);
-        var drop=curveDropAt(np[0],np[1]);
         var h=prop.h;
-        var hv=h-drop; var fl=h*0.18; if(hv<fl)hv=fl; if(hv<0)hv=0; /* horizon floor (batch 6 #3): distant scenery compresses toward the skyline instead of vanishing; near the player drop < the floor gap, so standing roofs stay exact */
+        var hv=h; /* flat world (Han 2026-10-20 cleanup): the visual height is the record height, except the zoom LOD below */
         /* Zoom LOD (perf, Han 2026-10-20): at overview zooms,
            small distant buildings flatten to their footprint -
            at the widest view roughly half the prisms Mapbox
@@ -4698,8 +4421,8 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
            of features / 16% of wall area, Auckland 54% / 19%,
            measured on the shipped data), while anything near
            the player or large keeps its full height. hv only:
-           properties.h - the truth collision and the fade
-           read - never changes. 30 m of hysteresis on the
+           properties.h - the truth collision reads - never
+           changes. 30 m of hysteresis on the
            distance bands keeps the edge from flickering. */
         if(zm<18.5){
           var cdx=m.cx-px, cdz=m.cz-pz, cd=Math.sqrt(cdx*cdx+cdz*cdz);
@@ -4711,44 +4434,26 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         } else if(m.lod)m.lod=0;
         var dirty=false;
         if(Math.abs(hv-prop.hv)>0.05){ prop.hv=hv; dirty=true; }
-        if(prop.op!==targetOp){ prop.op=Math.abs(targetOp-prop.op)<=0.3?targetOp:(prop.op+(targetOp>prop.op?0.3:-0.3)); dirty=true; }
         if(dirty)changed++;
       }
-      espilFadeSig=espilFadeSignature();
-      window.__espilPaintStats={ms:Math.round((performance.now()-t0)*10)/10,scanned:scanned,changed:changed,faded:Object.keys(fade).length,total:feats.length,lodFlat:lodFlat,zoom:Math.round(zm*10)/10};
+      window.__espilPaintStats={ms:Math.round((performance.now()-t0)*10)/10,scanned:scanned,changed:changed,total:feats.length,lodFlat:lodFlat,zoom:Math.round(zm*10)/10};
       return changed;
     }
-    function espilP1CurveApply(){ return espilP1PaintApply(); }
-    var espilP1CurveLast=null;
-    function espilP1CurveUpdate(){
+    var espilP1PaintLast=null;
+    function espilP1PaintUpdate(){
       if(!espilP1.buildingsAdded||!espilP1BldCache||!espilP1.map)return;
       var now=performance.now();
-      var ramping=curveRampU.value>0&&curveRampU.value<1;
-      if(espilP1CurveLast){
-        var dx=curvePlayer.x-espilP1CurveLast.x, dz=curvePlayer.y-espilP1CurveLast.z;
-        var rampMoved=Math.abs(curveRampU.value-espilP1CurveLast.r)>=0.03;
-        var fadeMoved=espilFadeSignature()!==espilFadeSig;
-        if(!rampMoved&&!fadeMoved&&dx*dx+dz*dz<9)return; /* anchor still (3 m gate) */
-        if(now-espilP1CurveLast.t<(ramping?150:300))return; /* one merged cadence */
+      var zm=(typeof espilP1.zoom==='number')?espilP1.zoom:19.3;
+      if(espilP1PaintLast){
+        var dx=espilPaintAnchor.x-espilP1PaintLast.x, dz=espilPaintAnchor.y-espilP1PaintLast.z;
+        if(dx*dx+dz*dz<9&&Math.abs(zm-espilP1PaintLast.zm)<0.05)return; /* anchor still (3 m gate) and zoom steady */
+        if(now-espilP1PaintLast.t<300)return; /* one cadence */
       }
-      espilP1CurveLast={x:curvePlayer.x,z:curvePlayer.y,t:now,r:curveRampU.value};
+      espilP1PaintLast={x:espilPaintAnchor.x,z:espilPaintAnchor.y,t:now,zm:zm};
       if(espilP1PaintApply()>0){
         try{ espilP1.map.getSource('espil-buildings').setData({type:'FeatureCollection',features:espilP1BldCache.feats}); }catch(e){}
       }
     }
-    /* QA probes for the curve on the extrusion: the live ramp, and
-       the nearest cached building's record/visual heights to a
-       world point. */
-    window.__espilCurveRamp=function(){ return curveRampU.value; };
-    window.__espilCurveHv=function(wx,wz){
-      if(!espilP1BldCache)return null;
-      var best=null,bc=null,bd=900;
-      for(var i=0;i<espilP1BldCache.cents.length;i++){
-        var dx=espilP1BldCache.cents[i][0]-wx,dz=espilP1BldCache.cents[i][1]-wz,d2=dx*dx+dz*dz;
-        if(d2<bd){bd=d2;best=espilP1BldCache.feats[i];bc=espilP1BldCache.cents[i];}
-      }
-      return best?{h:best.properties.h,hv:best.properties.hv,cx:bc[0],cz:bc[1]}:null;
-    };
     /* STYLE 3D OFF (Han 2026-10-17): a Standard-based style serves its
        own 3D buildings through an IMPORT - those layers never appear
        in getStyle().layers, so the layer scan in espilP1AddBuildings
@@ -4798,7 +4503,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
              tone, #c9c4bb (light greige). The green was only the
              contract's display marker; collision is record-polygon
              based and colour-independent, unchanged. */
-          espilP1.map.addLayer({id:'espil-buildings-3d',type:'fill-extrusion',source:'espil-buildings',paint:{'fill-extrusion-color':'#c9c4bb','fill-extrusion-height':['get','hv'],'fill-extrusion-base':0,'fill-extrusion-opacity':['get','op']}}); /* paint height is hv (curve-dropped visual height), opacity is op (the batch-6 occlusion fade); the record h stays in properties for collision */
+          espilP1.map.addLayer({id:'espil-buildings-3d',type:'fill-extrusion',source:'espil-buildings',paint:{'fill-extrusion-color':'#c9c4bb','fill-extrusion-height':['get','hv'],'fill-extrusion-base':0,'fill-extrusion-opacity':1}}); /* paint height is hv (the record height, or 0 for a zoom-LOD-flattened feature); the record h stays in properties for collision */
           /* COLLISION LAYER (Han 2026-10-17, CarInMap method): a flat,
              invisible fill over the same footprints - the wall judge
              queries THIS layer with queryRenderedFeatures. The
@@ -4948,8 +4653,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     }
     function espilP1Tick(){
       if(!ESPIL_P1)return;
-      var cs=window.__espilCamState;
-      if(!cs||!cs.cityPhase){
+      if(!cityPhaseActive){ /* the tiles bridge that used to mirror this flag into a state object was removed (Han 2026-10-20 cleanup); the tick reads the game's own flag */
         if(espilP1.mapEl)espilP1.mapEl.style.display='none';
         if(espilP1.bannerEl)espilP1.bannerEl.style.display='none';
         if(espilP1.gameCanvasHidden){ espilP1.gameCanvasHidden=false; var cvEl2=document.getElementById('globe-canvas'); if(cvEl2)cvEl2.style.display=''; }
@@ -5213,7 +4917,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           mk.mesh.geometry.dispose(); mk.mesh.material.dispose();
           incidentMarkers.splice(i,1);
         }else{
-          mk.mesh.position.set(mx,3.2-curveDropAt(mx,mz),mz);
+          mk.mesh.position.set(mx,3.2,mz);
         }
       }
       if(incidentMarkers.length>=12) return;
@@ -5230,7 +4934,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           new THREE.MeshBasicMaterial({map:getHazardTex(),transparent:true,
             depthWrite:false,fog:true}));
         mesh.renderOrder=3; mesh.frustumCulled=false;
-        mesh.position.set(mx,3.2-curveDropAt(mx,mz),mz);
+        mesh.position.set(mx,3.2,mz);
         mapScene.add(mesh);
         incidentMarkers.push({mesh:mesh,si:j});
       }
@@ -5401,7 +5105,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     function updateProps(){
       for(var i=0;i<billboardProps.length;i++){
         var m=billboardProps[i],u=m.userData.prop;
-        m.position.set(u.x,u.h/2-curveDropAt(u.x,u.z),u.z);
+        m.position.set(u.x,u.h/2,u.z);
         m.quaternion.copy(mapCamera.quaternion);
       }
     }
@@ -5545,11 +5249,9 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       var old=walkPlayer.av;
       if(old.group&&old.group.parent)old.group.parent.remove(old.group);
       if(old.shadow&&old.shadow.parent)old.shadow.parent.remove(old.shadow);
-      espilGhostDetach(old);
       var av=buildWalkerAvatar(gender);
       walkPlayer.av=av;
       mapScene.add(av.group);mapScene.add(av.shadow);
-      espilGhostAttach(av);
       av.shadow.position.set(walkPlayer.pos.x,.03,walkPlayer.pos.z);
     }
     function buildWalkerAvatar(gender){
@@ -5585,7 +5287,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           model.scale.setScalar(1.5); /* 1.2 -> 1.8 units, reads as a person in this downtown */
           var bbox=new THREE.Box3().setFromObject(model);
           model.position.y-=bbox.min.y; /* feet exactly on the ground */
-          model.traverse(function(o){if(o.isMesh){o.castShadow=true; if(typeof curvePatch==='function'&&o.material)curvePatch(o.material);}}); /* curve k=1400 (Han 2026-10-17): the character rides the same shared-uniform curve law as the rest of the scene */
+          model.traverse(function(o){if(o.isMesh){o.castShadow=true;}});
           av.__visualRoot=model; model.userData.__avBaseScale=1.5; model.userData.__avBaseY=model.position.y; /* layer-mode avatar scale (below) grows from this base */
           g.add(model);
           var mixer=new THREE.AnimationMixer(model);
@@ -5851,8 +5553,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       /* 5km city base ground: 10km x 10km plane at y=0, below downtown pads (.04)
          and chunk grounds (.03). Segmented for the curvature shader. */
       var baseGroundMat=new THREE.MeshLambertMaterial({color:0x6a7a5a});
-      curvePatch(baseGroundMat);
-      var baseGround=new THREE.Mesh(
+            var baseGround=new THREE.Mesh(
         new THREE.PlaneGeometry(10200,10200,64,64),
         baseGroundMat
       );
@@ -5882,8 +5583,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
             smesh.receiveShadow=true;
             smesh.frustumCulled=false;
             /* Apply globe curve */
-            if(typeof curvePatch==='function')curvePatch(smat);
-            mapScene.add(smesh);
+                        mapScene.add(smesh);
             window.__satelliteReady=true;
             window.__satTexSize=tex.image.width+'x'+tex.image.height;
             if(window.__satelliteProgress)window.__satelliteProgress(100);
@@ -5979,8 +5679,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
              (placeholder until real window lights are implemented) */
           fside.emissive=new THREE.Color(0x2a3442);
           fside.emissiveIntensity=.5;
-          curvePatch(fside);
-          var froof=curvedMat(roofColor);
+                    var froof=curvedMat(roofColor);
           fm=[fside,fside,froof,froof,fside,fside]; /* +x,-x,+y,-y,+z,-z */
           facadeMatCache[key]=fm;
         }
@@ -6003,10 +5702,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         rt.repeat.set(1,plain?1:22);
         return rt;
       }
-      var roadMatH4=new THREE.MeshLambertMaterial({map:roadTexture(true,false,true)});curvePatch(roadMatH4);
-      var roadMatV4=new THREE.MeshLambertMaterial({map:roadTexture(false,false,true)});curvePatch(roadMatV4);
-      var roadMatX=new THREE.MeshLambertMaterial({map:roadTexture(false,true,false)});curvePatch(roadMatX);
-      /* Han 2026-10-05 (corrected): minor streets are flat lawns, NOT asphalt.
+      var roadMatH4=new THREE.MeshLambertMaterial({map:roadTexture(true,false,true)});      var roadMatV4=new THREE.MeshLambertMaterial({map:roadTexture(false,false,true)});      var roadMatX=new THREE.MeshLambertMaterial({map:roadTexture(false,true,false)});      /* Han 2026-10-05 (corrected): minor streets are flat lawns, NOT asphalt.
          Flat grass COLOR only — no tile texture (seams visible). */
       var lawnMat=curvedMat(0x7fae62);
       var padMat=curvedMat(0xb9c1ac);
@@ -6043,8 +5739,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       /* Narrow alleys through block centers (Han 2026-10-05 — more interesting blocks).
          4-unit plain asphalt strips; buildings may partially overlap (colliders handle it). */
       var alleyMat=new THREE.MeshLambertMaterial({map:roadTexture(false,true,false)});
-      alleyMat.map.repeat.set(1,3);curvePatch(alleyMat);
-      for(bi=0;bi<blockC.length;bi++)for(bj=0;bj<blockC.length;bj++){
+      alleyMat.map.repeat.set(1,3);      for(bi=0;bi<blockC.length;bi++)for(bj=0;bj<blockC.length;bj++){
         if(rnd()>.7)continue; /* not every block gets alleys */
         var abx=blockC[bi],abz=blockC[bj];
         var ah=new THREE.Mesh(new THREE.PlaneGeometry(26,4,8,2),alleyMat);
@@ -6223,7 +5918,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           var px=-dz/u.len,pz=dx/u.len,off=1.4*u.lane;
           var x=seg.x1+dx*u.t+px*off,z=seg.z1+dz*u.t+pz*off;
           u.px=u.x;u.pz=u.z;u.x=x;u.z=z;
-          m.position.set(x,CAR_H/2-curveDropAt(x,z),z);
+          m.position.set(x,CAR_H/2,z);
           /* #5 (Han 2nd QA, revised): N/S = top view LAID FLAT on ground
              (wheels on ground, hood/roof to sky), rotated to heading.
              E/W = side view billboard with horizontal flip. */
@@ -6246,19 +5941,19 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
               m.scale.set(1.6,1.6,1);
               m.rotation.set(-Math.PI/2,0,Math.atan2(-vz,vx));
               /* Lift slightly above ground */
-              m.position.y=CAR_H/2-curveDropAt(x,z)+0.15;
+              m.position.y=CAR_H/2+0.15;
             }else{
               /* Side view: billboard, stay level, flip for leftward */
               m.quaternion.copy(mapCamera.quaternion);
               m.scale.x=(ang>Math.PI/2||ang<-Math.PI/2)?-1:1;
-              m.position.y=CAR_H/2-curveDropAt(x,z);
+              m.position.y=CAR_H/2;
               updateTrafficCars._qz.setFromAxisAngle(updateTrafficCars._zAxis,0);
               m.quaternion.multiply(updateTrafficCars._qz);
             }
           }else{
             /* Stationary: default to side-view billboard */
             m.quaternion.copy(mapCamera.quaternion);
-            m.position.y=CAR_H/2-curveDropAt(x,z);
+            m.position.y=CAR_H/2;
           }
           /* axis-aligned AABB collider follows the car */
           var horiz=Math.abs(dz)<.01,ax=horiz?CAR_W/2:0.9,az=horiz?0.9:CAR_W/2;
@@ -6266,7 +5961,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           /* Han 2026-10-09: shadow follows car on ground */
           var sh=m.userData.shadow;
           if(sh){
-            sh.position.set(x,0.06-curveDropAt(x,z),z);
+            sh.position.set(x,0.06,z);
             sh.visible=m.visible;
           }
         }
@@ -6401,7 +6096,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           }else if(mesh.material.map!==busTexCache[b.route]){
             mesh.material.map=busTexture(b.route);mesh.material.needsUpdate=true;
           }
-          mesh.position.set(m.x,BUS_H/2-curveDropAt(m.x,m.z),m.z);
+          mesh.position.set(m.x,BUS_H/2,m.z);
           mesh.quaternion.copy(mapCamera.quaternion);
           /* Han 2026-10-09: nose points along screen-space travel direction
              (same as cars). Bearing 0=north(-z), 90=east(+x). */
@@ -6433,9 +6128,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         gt.repeat.set(rx,ry);
         return gt;
       }
-      var grassMat=new THREE.MeshLambertMaterial({map:groundTexture('grass_dark.png',3,3)});curvePatch(grassMat);
-      var cobbleMat=new THREE.MeshLambertMaterial({map:groundTexture('cobble.png',5,5)});curvePatch(cobbleMat);
-      var bi,bj;
+      var grassMat=new THREE.MeshLambertMaterial({map:groundTexture('grass_dark.png',3,3)});      var cobbleMat=new THREE.MeshLambertMaterial({map:groundTexture('cobble.png',5,5)});      var bi,bj;
       /* Park blocks: (bi,bj) indices into blockC — grass instead of plain pad. */
       var parkBlocks={ '2,1':1, '1,3':1 };
       /* Han 2026-10-09: downtown pads removed — satellite shows the real ground.
@@ -6600,8 +6293,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       waterTex.wrapS=waterTex.wrapT=THREE.RepeatWrapping;
       waterTex.repeat.set(8,2);
       var waterMat=new THREE.MeshLambertMaterial({map:waterTex});
-      curvePatch(waterMat);
-      var water=new THREE.Mesh(new THREE.PlaneGeometry(640,170,64,16),waterMat);
+            var water=new THREE.Mesh(new THREE.PlaneGeometry(640,170,64,16),waterMat);
       water.rotation.x=-Math.PI/2;water.position.set(0,.03,-186);mapScene.add(water); */
       /* Swimming state — set in updateWalkMap when player enters water.
          (WATER_Z/WATER_Y now live at IIFE scope.) */
@@ -6613,7 +6305,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       var sails=landmarkModel('sails');
       sails.scale.setScalar(11);
       sails.position.set(0,.12,-95);
-      sails.traverse(function(o){if(o.isMesh){o.material=curvePatch(o.material);o.castShadow=true;o.receiveShadow=true;}});
+      sails.traverse(function(o){if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
       mapScene.add(sails);
       addCollider(-5,5,-99.5,-90.5,.12,3.6);
       /* Invisible walls at the map edge (the north side is guarded by the seawall). */
@@ -6624,7 +6316,6 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       /* The walker. */
       var av=buildWalkerAvatar(espilSavedGender());
       mapScene.add(av.group);mapScene.add(av.shadow);
-      espilGhostAttach(av);
       walkPlayer={av:av,pos:new THREE.Vector3(3,.05,31),velY:0,onGround:true,jumps:0,faceY:.5,bobT:0,moving:false,flying:false,vehicle:null};
       av.shadow.position.set(3,.03,31);
     }
@@ -6984,8 +6675,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(allWater){
         var wgeo=new THREE.PlaneGeometry(CHUNK_SIZE,CHUNK_SIZE,1,1);
         var wmat=new THREE.MeshLambertMaterial({color:0x2a6a9e,transparent:true,opacity:.92});
-        curvePatch(wmat);
-        var wmesh=new THREE.Mesh(wgeo,wmat);
+                var wmesh=new THREE.Mesh(wgeo,wmat);
         wmesh.rotation.x=-Math.PI/2;
         wmesh.position.set(x0+CHUNK_SIZE/2,.2,z0+CHUNK_SIZE/2);
         group.add(wmesh);
@@ -6996,8 +6686,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         var ggeo=new THREE.PlaneGeometry(CHUNK_SIZE,CHUNK_SIZE,4,4);
         var gcol=zone===2?0x6a9a5a:(zone===1?0x8a8a7a:0x7a7a72);
         var gmat=new THREE.MeshLambertMaterial({color:gcol});
-        curvePatch(gmat);
-        var gmesh=new THREE.Mesh(ggeo,gmat);
+                var gmesh=new THREE.Mesh(ggeo,gmat);
         gmesh.rotation.x=-Math.PI/2;
         gmesh.position.set(x0+CHUNK_SIZE/2,.03,z0+CHUNK_SIZE/2);
         gmesh.receiveShadow=true;
@@ -7061,8 +6750,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
              city curves with the ground instead of floating over the
              dropped horizon. */
           var bmat=new THREE.MeshBasicMaterial({color:0xffffff});
-          curvePatch(bmat);
-          EspilFader.patchInstanced(bmat);
+                    EspilFader.patchInstanced(bmat);
           var inst=new THREE.InstancedMesh(bgeo,bmat,items.length);
           EspilFader.attachInstanced(inst);
           var m4=new THREE.Matrix4(),q=new THREE.Quaternion(),sv=new THREE.Vector3(),pv=new THREE.Vector3();
@@ -8298,7 +7986,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     function stallLoad(){try{var s=JSON.parse(localStorage.getItem(stallKey())||'null');return (s&&typeof s.x==='number'&&typeof s.z==='number')?s:null;}catch(_){return null;}}
     function stallSave(s){try{if(s)localStorage.setItem(stallKey(),JSON.stringify(s));else localStorage.removeItem(stallKey());}catch(_){}}
     function stallToast(msg){if(window.__espilToast)window.__espilToast(msg);}
-    function stallPatch(mat){if(typeof curvePatch==='function')curvePatch(mat);return mat;}
+    function stallPatch(mat){return mat;} /* materials ship unpatched since the curve removal (Han 2026-10-20) */
     function stallRemoveVisual(){if(stallGroup){if(stallGroup.parent)stallGroup.parent.remove(stallGroup);stallGroup=null;stallSignMat=null;}}
     function stallSignTexture(s){
       var cv=document.createElement('canvas');cv.width=512;cv.height=128;
@@ -8564,141 +8252,6 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       try{ if(localStorage.getItem('espil_guide_seen'))return; localStorage.setItem('espil_guide_seen','1'); }catch(e){ return; }
       setTimeout(function(){ espilOpenGuide(0); },900);
     },1500);
-    /* ============ DAY / NIGHT (Han batch 6 #1) ===================
-       The map style does not follow the clock, so the game dims
-       its own world: a brightness curve over the local hour drives
-       a CSS filter on the world canvases (basemap + extrusions +
-       avatar share the map canvas; the landing globe gets the same
-       treatment) while DOM UI stays untouched and readable. Night
-       also desaturates a little and cools the hue. The value is
-       quantized so the filter only repaints a few times an hour. */
-    var espilDnLast=-1;
-    function espilDayNightBrightness(){
-      var now=new Date(); var h=now.getHours()+now.getMinutes()/60;
-      var pts=[[0,.42],[5,.42],[7,.72],[9,1],[17,1],[19,.78],[21,.5],[24,.42]];
-      for(var i=1;i<pts.length;i++){
-        if(h<=pts[i][0]){ var a=pts[i-1], b=pts[i], t=(h-a[0])/(b[0]-a[0]); return a[1]+(b[1]-a[1])*(t*t*(3-2*t)); }
-      }
-      return .42;
-    }
-    function espilApplyDayNight(){
-      var b=espilDayNightBrightness();
-      var q=Math.round(b*100)/100;
-      window.__espilDayNightState={brightness:q,hour:new Date().getHours()};
-      var dark=1-q;
-      /* Full daylight carries NO filter at all: the world renders
-         unfiltered (and pays no filter cost) until dusk. Each
-         canvas is compared on its own - a canvas created after
-         the last change still gets the current value. */
-      var filt=q>=0.995?'':('brightness('+q.toFixed(2)+') saturate('+(1-0.25*dark).toFixed(3)+') hue-rotate('+(-12*dark).toFixed(1)+'deg)');
-      var mc=document.querySelector('.mapboxgl-canvas');
-      if(mc&&mc.style.filter!==filt)mc.style.filter=filt;
-      var gc=document.getElementById('globe-canvas');
-      if(gc&&gc.style.filter!==filt)gc.style.filter=filt;
-      espilDnLast=q;
-    }
-    window.__espilDayNight=function(){ return window.__espilDayNightState||null; };
-    setInterval(espilApplyDayNight,30000);
-    espilApplyDayNight();
-    /* ============ OCCLUSION MARKER (Han 2026-10-20 #3) ============
-       Han's biggest complaint: a building between the camera and the
-       character hides the character completely and he gets lost. The
-       marker answers the criterion he set - never lose the
-       character's position: while a building taller than the player
-       covers the character's screen column, a glowing ring at the
-       feet plus a slim beam render on top of everything (depth test
-       off), fading in and out with the occlusion state. */
-    var espilOccG=null, espilOccVis=0, espilOccT=0, espilOccOn=false;
-    var espilOccIdx={}; /* cache indices of the features covering the player (batch 6 #2 fade source) */
-    function espilOccBuild(){
-      espilOccG=new THREE.Group();
-      var ringMat=new THREE.MeshBasicMaterial({color:0x8ef7e8,transparent:true,opacity:0,side:THREE.DoubleSide,depthTest:false});
-      var ring=new THREE.Mesh(new THREE.RingGeometry(0.62,0.88,40),ringMat);
-      ring.rotation.x=-Math.PI/2; ring.renderOrder=9998; ring.frustumCulled=false;
-      var beamMat=new THREE.MeshBasicMaterial({color:0x8ef7e8,transparent:true,opacity:0,depthTest:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide});
-      var beam=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,7,8,1,true),beamMat);
-      beam.position.y=3.5; beam.renderOrder=9999; beam.frustumCulled=false;
-      espilOccG.add(ring); espilOccG.add(beam);
-      espilOccG.userData.ring=ring; espilOccG.userData.beam=beam;
-      espilOccG.visible=false;
-      mapScene.add(espilOccG);
-    }
-    function espilOccUpdate(p,dt,nowMs){
-      if(!espilOccG){ if(typeof mapScene!=='undefined'&&mapScene)espilOccBuild(); else return; }
-      if(nowMs-espilOccT>180){
-        espilOccT=nowMs; espilOccOn=false;
-        var idx={};
-        try{
-          if(espilP1&&espilP1.map&&espilP1.ready&&!espilP1.failed){
-            var ll=espilP1LngLat(p.pos.x,p.pos.z);
-            var pt=espilP1.map.project(ll);
-            var pts=[pt,{x:pt.x,y:pt.y-46}];
-            for(var qi=0;qi<pts.length;qi++){
-              var fs=espilP1.map.queryRenderedFeatures(pts[qi],{layers:['espil-buildings-collision']});
-              for(var fi=0;fi<fs.length;fi++){
-                var fh=(fs[fi].properties&&fs[fi].properties.h)||0;
-                if(fh-p.pos.y>1.0){ espilOccOn=true; if(fs[fi].properties&&typeof fs[fi].properties.i==='number')idx[fs[fi].properties.i]=1; }
-              }
-            }
-          }
-        }catch(e){ espilOccOn=false; }
-        espilOccIdx=idx; /* batch 6 #2: the blockers feed the paint fade */
-      }
-      espilOccVis+=(((espilOccOn)?1:0)-espilOccVis)*Math.min(1,dt*6);
-      if(espilOccVis<0.02){ espilOccG.visible=false; return; }
-      espilOccG.visible=true;
-      espilOccG.position.set(p.pos.x,p.pos.y+0.07,p.pos.z);
-      var pulse=1+0.07*Math.sin(nowMs*0.006);
-      espilOccG.userData.ring.scale.set(pulse,pulse,1);
-      espilOccG.userData.ring.material.opacity=espilOccVis*0.95;
-      espilOccG.userData.beam.material.opacity=espilOccVis*0.30;
-    }
-    /* ============ AVATAR X-RAY GHOST (Han 2026-10-20 #4) ==========
-       The ring/beam marker was not enough (Han's verdict): he still
-       lost the character behind buildings and asked for a real way
-       to never lose it. The ghost is that way - a translucent twin
-       of the avatar itself, bound to the SAME skeleton (so it poses
-       identically), drawn with the depth test OFF so the character's
-       silhouette is always visible through any building. It does not
-       depend on the occlusion sampling at all (the rig-provable
-       mechanism): it idles at low opacity (a faint aura you barely
-       notice while the real body is visible) and brightens with the
-       sampled occlusion level (espilOccVis). */
-    var espilGhostMat=new THREE.MeshBasicMaterial({color:0x9ff5e6,transparent:true,opacity:0.16,depthTest:false,depthWrite:false});
-    function espilGhostClone(src){
-      var t;
-      if(src.isSkinnedMesh){ t=new THREE.SkinnedMesh(src.geometry,espilGhostMat); t.bind(src.skeleton,src.bindMatrix); }
-      else if(src.isMesh){ t=new THREE.Mesh(src.geometry,espilGhostMat); }
-      else { t=new THREE.Group(); }
-      t.position.copy(src.position); t.quaternion.copy(src.quaternion); t.scale.copy(src.scale);
-      t.renderOrder=9997; t.frustumCulled=false;
-      for(var i=0;i<src.children.length;i++){ if(src.children[i].isBone)continue; t.add(espilGhostClone(src.children[i])); }
-      return t;
-    }
-    function espilGhostNodeCount(o){ var n=1; for(var i=0;i<o.children.length;i++)n+=espilGhostNodeCount(o.children[i]); return n; }
-    function espilGhostAttach(av){
-      if(!av||av.__ghost||typeof mapScene==='undefined'||!mapScene)return;
-      av.__ghost=new THREE.Group(); av.__ghostCount=-1;
-      mapScene.add(av.__ghost);
-    }
-    function espilGhostDetach(av){
-      if(av&&av.__ghost&&av.__ghost.parent)av.__ghost.parent.remove(av.__ghost);
-      if(av){av.__ghost=null;av.__ghostCount=-1;}
-    }
-    function espilGhostSync(av){
-      var ghost=av&&av.__ghost; if(!ghost||!av.group)return;
-      var n=espilGhostNodeCount(av.group);
-      if(n!==av.__ghostCount){
-        av.__ghostCount=n;
-        while(ghost.children.length)ghost.remove(ghost.children[0]);
-        for(var i=0;i<av.group.children.length;i++){ if(av.group.children[i].isBone)continue; ghost.add(espilGhostClone(av.group.children[i])); }
-      }
-      ghost.position.copy(av.group.position);
-      ghost.quaternion.copy(av.group.quaternion);
-      ghost.scale.copy(av.group.scale);
-      ghost.visible=av.group.visible;
-      espilGhostMat.opacity=0.16+0.52*(typeof espilOccVis==='number'?espilOccVis:0);
-    }
     /* ============ BUILDING PANEL + INTERIOR (Han 2026-10-20 #5) ====
        Space at a building opens the selection window with the
        building's name (Cauldron-style). Enter resolves like this:
@@ -8968,7 +8521,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         var m=new THREE.Mesh(geo,mat); m.position.set(x,y,z); if(ry)m.rotation.y=ry;
         m.frustumCulled=false; g.add(m); return m;
       }
-      function LM(c){ var m=new THREE.MeshLambertMaterial({color:c}); curvePatch(m); return m; }
+      function LM(c){ var m=new THREE.MeshLambertMaterial({color:c}); return m; }
       /* the serving counter across the back wall, the house sign's
          menu board above it, and the clerk behind the counter -
          the classic shop arrangement, all original low-poly */
@@ -9049,19 +8602,15 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         var m=new THREE.Mesh(geo,mat); m.position.set(x,y,z); if(ry)m.rotation.y=ry;
         m.frustumCulled=false; g.add(m); return m;
       }
-      var floorMat=new THREE.MeshLambertMaterial({color:0x4a4238}); curvePatch(floorMat);
-      var fl=M(new THREE.PlaneGeometry(26,18),floorMat,0,0.01,0); fl.rotation.x=-Math.PI/2;
-      var rugMat=new THREE.MeshLambertMaterial({color:0x74353a}); curvePatch(rugMat);
-      var rug=M(new THREE.PlaneGeometry(10,7),rugMat,0,0.03,0); rug.rotation.x=-Math.PI/2;
-      var wallMat=new THREE.MeshLambertMaterial({color:0xcfc8bb}); curvePatch(wallMat);
-      M(new THREE.BoxGeometry(26,3.4,0.4),wallMat,0,1.7,-8.2);
+      var floorMat=new THREE.MeshLambertMaterial({color:0x4a4238});       var fl=M(new THREE.PlaneGeometry(26,18),floorMat,0,0.01,0); fl.rotation.x=-Math.PI/2;
+      var rugMat=new THREE.MeshLambertMaterial({color:0x74353a});       var rug=M(new THREE.PlaneGeometry(10,7),rugMat,0,0.03,0); rug.rotation.x=-Math.PI/2;
+      var wallMat=new THREE.MeshLambertMaterial({color:0xcfc8bb});       M(new THREE.BoxGeometry(26,3.4,0.4),wallMat,0,1.7,-8.2);
       M(new THREE.BoxGeometry(11.2,3.4,0.4),wallMat,-7.4,1.7,8.2);
       M(new THREE.BoxGeometry(11.2,3.4,0.4),wallMat,7.4,1.7,8.2);
       M(new THREE.BoxGeometry(2.6,0.7,0.4),wallMat,0,3.05,8.2);
       M(new THREE.BoxGeometry(0.4,3.4,16),wallMat,-12.8,1.7,0);
       M(new THREE.BoxGeometry(0.4,3.4,16),wallMat,12.8,1.7,0);
-      var propMat=new THREE.MeshLambertMaterial({color:0x6d5a41}); curvePatch(propMat);
-      M(new THREE.BoxGeometry(4.4,1.05,1.2),propMat,-6,0.53,-6.9);
+      var propMat=new THREE.MeshLambertMaterial({color:0x6d5a41});       M(new THREE.BoxGeometry(4.4,1.05,1.2),propMat,-6,0.53,-6.9);
       M(new THREE.BoxGeometry(4.4,1.05,1.2),propMat,6,0.53,-6.9);
       M(new THREE.BoxGeometry(0.7,2.2,6),propMat,-12.2,1.1,2);
       M(new THREE.BoxGeometry(0.7,2.2,6),propMat,12.2,1.1,2);
@@ -9691,8 +9240,6 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
          group sinks, eased in and out so water entry has no pop. */
       p._espilSwimSink=(p._espilSwimSink||0)+(((p.swimming)?1.02:0)-(p._espilSwimSink||0))*Math.min(1,dt*4);
       if(p._espilSwimSink>0.001)g.position.y=p.pos.y-p._espilSwimSink;
-      espilOccUpdate(p,dt,performance.now()); /* OCCLUSION MARKER (Han 2026-10-20 #3): never lose the character behind a building */
-      espilGhostSync(p.av); /* X-RAY GHOST (Han 2026-10-20 #4): the silhouette itself shows through buildings */
       if(p.moving){
         var targetFace=Math.atan2(-mx,-mz);
         var d=targetFace-p.faceY;
@@ -10617,9 +10164,9 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(cityPhaseActive){
         /* Walkable downtown map owns the frame. */
         updateWalkMap(dt,nowMs/1000);
-        if(walkPlayer)curvePlayer.set(walkPlayer.pos.x,walkPlayer.pos.z);
-        if(typeof ESPIL_P1!=='undefined'&&ESPIL_P1)espilP1CurveUpdate(); /* curve 1400: keep the extrusion's visual heights on the law as the anchor moves */
-        espilTilesCamPush(); espilTilesApplyMode(nowMs); espilP1Tick(); /* ESPIL TILES BRIDGE: state publish (tiles shelved - mode stays off) + MAPBOX PHASE 1 tick */
+        if(walkPlayer)espilPaintAnchor.set(walkPlayer.pos.x,walkPlayer.pos.z);
+        if(typeof ESPIL_P1!=='undefined'&&ESPIL_P1)espilP1PaintUpdate(); /* extrusion paint pass (zoom LOD) gate */
+        espilP1Tick(); /* MAPBOX PHASE 1 tick */
         if(typeof EspilFader!=='undefined')EspilFader.tick(dt,mapCamera,walkPlayer);
         updateMapSky();
         updateProps();
