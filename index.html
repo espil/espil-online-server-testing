@@ -3916,7 +3916,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       ]).then(function(res){
         espilDistrict=res[0]; espilCollision=res[1];
         espilCollision.cls=espilB64ToU8(espilCollision.classes_b64);
-        espilCollision.roof=new Uint16Array(espilB64ToU8(espilCollision.roof_dm_b64).buffer);
+        espilCollision.roof=new Uint16Array((espilCollision.roof_dm_b64?espilB64ToU8(espilCollision.roof_dm_b64):new Uint8Array(0)).buffer); /* slim files omit the roof layer (perf 2026-10-20): no live reader on the Mapbox line */
         var nStrips=0, strips=espilCollision.colliders||[];
         espilStripHash={};
         for(var i=0;i<strips.length;i++){
@@ -4633,7 +4633,8 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       for(var i=0;i<rings.length;i++){
         var r=rings[i], cx=0, cz=0, mnx=1e18, mnz=1e18, mxx=-1e18, mxz=-1e18, n=r.length/2;
         for(var j=0;j<n;j++){ var x=r[2*j], z=r[2*j+1]; cx+=x; cz+=z; if(x<mnx)mnx=x; if(x>mxx)mxx=x; if(z<mnz)mnz=z; if(z>mxz)mxz=z; }
-        meta.push({cx:cx/n,cz:cz/n,mnx:mnx,mnz:mnz,mxx:mxx,mxz:mxz});
+        var area=0; for(var a2=0;a2<n;a2++){ var ax=r[2*a2], az=r[2*a2+1], bx2=r[2*((a2+1)%n)], bz2=r[2*((a2+1)%n)+1]; area+=ax*bz2-bx2*az; }
+        meta.push({cx:cx/n,cz:cz/n,mnx:mnx,mnz:mnz,mxx:mxx,mxz:mxz,area:Math.abs(area)/2,lod:0});
       }
       espilPaintMetaCache=cache; espilPaintMeta=meta; return meta;
     }
@@ -4677,7 +4678,8 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       var py=(typeof walkPlayer!=='undefined'&&walkPlayer)?walkPlayer.pos.y:0;
       espilFadeIdx=espilFadeCompute(px,pz,py);
       var fade=espilFadeIdx;
-      var scanned=0, changed=0;
+      var scanned=0, changed=0, lodFlat=0;
+      var zm=(typeof espilP1!=='undefined'&&espilP1&&typeof espilP1.zoom==='number')?espilP1.zoom:19.3;
       for(var i=0;i<feats.length;i++){
         var m=meta[i];
         var bx=px<m.mnx?m.mnx-px:(px>m.mxx?px-m.mxx:0), bz=pz<m.mnz?m.mnz-pz:(pz>m.mxz?pz-m.mxz:0);
@@ -4689,13 +4691,31 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         var drop=curveDropAt(np[0],np[1]);
         var h=prop.h;
         var hv=h-drop; var fl=h*0.18; if(hv<fl)hv=fl; if(hv<0)hv=0; /* horizon floor (batch 6 #3): distant scenery compresses toward the skyline instead of vanishing; near the player drop < the floor gap, so standing roofs stay exact */
+        /* Zoom LOD (perf, Han 2026-10-20): at overview zooms,
+           small distant buildings flatten to their footprint -
+           at the widest view roughly half the prisms Mapbox
+           tessellates in the 820 m disc go flat (Vancouver 47%
+           of features / 16% of wall area, Auckland 54% / 19%,
+           measured on the shipped data), while anything near
+           the player or large keeps its full height. hv only:
+           properties.h - the truth collision and the fade
+           read - never changes. 30 m of hysteresis on the
+           distance bands keeps the edge from flickering. */
+        if(zm<18.5){
+          var cdx=m.cx-px, cdz=m.cz-pz, cd=Math.sqrt(cdx*cdx+cdz*cdz);
+          var want=false;
+          if(zm>=17.5){ want=(cd>380&&h<10&&m.area<400); if(!want&&m.lod)want=(cd>350&&h<10&&m.area<400); }
+          else { want=(cd>300&&h<14&&m.area<700)||(cd>550&&h<22&&m.area<1200);
+                 if(!want&&m.lod)want=(cd>270&&h<14&&m.area<700)||(cd>520&&h<22&&m.area<1200); }
+          if(want){ hv=0; m.lod=1; lodFlat++; } else m.lod=0;
+        } else if(m.lod)m.lod=0;
         var dirty=false;
         if(Math.abs(hv-prop.hv)>0.05){ prop.hv=hv; dirty=true; }
         if(prop.op!==targetOp){ prop.op=Math.abs(targetOp-prop.op)<=0.3?targetOp:(prop.op+(targetOp>prop.op?0.3:-0.3)); dirty=true; }
         if(dirty)changed++;
       }
       espilFadeSig=espilFadeSignature();
-      window.__espilPaintStats={ms:Math.round((performance.now()-t0)*10)/10,scanned:scanned,changed:changed,faded:Object.keys(fade).length,total:feats.length};
+      window.__espilPaintStats={ms:Math.round((performance.now()-t0)*10)/10,scanned:scanned,changed:changed,faded:Object.keys(fade).length,total:feats.length,lodFlat:lodFlat,zoom:Math.round(zm*10)/10};
       return changed;
     }
     function espilP1CurveApply(){ return espilP1PaintApply(); }
