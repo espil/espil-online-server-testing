@@ -3563,6 +3563,19 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       }
       return true;
     }
+    function espilP1EntryLive(){
+      /* Arrival gate (Han PC 2026-10-21): the camera envelope must not
+         run before the map itself is on screen. espilCitySettled covers
+         the game's own assets only; on a real connection the Mapbox
+         style, the building source and the custom layer land later,
+         and a 1.9 s envelope spent behind an unpainted map reads as an
+         entry with no arrival at all. A failed map releases the gate -
+         the banner carries that state; the entry is never held hostage. */
+      if(typeof ESPIL_P1==='undefined'||!ESPIL_P1)return true;
+      if(typeof espilP1==='undefined'||!espilP1)return true;
+      if(espilP1.failed)return true;
+      return !!(espilP1.ready&&espilP1.layerLive&&espilP1.buildingsAdded);
+    }
     function espilCityProgress(){
       var f=0;
       if(walkPlayer&&walkPlayer.av&&walkPlayer.av.ready)f+=.25;
@@ -4021,7 +4034,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
            city is ready (avatar in, OSM city built, spawn chunk
            present) - the loader closes on this same tick, so the
            fall is the first thing seen. */
-        if(espilCitySettled()){ espilHideMapLoader(); espilBeginArrival(target.x,target.z); return; }
+        if(espilCitySettled()&&espilP1EntryLive()){ espilHideMapLoader(); espilBeginArrival(target.x,target.z); return; }
         if(++tries>125){ espilHideMapLoader(); espilBeginArrival(target.x,target.z); return; } /* 25 s failsafe */
         setTimeout(beginWhenReady,200);
       })();
