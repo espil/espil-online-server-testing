@@ -514,6 +514,11 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        top-right beside the music button. */
     #city-exit { display:none; }
     body.in-map #city-exit { display:inline-flex; }
+    /* Settings gear (Han batch 5 #3): replaces the EXIT button at
+       the same top-right spot; EXIT's job lives in the settings
+       menu as Return to Earth. */
+    #city-settings { display:none; }
+    body.in-map #city-settings { display:inline-flex; }
     /* #6: Direct entry (/vancouver) — hide landing immediately */
     body.direct-entry #intro,
     body.direct-entry #city-info,
@@ -1759,9 +1764,12 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       <div class="topbar-actions">
         <button class="pill-btn" id="notice-open" type="button" aria-label="Open notices">Notice</button>
         <button class="pill-btn" id="bgm-toggle" type="button" aria-pressed="true" aria-label="Toggle theme music" aria-describedby="bgm-card">&#9834;</button>
-        <!-- Exit city (Han 2026-10-18): top-right next to the music
-             button, visible only while inside a city. -->
-        <button class="pill-btn" id="city-exit" type="button" aria-label="Exit city">EXIT</button>
+        <!-- Settings gear (Han batch 5 #3, 2026-10-20): the EXIT
+             button that stood here (Han 2026-10-18) is removed on
+             Han's order; the gear at the same spot opens the
+             settings menu, and Return to Earth inside it does
+             what EXIT did. -->
+        <button class="pill-btn" id="city-settings" type="button" aria-label="Settings">&#9881;</button>
         <!-- Han 2026-10-16 #8: SKILL TREE / SIGN IN top-bar entries removed.
              The skill tree still opens with K; sign-in happens at the Dive gate. -->
       </div>
@@ -1974,6 +1982,33 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         <label for="opt-city">CITY SELECT</label>
         <select id="opt-city"></select>
         <p class="set-note">Choosing a city returns you to the globe, on approach to that city. The current city is selected by default.</p>
+        <!-- Settings menu (Han batch 5 #3, 2026-10-20): Return to
+             Earth, button settings, sound settings, log out
+             (disabled in the guest build), developer info. -->
+        <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px;">
+          <button class="pill-btn" id="set-return" type="button">Return to Earth</button>
+        </div>
+        <label style="margin-top:16px;">BUTTON SETTINGS</label>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><span>Jump</span><button class="pill-btn" id="kb-jump" type="button">Shift</button></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><span>Interact</span><button class="pill-btn" id="kb-interact" type="button">Space</button></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><span>Stall</span><button class="pill-btn" id="kb-stall" type="button">Y</button></div>
+          <button class="pill-btn" id="kb-reset" type="button" style="align-self:flex-start;">Reset buttons</button>
+        </div>
+        <p class="set-note">Choose a button, then press the new key. Movement stays on the arrow keys and the joystick.</p>
+        <label style="margin-top:16px;">SOUND SETTINGS</label>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span>Music volume</span>
+          <input id="set-vol" type="range" min="0" max="100" value="50" style="flex:1;">
+          <label style="display:flex;align-items:center;gap:4px;"><input id="set-mute" type="checkbox"> Mute</label>
+        </div>
+        <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px;">
+          <button class="pill-btn" id="set-logout" type="button" disabled aria-disabled="true" style="opacity:.45;">Log out</button>
+          <button class="pill-btn" id="set-devinfo-btn" type="button">Developer info</button>
+          <div id="set-devinfo" style="display:none;text-align:left;">
+            <p class="set-note" style="line-height:1.7;">Espil Online - an MMORPG in real cities, beginning as a mall.<br>Developed by Han (quadclipse), Espil.<br>Contact: han@espil.online<br>Web: espil.online</p>
+          </div>
+        </div>
       </div>
     </div>
     <!-- 3D UI (2026-10-11): chat window. Always-on log, high-transparency bg,
@@ -2096,7 +2131,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         </div>
       </div>
     </div>
-    <!-- Building selection window (Han, 2026-10-20): Space at a building opens this panel with the building name; Enter goes inside. Shops resolve to their store page, other buildings to the shared interior room (v1). -->
+    <!-- Building selection window (Han, 2026-10-20): Space at a building opens this panel with the building name; Enter steps inside THAT building, at its real footprint (batch 5 v2). -->
     <div class="skill-tree" id="bldg-panel" aria-hidden="true" role="dialog" aria-label="Building">
       <div class="st-card">
         <button class="x" id="bldg-close" type="button" aria-label="Close">&times;</button>
@@ -2106,7 +2141,25 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           <button class="pill-btn" id="bldg-enter" type="button">Enter</button>
           <button class="pill-btn" id="bldg-cancel" type="button">Close</button>
         </div>
-        <p class="st-foot" style="margin-top:12px;">Shops open their store page. Other buildings open a shared interior room for now.</p>
+        <p class="st-foot" style="margin-top:12px;">You step inside this building, at its real size and place.</p>
+      </div>
+    </div>
+    <!-- Inside options (Han batch 5 #2, 2026-10-20): shown the moment you enter a building. -->
+    <div class="skill-tree" id="bldg-opts" aria-hidden="true" role="dialog" aria-label="Inside the building">
+      <div class="st-card">
+        <button class="x" id="bldg-opts-close" type="button" aria-label="Close">&times;</button>
+        <h2 id="bldg-opts-name">Building</h2>
+        <p class="st-sub">You are inside this building.</p>
+        <div id="bldg-opts-main" style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
+          <button class="pill-btn" id="bldg-opt-stores" type="button">Find stores</button>
+          <button class="pill-btn" id="bldg-opt-contact" type="button">Contact</button>
+          <button class="pill-btn" id="bldg-opt-leave" type="button">Leave building</button>
+        </div>
+        <div id="bldg-contact" style="display:none;margin-top:14px;text-align:left;">
+          <p class="st-sub" id="bldg-contact-lines" style="line-height:1.7;">Loading...</p>
+          <button class="pill-btn" id="bldg-contact-back" type="button" style="margin-top:10px;">Back</button>
+        </div>
+        <p class="st-foot" style="margin-top:12px;">Space inside opens this menu again. The door you came in by also lets you out.</p>
       </div>
     </div>
     <div id="bldg-fade" style="position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .18s ease;z-index:300;"></div>
@@ -3161,7 +3214,8 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        drop applied to static map geometry, evaluated relative to the player every frame.
        The ground stays flat under the player and curves down toward the horizon.
        Physics, collision and the character stay on the flat plane. */
-    var curveStrength=new THREE.Vector2(168,168); /* Han 2026-10-16: curvature k=1400 (= 1.4e-3: strength/120000), supersedes the tiles-prototype (180,180) */
+    var curveStrength=new THREE.Vector2(54,54); /* Han batch 5 (2026-10-20): the law is retuned - see curveDropAt. Near-field slope k = 54/120000 = 4.5e-4 (was 168 = curve 1400). */
+    var curveCap=130; /* the falloff's asymptote in metres: distance can never sink anything further than this */
     var curvePlayer=new THREE.Vector2(0,0);
     /* Curve ramp (Han 2026-10-19): the law's constant never changes,
        but its APPLICATION ramps 0 -> 1 across the entry dive-in -
@@ -3179,7 +3233,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       'cwp4=modelMatrix*cwp4;\n'+
       'float cdx=cwp4.x-uCurvePlayer.x;\n'+
       'float cdz=cwp4.z-uCurvePlayer.y;\n'+
-      'cwp4.y-=uCurveRamp*min((cdx*cdx*uCurveStrength.x+cdz*cdz*uCurveStrength.y)/120000.0,1000.0);\n'+
+      'cwp4.y-=uCurveRamp*uCurveCap*tanh(((cdx*cdx*uCurveStrength.x+cdz*cdz*uCurveStrength.y)/120000.0)/uCurveCap);\n'+
       'vec4 mvPosition=viewMatrix*cwp4;\n'+
       'gl_Position=projectionMatrix*mvPosition;'
     );
@@ -3187,7 +3241,8 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       shader.uniforms.uCurvePlayer={value:curvePlayer};
       shader.uniforms.uCurveStrength={value:curveStrength};
       shader.uniforms.uCurveRamp=curveRampU;
-      shader.vertexShader=('uniform vec2 uCurvePlayer;\nuniform vec2 uCurveStrength;\nuniform float uCurveRamp;\n'+shader.vertexShader).replace('#include <project_vertex>',CURVE_CHUNK);
+      shader.uniforms.uCurveCap={value:curveCap};
+      shader.vertexShader=('uniform vec2 uCurvePlayer;\nuniform vec2 uCurveStrength;\nuniform float uCurveRamp;\nuniform float uCurveCap;\n'+shader.vertexShader).replace('#include <project_vertex>',CURVE_CHUNK);
     }
     function curvedMat(color){
       var key='c'+color, m=curvedMatCache[key];
@@ -3316,7 +3371,20 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
          the drop is 0 - so visible == collision holds where the
          player stands, and distant objects fall away by k x d^2. */
       var dx=x-curvePlayer.x,dz=z-curvePlayer.y;
-      return curveRampU.value*Math.min((dx*dx*curveStrength.x+dz*dz*curveStrength.y)/120000,1000);
+      /* Retuned law (Han batch 5, 2026-10-20): the old quadratic
+         (k=0.0014, cap 1000) erased every 12 m building past ~93 m
+         and every tower past a few hundred - at street level the
+         city read as a small disc of buildings on a flat plane,
+         not as a curved world (and Han felt no curve at all). The
+         evaluation of his rounded-plane proposal: the basemap IS
+         the ground and cannot bend, so the falloff must live in the
+         placements - which it already does, player-anchored. What
+         changes is the SHAPE: drop = CAP * tanh(d^2 * K / CAP),
+         K = 4.5e-4, CAP = 130 m - gentle nearby (100 m: 4.5 m,
+         buildings survive), strong at skyline range (300 m:
+         39 m, 500 m: 91 m), never past the cap. The GLSL chunk
+         above computes the identical law from the same uniforms. */
+      return curveRampU.value*curveCap*Math.tanh(((dx*dx*curveStrength.x+dz*dz*curveStrength.y)/120000)/curveCap);
     }
     /* Curve verification probe (map room, 2026-10-17): exposes the LIVE
        law the game itself calls for object placement. The same
@@ -5302,9 +5370,11 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       var old=walkPlayer.av;
       if(old.group&&old.group.parent)old.group.parent.remove(old.group);
       if(old.shadow&&old.shadow.parent)old.shadow.parent.remove(old.shadow);
+      espilGhostDetach(old);
       var av=buildWalkerAvatar(gender);
       walkPlayer.av=av;
       mapScene.add(av.group);mapScene.add(av.shadow);
+      espilGhostAttach(av);
       av.shadow.position.set(walkPlayer.pos.x,.03,walkPlayer.pos.z);
     }
     function buildWalkerAvatar(gender){
@@ -6379,6 +6449,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       /* The walker. */
       var av=buildWalkerAvatar(espilSavedGender());
       mapScene.add(av.group);mapScene.add(av.shadow);
+      espilGhostAttach(av);
       walkPlayer={av:av,pos:new THREE.Vector3(3,.05,31),velY:0,onGround:true,jumps:0,faceY:.5,bobT:0,moving:false,flying:false,vehicle:null};
       av.shadow.position.set(3,.03,31);
     }
@@ -7225,6 +7296,15 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
          (Re-applied 2026-10-14 after the working-copy overwrite.) */
       var _sm=document.getElementById('store-modal');
       if(_sm&&!_sm.classList.contains('hidden'))return;
+      /* IN-PLACE INTERIOR (Han batch 5 #1+#2): while inside a
+         building, Space at the entry door leaves; Space anywhere
+         else reopens the inside options panel. */
+      if(window.__espilInside&&espilInsideDoor){
+        var _dd=Math.sqrt((walkPlayer.pos.x-espilInsideDoor.x)*(walkPlayer.pos.x-espilInsideDoor.x)+(walkPlayer.pos.z-espilInsideDoor.z)*(walkPlayer.pos.z-espilInsideDoor.z));
+        if(_dd<1.8)espilLeaveBuilding();
+        else openBuildingOpts();
+        return;
+      }
       /* Han PC verdict 2026-10-19 #7: interact executes only at the
          building face (record distance <= 2 m). Cauldron alignment
          (Han 2026-10-19): past that gate the press is no longer
@@ -7232,14 +7312,10 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
          edge / loose 44 m / POI 120 m) and answers with the too-far
          guidance whenever nothing resolves; here the #7 execution
          gate stands and every press past it gets Cauldron's answer. */
-      /* BUILDING PANEL (Han 2026-10-20 #5): inside a building, Space
-         works the door on the south wall. */
-      if(window.__espilInterior){
-        var _ip=walkPlayer.pos;
-        if(_ip.z>ESPIL_INT.z+6.0&&Math.abs(_ip.x-ESPIL_INT.x)<1.5)espilExitInterior();
-        else if(window.__espilToast)window.__espilToast('The door is on the south wall, marked EXIT');
-        return;
-      }
+      /* IN-PLACE INTERIOR (Han batch 5 #1): Space inside a building
+         is handled by tryInteract's inside branch (the door leaves,
+         anywhere else reopens the options panel) - no early return
+         here, the normal wall-jump/interact flow decides. */
       /* Han 2026-10-20 #5: on the Mapbox line, Space at a building
          (record distance <= 2 m, Han's #7 gate) opens the building
          selection window with its name; Enter goes inside (shops to
@@ -7950,6 +8026,37 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         }
       }
     }
+    /* Settings menu wiring (Han batch 5 #3, 2026-10-20): gear,
+       Return to Earth, button settings (rebindable Jump / Interact /
+       Stall, persisted), sound settings (music volume + mute,
+       persisted and honoured by the theme fades), developer info.
+       Log out stays disabled in the guest build. */
+    var espilKeybinds={jump:'Shift',interact:' ',stall:'y'};
+    try{ var _kb=JSON.parse(localStorage.getItem('espil_keybinds')||'null'); if(_kb&&_kb.jump&&_kb.interact&&_kb.stall)espilKeybinds=_kb; }catch(e){}
+    window.__espilBgmVol=(function(){ var v=parseFloat(localStorage.getItem('espil_bgm_vol')); return isNaN(v)?0.5:Math.max(0,Math.min(1,v)); })();
+    var espilKbArm=null;
+    function espilKbLabel(k){ return k===' '?'Space':(k&&k.length===1?k.toUpperCase():k); }
+    function espilKbPaint(){
+      var j=document.getElementById('kb-jump'), i=document.getElementById('kb-interact'), s=document.getElementById('kb-stall');
+      if(j)j.textContent=espilKbArm==='jump'?'Press a key...':espilKbLabel(espilKeybinds.jump);
+      if(i)i.textContent=espilKbArm==='interact'?'Press a key...':espilKbLabel(espilKeybinds.interact);
+      if(s)s.textContent=espilKbArm==='stall'?'Press a key...':espilKbLabel(espilKeybinds.stall);
+    }
+    document.addEventListener('keydown',function(e){
+      if(!espilKbArm)return;
+      e.preventDefault(); e.stopPropagation();
+      if(e.key!=='Escape'){
+        espilKeybinds[espilKbArm]=(espilKbArm==='stall'&&e.key.length===1)?e.key.toLowerCase():e.key;
+        try{ localStorage.setItem('espil_keybinds',JSON.stringify(espilKeybinds)); }catch(err){}
+      }
+      espilKbArm=null; espilKbPaint();
+    },true);
+    function espilApplyBgmVol(){
+      var v=window.__espilBgmVol;
+      document.querySelectorAll('audio').forEach(function(a){ try{a.volume=v;}catch(e){} });
+      var sl=document.getElementById('set-vol'); if(sl)sl.value=Math.round(v*100);
+      var mu=document.getElementById('set-mute'); if(mu)mu.checked=(v===0);
+    }
     (function(){
       var closeBtn=document.getElementById('set-close');
       if(closeBtn)closeBtn.addEventListener('click',function(){toggleSettingsPanel(false);});
@@ -7962,6 +8069,28 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           if(markers[i].userData.name===name){selectCity(markers[i]);break;}
         }
       });
+      var gear=document.getElementById('city-settings');
+      if(gear)gear.addEventListener('click',function(){ toggleSettingsPanel(); });
+      var ret=document.getElementById('set-return');
+      if(ret)ret.addEventListener('click',function(){ toggleSettingsPanel(false); if(window.__espilInside)espilLeaveBuilding(); clearSelection(true); });
+      [['kb-jump','jump'],['kb-interact','interact'],['kb-stall','stall']].forEach(function(pair){
+        var b=document.getElementById(pair[0]);
+        if(b)b.addEventListener('click',function(){ espilKbArm=pair[1]; espilKbPaint(); });
+      });
+      var rs=document.getElementById('kb-reset');
+      if(rs)rs.addEventListener('click',function(){ espilKeybinds={jump:'Shift',interact:' ',stall:'y'}; try{localStorage.setItem('espil_keybinds',JSON.stringify(espilKeybinds));}catch(e){} espilKbArm=null; espilKbPaint(); });
+      var sl=document.getElementById('set-vol');
+      if(sl)sl.addEventListener('input',function(){ window.__espilBgmVol=sl.value/100; try{localStorage.setItem('espil_bgm_vol',String(window.__espilBgmVol));}catch(e){} espilApplyBgmVol(); });
+      var mu=document.getElementById('set-mute');
+      if(mu)mu.addEventListener('change',function(){
+        if(mu.checked){ window.__espilBgmPrev=(window.__espilBgmVol>0?window.__espilBgmVol:0.5); window.__espilBgmVol=0; }
+        else window.__espilBgmVol=(window.__espilBgmPrev!=null?window.__espilBgmPrev:0.5);
+        try{localStorage.setItem('espil_bgm_vol',String(window.__espilBgmVol));}catch(e){}
+        espilApplyBgmVol();
+      });
+      var dv=document.getElementById('set-devinfo-btn');
+      if(dv)dv.addEventListener('click',function(){ var d=document.getElementById('set-devinfo'); if(d)d.style.display=(d.style.display==='none'?'block':'none'); });
+      espilKbPaint(); espilApplyBgmVol();
     })();
     function toggleFriendsPanel(force){
       var panel=document.getElementById('friends-panel');
@@ -8179,6 +8308,52 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       espilOccG.userData.ring.material.opacity=espilOccVis*0.95;
       espilOccG.userData.beam.material.opacity=espilOccVis*0.30;
     }
+    /* ============ AVATAR X-RAY GHOST (Han 2026-10-20 #4) ==========
+       The ring/beam marker was not enough (Han's verdict): he still
+       lost the character behind buildings and asked for a real way
+       to never lose it. The ghost is that way - a translucent twin
+       of the avatar itself, bound to the SAME skeleton (so it poses
+       identically), drawn with the depth test OFF so the character's
+       silhouette is always visible through any building. It does not
+       depend on the occlusion sampling at all (the rig-provable
+       mechanism): it idles at low opacity (a faint aura you barely
+       notice while the real body is visible) and brightens with the
+       sampled occlusion level (espilOccVis). */
+    var espilGhostMat=new THREE.MeshBasicMaterial({color:0x9ff5e6,transparent:true,opacity:0.16,depthTest:false,depthWrite:false});
+    function espilGhostClone(src){
+      var t;
+      if(src.isSkinnedMesh){ t=new THREE.SkinnedMesh(src.geometry,espilGhostMat); t.bind(src.skeleton,src.bindMatrix); }
+      else if(src.isMesh){ t=new THREE.Mesh(src.geometry,espilGhostMat); }
+      else { t=new THREE.Group(); }
+      t.position.copy(src.position); t.quaternion.copy(src.quaternion); t.scale.copy(src.scale);
+      t.renderOrder=9997; t.frustumCulled=false;
+      for(var i=0;i<src.children.length;i++){ if(src.children[i].isBone)continue; t.add(espilGhostClone(src.children[i])); }
+      return t;
+    }
+    function espilGhostNodeCount(o){ var n=1; for(var i=0;i<o.children.length;i++)n+=espilGhostNodeCount(o.children[i]); return n; }
+    function espilGhostAttach(av){
+      if(!av||av.__ghost||typeof mapScene==='undefined'||!mapScene)return;
+      av.__ghost=new THREE.Group(); av.__ghostCount=-1;
+      mapScene.add(av.__ghost);
+    }
+    function espilGhostDetach(av){
+      if(av&&av.__ghost&&av.__ghost.parent)av.__ghost.parent.remove(av.__ghost);
+      if(av){av.__ghost=null;av.__ghostCount=-1;}
+    }
+    function espilGhostSync(av){
+      var ghost=av&&av.__ghost; if(!ghost||!av.group)return;
+      var n=espilGhostNodeCount(av.group);
+      if(n!==av.__ghostCount){
+        av.__ghostCount=n;
+        while(ghost.children.length)ghost.remove(ghost.children[0]);
+        for(var i=0;i<av.group.children.length;i++){ if(av.group.children[i].isBone)continue; ghost.add(espilGhostClone(av.group.children[i])); }
+      }
+      ghost.position.copy(av.group.position);
+      ghost.quaternion.copy(av.group.quaternion);
+      ghost.scale.copy(av.group.scale);
+      ghost.visible=av.group.visible;
+      espilGhostMat.opacity=0.16+0.52*(typeof espilOccVis==='number'?espilOccVis:0);
+    }
     /* ============ BUILDING PANEL + INTERIOR (Han 2026-10-20 #5) ====
        Space at a building opens the selection window with the
        building's name (Cauldron-style). Enter resolves like this:
@@ -8217,10 +8392,12 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
          mapBuildings candidate only links stores on Enter - the
          chunk-system buildings do not align with district records). */
       fetchBuildingName({x:rec.cx,z:rec.cz},function(nm){
-        if(espilBldgPanelRec!==rec)return;
+        if(espilBldgPanelRec!==rec&&espilInsideRec!==rec)return;
         if(!nm||(nm==='Downtown Vancouver'&&espilCityKey()!=='vancouver'))nm='Unnamed Building';
         espilBldgName=nm;
         if(nameEl)nameEl.textContent=espilBldgName;
+        var on=document.getElementById('bldg-opts-name'); if(on)on.textContent=espilBldgName;
+        if(window.__espilInside)window.__espilInside.name=espilBldgName;
       });
     }
     function closeBuildingPanel(){
@@ -8235,34 +8412,107 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     }
     function espilEnterBuilding(){
       var p=walkPlayer; if(!p||!espilBldgPanelRec)return;
-      var cand=espilBldgPanelCand;
-      var target=(cand&&cand.id&&typeof getBuildingById==='function'&&getBuildingById(cand.id))||cand;
+      var rec=espilBldgPanelRec;
       closeBuildingPanel();
-      if(target&&typeof fetchNearbyStores==='function'){
+      espilEnterInside(rec);
+    }
+    /* ============ IN-PLACE INTERIOR (Han batch 5 #1+#2) ==========
+       v1 teleported to a shared room at a far offset and Han could
+       not get back out. v2 keeps the player in the world: entering
+       steps through the nearest wall point into the building's own
+       footprint - same size, same place. The footprint ring becomes
+       the walls (the inside tick clamps movement to the ring), the
+       entry point stays the door, and leaving is a plain step back
+       to the saved outside point - three ways out (the door, this
+       panel's Leave button, the settings menu's Return to Earth),
+       none of them async, so exit cannot silently fail. The options
+       panel opens the moment you are inside (Han #2): the building's
+       stores, its contact details, and the way out. */
+    var espilInsideRec=null, espilInsideDoor=null, espilInsideOutside=null, espilInsideHint=false;
+    function espilEnterInside(rec){
+      var p=walkPlayer; if(!p||!rec)return;
+      var pr=espilPolyProbe(rec,p.pos.x,p.pos.z);
+      espilInsideRec=rec; espilInsideDoor={x:pr.cx,z:pr.cz};
+      espilInsideOutside={x:p.pos.x,y:p.pos.y,z:p.pos.z};
+      p.pos.x=pr.cx-pr.nx*1.7; p.pos.z=pr.cz-pr.nz*1.7; p.pos.y=0.05; p.velY=0; p.onGround=true;
+      window.__espilInside={name:espilBldgName,door:{x:pr.cx,z:pr.cz}};
+      openBuildingOpts();
+      if(window.__espilToast)window.__espilToast('Inside '+espilBldgName);
+    }
+    function espilLeaveBuilding(){
+      var p=walkPlayer; if(!p)return;
+      var out=espilInsideOutside;
+      espilInsideRec=null; espilInsideDoor=null; espilInsideOutside=null; espilInsideHint=false;
+      window.__espilInside=null;
+      closeBuildingOpts();
+      if(out){ p.pos.set(out.x,out.y,out.z); p.velY=0; }
+    }
+    function openBuildingOpts(){
+      var o=document.getElementById('bldg-opts'); if(!o)return;
+      var n=document.getElementById('bldg-opts-name'); if(n)n.textContent=espilBldgName;
+      var m=document.getElementById('bldg-opts-main'); if(m)m.style.display='flex';
+      var c=document.getElementById('bldg-contact'); if(c)c.style.display='none';
+      o.classList.add('open'); o.setAttribute('aria-hidden','false');
+    }
+    function closeBuildingOpts(){
+      var o=document.getElementById('bldg-opts'); if(!o)return;
+      o.classList.remove('open'); o.setAttribute('aria-hidden','true');
+    }
+    function espilInsideStores(){
+      var rec=espilInsideRec; if(!rec)return;
+      var cand=espilBldgCandidate(rec);
+      var target=(cand&&cand.id&&typeof getBuildingById==='function'&&getBuildingById(cand.id))||cand||{x:rec.cx,z:rec.cz};
+      closeBuildingOpts();
+      if(typeof fetchNearbyStores==='function'){
         fetchNearbyStores(target,function(stores){
           if(stores&&stores.length>0){ showStoreModal(stores); }
-          else espilEnterInterior();
+          else if(window.__espilToast)window.__espilToast('No stores found in this building');
         });
-      }else espilEnterInterior();
+      }
     }
+    function espilInsideContact(){
+      var rec=espilInsideRec; if(!rec)return;
+      var m=document.getElementById('bldg-opts-main'); if(m)m.style.display='none';
+      var c=document.getElementById('bldg-contact'); if(c)c.style.display='block';
+      var lines=document.getElementById('bldg-contact-lines'); if(lines)lines.textContent='Loading...';
+      var done=function(rows){
+        if(!window.__espilInside)return;
+        if(lines)lines.innerHTML=rows.map(function(r){return '<b>'+r[0]+':</b> '+(r[1]||'Not listed');}).join('<br>');
+      };
+      var ll=mapToLatLng(rec.cx,rec.cz);
+      if(GOOGLE_PLACES_KEY&&GOOGLE_PLACES_KEY.indexOf('__PUT_')!==0){
+        fetch(PLACES_PROXY?'/api/places-nearby':'https://places.googleapis.com/v1/places:searchNearby',{
+          method:'POST',
+          headers:{'Content-Type':'application/json','X-Goog-Api-Key':GOOGLE_PLACES_KEY,'X-Goog-FieldMask':'places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri'},
+          body:JSON.stringify({locationRestriction:{circle:{center:{latitude:ll.lat,longitude:ll.lng},radius:60}},maxResultCount:1,rankPreference:'DISTANCE'})
+        }).then(function(r){return r.json();}).then(function(j){
+          var pl=(j.places&&j.places[0])||null;
+          if(!pl){ done([['Name',espilBldgName],['Address','Not listed'],['Phone','Not listed'],['Website','Not listed'],['Email','Not listed']]); return; }
+          done([['Name',(pl.displayName&&pl.displayName.text)||espilBldgName],['Website',pl.websiteUri||''],['Address',pl.formattedAddress||''],['Phone',pl.nationalPhoneNumber||''],['Email','']]);
+        }).catch(function(){ done([['Name',espilBldgName],['Address',ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)],['Phone','Not listed'],['Website','Not listed'],['Email','Not listed']]); });
+        return;
+      }
+      done([['Name',espilBldgName],['Address',ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)],['Phone','Not listed'],['Website','Not listed'],['Email','Not listed']]);
+    }
+    function espilInsideTick(p){
+      if(!window.__espilInside||!espilInsideRec)return;
+      if(!document.body.classList.contains('in-map')){ espilInsideRec=null; espilInsideDoor=null; espilInsideOutside=null; window.__espilInside=null; closeBuildingOpts(); return; }
+      var rec=espilInsideRec;
+      var doorD=espilInsideDoor?Math.sqrt((p.pos.x-espilInsideDoor.x)*(p.pos.x-espilInsideDoor.x)+(p.pos.z-espilInsideDoor.z)*(p.pos.z-espilInsideDoor.z)):99;
+      if(doorD<1.8&&!espilInsideHint){ espilInsideHint=true; if(window.__espilToast)window.__espilToast('Press Space to leave the building'); }
+      if(doorD>=1.8)espilInsideHint=false;
+      var probe=espilPolyProbe(rec,p.pos.x,p.pos.z);
+      if(!probe.inside){
+        p.pos.x=probe.cx-probe.nx*0.35; p.pos.z=probe.cz-probe.nz*0.35;
+      }
+    }
+    /* RETIRED (Han batch 5 #1): the shared-room teleport is gone -
+       entering is in-place now (espilEnterInside). These remain as
+       safety shims so no stale caller can strand the player. */
     function espilEnterInterior(){
-      var p=walkPlayer; if(!p)return;
-      if(!window.__espilInteriorBuilt)espilBuildInterior();
-      window.__espilInteriorReturn={x:p.pos.x,y:p.pos.y,z:p.pos.z};
-      espilInteriorSetSign(espilBldgName);
-      espilFadeThrough(function(){
-        p.pos.set(ESPIL_INT.x,0.05,ESPIL_INT.z+5.2); p.velY=0; p.onGround=true;
-        window.__espilInterior={name:espilBldgName};
-        if(window.__espilToast)window.__espilToast(espilBldgName+' - the door is behind you, on the south wall');
-      });
+      if(espilBldgPanelRec)espilEnterInside(espilBldgPanelRec);
     }
-    function espilExitInterior(){
-      var p=walkPlayer, ret=window.__espilInteriorReturn; if(!p||!ret)return;
-      espilFadeThrough(function(){
-        p.pos.set(ret.x,ret.y,ret.z); p.velY=0;
-        window.__espilInterior=null; window.__espilInteriorReturn=null;
-      });
-    }
+    function espilExitInterior(){ espilLeaveBuilding(); }
     var espilIntSignCanvas=null;
     function espilInteriorSetSign(name){
       if(!espilIntSignCanvas)return;
@@ -8317,23 +8567,24 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       espilInteriorSetSign('Building');
     }
     var espilIntDoorHint=false;
-    function espilInteriorTick(p){
-      if(!window.__espilInterior)return;
-      if(!document.body.classList.contains('in-map')){ window.__espilInterior=null; window.__espilInteriorReturn=null; return; }
-      if(p.pos.x<ESPIL_INT.x-11.5)p.pos.x=ESPIL_INT.x-11.5;
-      if(p.pos.x>ESPIL_INT.x+11.5)p.pos.x=ESPIL_INT.x+11.5;
-      if(p.pos.z<ESPIL_INT.z-6.1)p.pos.z=ESPIL_INT.z-6.1;
-      if(p.pos.z>ESPIL_INT.z+7.3)p.pos.z=ESPIL_INT.z+7.3;
-      var inDoor=(p.pos.z>ESPIL_INT.z+6.0)&&Math.abs(p.pos.x-ESPIL_INT.x)<1.5;
-      if(inDoor&&!espilIntDoorHint){ espilIntDoorHint=true; if(window.__espilToast)window.__espilToast('Press Space to leave the building'); }
-      if(!inDoor)espilIntDoorHint=false;
-    }
+    /* espilInteriorTick retired (batch 5): the shared-room clamp is
+       gone; espilInsideTick (in the building module) owns the
+       in-place interior now. */
     (function wireBldgPanel(){
       function onReady(){
         var e=document.getElementById('bldg-enter'), c=document.getElementById('bldg-cancel'), x=document.getElementById('bldg-close');
         if(e)e.addEventListener('click',espilEnterBuilding);
         if(c)c.addEventListener('click',closeBuildingPanel);
         if(x)x.addEventListener('click',closeBuildingPanel);
+        var os=document.getElementById('bldg-opt-stores'), oc=document.getElementById('bldg-opt-contact'), ol=document.getElementById('bldg-opt-leave'), ox=document.getElementById('bldg-opts-close'), ob=document.getElementById('bldg-contact-back');
+        if(os)os.addEventListener('click',espilInsideStores);
+        if(oc)oc.addEventListener('click',espilInsideContact);
+        if(ol)ol.addEventListener('click',espilLeaveBuilding);
+        if(ox)ox.addEventListener('click',closeBuildingOpts);
+        if(ob)ob.addEventListener('click',function(){
+          var m=document.getElementById('bldg-opts-main'); if(m)m.style.display='flex';
+          var ct=document.getElementById('bldg-contact'); if(ct)ct.style.display='none';
+        });
       }
       if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',onReady); else onReady();
     })();
@@ -8602,6 +8853,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         if(friendsOpen)toggleFriendsPanel(false);
         if(stallOpen)toggleStallPanel(false);
         if(espilBldgPanelRec)closeBuildingPanel();
+        closeBuildingOpts();
         if(settingsOpen)toggleSettingsPanel(false);
         var _sm=document.getElementById('store-modal');
         if(_sm&&!_sm.classList.contains('hidden'))_sm.classList.add('hidden');
@@ -8610,8 +8862,8 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(k===' '||k==='ArrowUp'||k==='ArrowDown'||k==='ArrowLeft'||k==='ArrowRight')e.preventDefault();
       walkKeys[k.toLowerCase()]=true;
       /* QA #8 (2026-10-06): Shift=jump, Space=interact. Shift-run deprecated. */
-      if((k==='Shift')&&!e.repeat)tryJump();
-      if(k===' '&&!e.repeat){ if(!espilSpaceWallJump())tryInteract(); }
+      if(k===espilKeybinds.jump&&!e.repeat)tryJump();
+      if(k===espilKeybinds.interact&&!e.repeat){ if(!espilSpaceWallJump())tryInteract(); }
       /* Han 2026-10-10 #8: B summons/dismounts fly vehicle */
       if(k.toLowerCase()==='b'&&!e.repeat){
         if(typeof summonVehicle==='function')summonVehicle();
@@ -8637,7 +8889,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         }else if(lk==='p'){
           /* QA #14 (UI room): P toggles character status + outfit. */
           if(!e.repeat)toggleCharacterPanel();
-        }else if(lk==='y'){
+        }else if(lk===espilKeybinds.stall){
           /* Stall system (Han, 2026-10-19): Y toggles the personal
              stall panel (and opens a stall at your spot if none is
              out yet). Friends/party moved to U. */
@@ -8770,7 +9022,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
          rates (frame steps of several metres) the circle can no
          longer tunnel through a thin building between samples -
          point sampling did exactly that on Han's PC (22:15). */
-      if(ESPIL_P1&&!espilP1QrfAxis(p,axis,r)){
+      if(ESPIL_P1&&(window.__espilInside||!espilP1QrfAxis(p,axis,r))){
         var delta=(axis==='x'?p._dx:p._dz)||0;
         var nSub=Math.max(1,Math.min(64,Math.ceil(Math.abs(delta)/0.25)));
         var endA=(axis==='x'?p.pos.x:p.pos.z), startA=endA-delta;
@@ -8829,7 +9081,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         var s=MAP_BOUND/distC;
         p.pos.x*=s;p.pos.z*=s;
       }
-      espilInteriorTick(p); /* BUILDING INTERIOR (Han 2026-10-20 #5): room clamp + door state while inside */
+      espilInsideTick(p); /* IN-PLACE INTERIOR (Han batch 5 #1): footprint clamp + door state while inside a building */
       /* 5km city: stream chunks around the player. Throttle to every ~0.25s. */
       p._chunkT=(p._chunkT||0)+dt;
       if(p._chunkT>.25){p._chunkT=0;updateChunks(p.pos.x,p.pos.z);}
@@ -8875,7 +9127,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
            record and below its top, that record's roof is the
            support. Buildings are solid on this line, so no legitimate
            state is displaced by the lift. */
-        if(support<=.05&&!p._espilClimb&&!p._espilArrive&&spb){
+        if(support<=.05&&!p._espilClimb&&!p._espilArrive&&!window.__espilInside&&spb){
           for(var sri=0;sri<spb.length;sri++){
             var rrec=spb[sri];
             if(rrec.h>p.pos.y+.55&&espilPolyProbe(rrec,p.pos.x,p.pos.z).inside){support=rrec.h;supportCar=null;break;}
@@ -8905,6 +9157,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       p._espilSwimSink=(p._espilSwimSink||0)+(((p.swimming)?1.02:0)-(p._espilSwimSink||0))*Math.min(1,dt*4);
       if(p._espilSwimSink>0.001)g.position.y=p.pos.y-p._espilSwimSink;
       espilOccUpdate(p,dt,performance.now()); /* OCCLUSION MARKER (Han 2026-10-20 #3): never lose the character behind a building */
+      espilGhostSync(p.av); /* X-RAY GHOST (Han 2026-10-20 #4): the silhouette itself shows through buildings */
       if(p.moving){
         var targetFace=Math.atan2(-mx,-mz);
         var d=targetFace-p.faceY;
@@ -9323,8 +9576,9 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     cityReturn.addEventListener('click',function(){clearSelection(true);});
     /* In-city EXIT button (Han 2026-10-18): same return-to-globe path
        as RETURN TO EARTH, from the top-right beside the music toggle. */
-    var cityExitBtn=document.getElementById('city-exit');
-    if(cityExitBtn)cityExitBtn.addEventListener('click',function(){clearSelection(true);});
+    /* The EXIT button is removed (Han batch 5 #3): the settings
+       gear (wired in the settings module) opens the menu whose
+       Return to Earth calls clearSelection(true). */
     /* City info panel: image, metro population, popular brands. ENTER dives into the street view. */
     var cityFacts={
       'Vancouver':{pop:'2.6M',brands:['Lululemon','Aritzia',"Arc'teryx"],img:'assets/cities/vancouver.webp'},
@@ -10243,7 +10497,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         if(!started||muted||userPaused)return;
         try{audio.volume=0;}catch(e){}
         var p=audio.play(); if(p&&p.catch)p.catch(function(){});
-        fadeTo(.5);
+        fadeTo(window.__espilBgmVol!=null?window.__espilBgmVol:.5);
       });
     }
     /* Per-city theme songs (walkable-map BGM). To give a new city its own theme,
@@ -10295,7 +10549,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(cityThemeFailed)return;
       try{a.volume=0;}catch(e){}
       var p=a.play(); if(p&&p.catch)p.catch(function(){});
-      cityFadeTo(CITY_VOLUME);
+      cityFadeTo(window.__espilBgmVol!=null?window.__espilBgmVol:CITY_VOLUME);
     }
     function stopCityTheme(){
       if(cityTimer){clearTimeout(cityTimer);cityTimer=null;}
@@ -10320,7 +10574,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         if(!started||muted||userPaused||!audio)return;
         try{audio.volume=0;}catch(e){}
         var p=audio.play(); if(p&&p.catch)p.catch(function(){});
-        fadeTo(.5);
+        fadeTo(window.__espilBgmVol!=null?window.__espilBgmVol:.5);
       },
       /* Walkable map entered: after CITY_DWELL_MS in the map, fade the city's
          theme in and loop it. Exiting the map cancels the timer/stops the song. */
