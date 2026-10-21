@@ -2180,8 +2180,10 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
           <button class="pill-btn" id="shop-tab-shop" type="button">Shop</button>
           <button class="pill-btn" id="shop-tab-contact" type="button">Contact</button>
+          <button class="pill-btn" id="shop-design" type="button" disabled>Design (designer only)</button>
           <button class="pill-btn" id="shop-leave" type="button">Leave building</button>
         </div>
+        <p class="st-foot" id="shop-rights" style="margin-top:8px;">Interior design and operation belong to the building's registered designer and its operator. At this stage the operator is the only designer and operator.</p>
         <div id="shop-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:8px;margin-top:14px;max-height:300px;overflow-y:auto;"></div>
         <div id="shop-contact" style="display:none;margin-top:14px;text-align:left;">
           <p class="st-sub" id="shop-contact-lines" style="line-height:1.7;">Loading...</p>
@@ -8661,6 +8663,38 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         if(lines)lines.innerHTML=rows.map(function(r){return '<b>'+r[0]+':</b> '+(r[1]||'Not listed');}).join('<br>');
       });
     }
+    /* ============ INTERIOR RIGHTS (Han 2026-10-20, batch 6 #6
+       adjustment) ================================================
+       Interior decoration and shop operation belong to the
+       building's side, never to visitors: decorating opens only
+       to a designer the building owner has registered, and
+       operating only to the owner/operator side. At this stage
+       the operator (Han) is the sole registered designer AND the
+       sole operator for every building, so no visitor path to
+       decorate or operate exists - the shop UI's Design button
+       renders disabled from espilInteriorRights(), and every
+       future design/operate entry point must pass this gate
+       first. Guests have no identity yet (espilCurrentIdentity
+       returns null), so both rights read false for everyone
+       until the account track lands; the registry then moves
+       server-side with it. Buying as a customer is not
+       operation and stays open to everyone. */
+    var ESPIL_OPERATOR_ID='operator:han';
+    var espilDesignerRegistry={}; /* building key -> designer id; empty = the operator's design stands */
+    function espilCurrentIdentity(){ return null; }
+    function espilBldgKeyOf(rec){
+      if(!rec)return 'none';
+      var cand=(typeof espilBldgCandidate==='function')?espilBldgCandidate(rec):null;
+      if(cand&&cand.id)return cand.id;
+      return 'osm:'+Math.round(rec.cx)+','+Math.round(rec.cz);
+    }
+    function espilInteriorRights(rec){
+      var me=espilCurrentIdentity();
+      var designer=espilDesignerRegistry[espilBldgKeyOf(rec)]||ESPIL_OPERATOR_ID;
+      var isOperator=!!me&&me===ESPIL_OPERATOR_ID;
+      return { design:isOperator||(!!me&&me===designer), operate:isOperator, designer:designer };
+    }
+    window.__espilInteriorRights=function(){ return espilInteriorRights(espilInsideRec); };
     /* ============ CLASSIC SHOP (Han batch 6 #6) ==================
        The interior's interface, laid out on the classic shop
        screen grammar Han pointed at (the Gamania-era convenience
@@ -8724,6 +8758,8 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       var o=document.getElementById('shop-ui'); if(!o)return;
       var nm=document.getElementById('shop-name'); if(nm)nm.textContent=espilBldgName;
       var gr=document.getElementById('shop-greet'); if(gr)gr.textContent='Welcome to '+espilBldgName+'. Take your time.';
+      var db=document.getElementById('shop-design');
+      if(db){ var r=espilInteriorRights(espilInsideRec); db.disabled=!r.design; db.title=r.design?'Open the interior design tools':'Only the designer registered by the building owner can decorate this interior'; }
       espilLeoPaint();
       espilShopShowTab('shop');
       espilShopRender(ESPIL_SHOP_STOCK.convenience);
@@ -8875,6 +8911,11 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         if(c)c.addEventListener('click',closeBuildingPanel);
         if(x)x.addEventListener('click',closeBuildingPanel);
         var sc=document.getElementById('shop-close'), sle=document.getElementById('shop-leave'), st1=document.getElementById('shop-tab-shop'), st2=document.getElementById('shop-tab-contact');
+        var sd=document.getElementById('shop-design');
+        if(sd)sd.addEventListener('click',function(){
+          if(!espilInteriorRights(espilInsideRec).design)return; /* locked for everyone but the registered designer */
+          if(window.__espilToast)window.__espilToast('The design tools arrive with the designer system');
+        });
         if(sc)sc.addEventListener('click',espilCloseShop);
         if(sle)sle.addEventListener('click',espilLeaveBuilding);
         if(st1)st1.addEventListener('click',function(){espilShopShowTab('shop');});
