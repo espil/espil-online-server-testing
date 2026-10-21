@@ -1992,6 +1992,9 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px;">
           <button class="pill-btn" id="set-return" type="button">Return to Earth</button>
         </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;">
+          <button class="pill-btn" id="set-guide" type="button">Guide - learn the world with Espil</button>
+        </div>
         <label style="margin-top:16px;">BUTTON SETTINGS</label>
         <div style="display:flex;flex-direction:column;gap:6px;">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><span>Jump</span><button class="pill-btn" id="kb-jump" type="button">Shift</button></div>
@@ -2106,14 +2109,18 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         </div>
         <div class="st-grid" id="stall-grid">
           <p class="st-foot" id="stall-status">No stall open yet.</p>
+          <div style="display:flex;gap:8px;align-items:center;margin:8px 0;">
+            <label for="stall-name" style="font-size:.85rem;">Stall name</label>
+            <input type="text" id="stall-name" maxlength="24" placeholder="My Stall" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(134,238,228,.3);background:rgba(0,0,0,.3);color:#ddfffc;" />
+          </div>
           <div style="display:flex;gap:8px;margin:8px 0;flex-wrap:wrap;">
             <button class="pill-btn" id="stall-place-btn" type="button">Open stall here</button>
             <button class="pill-btn" id="stall-remove-btn" type="button" style="display:none;">Close stall</button>
             <button class="pill-btn" id="stall-view-btn" type="button" style="display:none;">View as visitor</button>
           </div>
-          <div id="stall-board"></div>
+          <div id="stall-board" style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:6px;"></div>
           <div id="stall-form">
-            <p class="st-foot" style="margin-top:12px;">Add a post</p>
+            <p class="st-foot" id="stall-form-title" style="margin-top:12px;">Add a post - pick an empty slot, fill this in, and Post</p>
             <div style="display:flex;gap:8px;margin:8px 0;">
               <select id="stall-side" style="padding:8px;border-radius:8px;border:1px solid rgba(134,238,228,.3);background:rgba(0,0,0,.3);color:#ddfffc;">
                 <option value="sell">Selling</option>
@@ -2129,9 +2136,33 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
               <input type="text" id="stall-price" placeholder="Price (Leo amount, blank = negotiable)" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(134,238,228,.3);background:rgba(0,0,0,.3);color:#ddfffc;" />
               <input type="text" id="stall-note" placeholder="Note (optional)" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(134,238,228,.3);background:rgba(0,0,0,.3);color:#ddfffc;" />
             </div>
-            <button class="pill-btn" id="stall-add-btn" type="button">Post</button>
+            <div style="display:flex;gap:8px;">
+              <button class="pill-btn" id="stall-add-btn" type="button">Post</button>
+              <button class="pill-btn" id="stall-del-btn" type="button" style="display:none;">Delete post</button>
+            </div>
           </div>
-          <p class="st-foot" style="margin-top:12px;">For now you can post signboard listings only. Real item trading and Leo settlement arrive when the server opens.</p>
+          <p class="st-foot" style="margin-top:12px;">The stall window is a grid, the way the old merchant games did it: every post takes one slot with its price tag. No fees, ever - trading here runs on trust. Real item trading and Leo settlement arrive when the server opens.</p>
+        </div>
+      </div>
+    </div>
+    <!-- Espil guide (Han 2026-10-20 #6): Espil himself appears in
+         game and teaches the world in five stops - movement, shop
+         decorating, chat, stalls, city travel. -->
+    <div class="skill-tree" id="guide-panel" aria-hidden="true" role="dialog" aria-label="Guide">
+      <div class="st-card" style="max-width:560px;width:92vw;">
+        <button class="x" id="guide-close" type="button" aria-label="Close guide">&times;</button>
+        <div style="display:flex;gap:14px;align-items:flex-start;">
+          <canvas id="guide-face" width="112" height="112" style="flex:none;width:84px;height:84px;border-radius:50%;border:2px solid rgba(142,247,232,.5);background:#17303a;"></canvas>
+          <div style="flex:1;min-width:0;">
+            <h2 style="margin:0;">Espil</h2>
+            <p class="st-sub" id="guide-title">Welcome</p>
+            <p id="guide-body" style="margin-top:10px;line-height:1.65;font-size:.95rem;"></p>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:16px;">
+          <button class="pill-btn" id="guide-prev" type="button">Back</button>
+          <span id="guide-dots" style="flex:1;text-align:center;letter-spacing:.3em;opacity:.8;"></span>
+          <button class="pill-btn" id="guide-next" type="button">Next</button>
         </div>
       </div>
     </div>
@@ -8251,12 +8282,13 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       c.strokeStyle='#c9a15a';c.lineWidth=6;c.strokeRect(4,4,504,120);
       c.fillStyle='#ffe9a8';c.textAlign='center';c.textBaseline='middle';
       var posts=(s&&s.posts)||[];
-      var line1='My Stall',line2='Press Y to add a post';
+      var line1=((s&&s.name)||'My Stall'),line2='Press Y to add a post';
+      if(line1.length>26)line1=line1.slice(0,26)+'…';
       if(posts.length){
         var p=posts[0];
-        line1=((p.side==='buy')?'Buying: ':'Selling: ')+(p.title||'');
-        if(line1.length>26)line1=line1.slice(0,26)+'…';
-        line2=posts.length>1?('+'+(posts.length-1)+' more'):(p.price?(String(p.price)+' Leo'):'Negotiable');
+        line2=((p.side==='buy')?'Buying: ':'Selling: ')+(p.title||'')+(p.price?(' - '+String(p.price)+' Leo'):' - Negotiable');
+        if(posts.length>1)line2+=' (+'+(posts.length-1)+' more)';
+        if(line2.length>34)line2=line2.slice(0,34)+'…';
       }
       c.font='bold 42px sans-serif';c.fillText(line1,256,44);
       c.font='28px sans-serif';c.fillStyle='#f5d98a';c.fillText(line2,256,92);
@@ -8300,6 +8332,8 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       stallToast('Stall opened');return true;
     }
     function stallEsc(t){return String(t==null?'':t).replace(/[&<>"']/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];});}
+    var stallEditIdx=-1; /* the grid slot loaded in the editor (-1 = none) */
+    var STALL_SLOTS=10; /* the classic stall window: a 5 x 2 grid */
     function stallRender(){
       var s=stallLoad();
       var status=document.getElementById('stall-status');
@@ -8308,40 +8342,62 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       var viewBtn=document.getElementById('stall-view-btn');
       var board=document.getElementById('stall-board');
       var form=document.getElementById('stall-form');
+      var nameEl=document.getElementById('stall-name');
       if(!status||!board)return;
       var posts=(s&&s.posts)||[];
-      status.textContent=s?('Your stall is open in this city. '+posts.length+' post'+(posts.length===1?'':'s')):'No stall open yet.';
+      status.textContent=s?('Your stall is open in this city. '+posts.length+' of '+STALL_SLOTS+' slots filled.'):'No stall open yet.';
+      if(nameEl&&document.activeElement!==nameEl)nameEl.value=(s&&s.name)||'';
       if(placeBtn)placeBtn.textContent=s?'Move stall here':'Open stall here';
       if(removeBtn)removeBtn.style.display=s?'':'none';
       if(viewBtn){viewBtn.style.display=s?'':'none';viewBtn.textContent=stallVisitor?'Back to manage':'View as visitor';}
       if(form)form.style.display=(s&&!stallVisitor)?'':'none';
-      var h='';
-      if(!s){h='<p class="st-foot">Open a stall to add Selling and Buying posts.</p>';}
-      else if(!posts.length){h='<p class="st-foot">No posts yet. Add the first one.</p>';}
-      else{
-        for(var i=0;i<posts.length;i++){
-          var p=posts[i];
-          h+='<div style="display:flex;gap:8px;align-items:center;padding:7px 9px;margin:6px 0;border:1px solid rgba(134,238,228,.22);border-radius:8px;background:rgba(0,0,0,.25);">'
-            +'<span style="flex:none;padding:2px 8px;border-radius:99px;font-size:11px;background:'+(p.side==='buy'?'rgba(90,140,255,.35)':'rgba(255,150,60,.35)')+';color:#eaf6ff;">'+(p.side==='buy'?'Buying':'Selling')+'</span>'
-            +'<span style="flex:1;color:#ddfffc;font-size:13px;">'+stallEsc(p.title)+' <span style="opacity:.65;">('+(p.kind==='service'?'Service':'Item')+')</span>'
-            +(p.note?'<br><span style="opacity:.65;font-size:12px;">'+stallEsc(p.note)+'</span>':'')
-            +'</span>'
-            +'<span style="flex:none;color:#ffe9a8;font-size:13px;">'+(p.price?stallEsc(p.price)+' Leo':'Negotiable')+'</span>'
-            +(stallVisitor?'':'<button class="pill-btn" data-stall-del="'+stallEsc(p.id)+'" type="button">Delete</button>')
-            +'</div>';
+      if(stallEditIdx>=posts.length)stallEditIdx=-1;
+      board.innerHTML='';
+      if(!s){
+        board.innerHTML='<p class="st-foot" style="grid-column:1/-1;">Open a stall to fill its grid with Selling and Buying posts.</p>';
+        return;
+      }
+      if(stallVisitor){
+        var vh=document.createElement('p'); vh.className='st-foot'; vh.style.gridColumn='1/-1';
+        vh.textContent='This is how visitors see your stall.';
+        board.appendChild(vh);
+      }
+      function slotEl(i){
+        var p=posts[i];
+        var el=document.createElement(stallVisitor?'div':'button');
+        if(!stallVisitor)el.type='button';
+        el.style.cssText='position:relative;min-height:86px;padding:7px 7px 20px;border-radius:8px;text-align:left;vertical-align:top;'
+          +(p
+            ?('border:1px solid '+(stallEditIdx===i?'#8ef7e8':'rgba(134,238,228,.3)')+';background:'+(p.kind==='service'?'rgba(70,50,110,.35)':'rgba(20,60,60,.35)')+';color:#ddfffc;cursor:'+(stallVisitor?'default':'pointer')+';')
+            :'border:1px dashed rgba(134,238,228,.35);background:rgba(0,0,0,.18);color:rgba(221,255,252,.6);cursor:pointer;');
+        if(p){
+          el.innerHTML='<span style="position:absolute;top:5px;left:5px;padding:1px 6px;border-radius:99px;font-size:10px;background:'+(p.side==='buy'?'rgba(90,140,255,.5)':'rgba(255,150,60,.5)')+';color:#fff;">'+(p.side==='buy'?'BUYING':'SELLING')+'</span>'
+            +'<span style="display:block;margin-top:17px;font-size:12px;line-height:1.25;word-break:break-word;">'+stallEsc(p.title)+'</span>'
+            +'<span style="position:absolute;left:5px;bottom:5px;font-size:11px;color:#ffe9a8;">'+(p.price?stallEsc(p.price)+' Leo':'Negotiable')+'</span>'
+            +(p.kind==='service'?'<span style="position:absolute;right:5px;bottom:5px;font-size:10px;opacity:.7;">SVC</span>':'');
+          el.title=(p.note||'')+(stallVisitor?'':' (click to edit)');
+          if(!stallVisitor)el.addEventListener('click',function(){ stallEditSlot(i); });
+          else el.addEventListener('click',function(){ stallToast('Trading is face to face - settlement arrives with accounts. Speak to the stall keeper.'); });
+        }else{
+          el.innerHTML='<span style="display:block;text-align:center;font-size:18px;line-height:1;padding-top:12px;">+</span><span style="display:block;text-align:center;font-size:11px;">Empty slot</span>';
+          el.addEventListener('click',function(){ stallEditSlot(-1); var t=document.getElementById('stall-title'); if(t)t.focus(); });
         }
+        return el;
       }
-      if(stallVisitor&&s)h='<p class="st-foot">This is how visitors see your stall.</p>'+h;
-      board.innerHTML=h;
-      if(!stallVisitor){
-        var dels=board.querySelectorAll('[data-stall-del]');
-        for(var j=0;j<dels.length;j++){dels[j].addEventListener('click',function(ev){
-          var id=ev.currentTarget.getAttribute('data-stall-del');
-          var st=stallLoad();if(!st||!st.posts)return;
-          st.posts=st.posts.filter(function(p){return p.id!==id;});
-          stallSave(st);stallRefreshSign();stallRender();
-        });}
-      }
+      var n=stallVisitor?posts.length:STALL_SLOTS;
+      for(var i2=0;i2<n;i2++)board.appendChild(slotEl(i2));
+      var ft=document.getElementById('stall-form-title');
+      if(ft)ft.textContent=stallEditIdx>=0?('Editing slot '+(stallEditIdx+1)+' - change the fields and Save, or Delete the post'):('Add a post - pick an empty slot, fill this in, and Post');
+      var addB=document.getElementById('stall-add-btn'); if(addB)addB.textContent=stallEditIdx>=0?'Save':'Post';
+      var delB=document.getElementById('stall-del-btn'); if(delB)delB.style.display=stallEditIdx>=0?'':'none';
+    }
+    function stallEditSlot(i){
+      stallEditIdx=i;
+      var s=stallLoad(); var p=(i>=0&&s&&s.posts)?s.posts[i]:null;
+      function set(id,v){ var el=document.getElementById(id); if(el)el.value=v==null?'':v; }
+      set('stall-side',p?p.side:'sell'); set('stall-kind',p?p.kind:'item');
+      set('stall-title',p?p.title:''); set('stall-price',p?p.price:''); set('stall-note',p?p.note:'');
+      stallRender();
     }
     function toggleStallPanel(force){
       var panel=document.getElementById('stall-panel');if(!panel)return;
@@ -8356,6 +8412,17 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(open){stallEnsureVisual();stallRender();}
     }
     (function stallWire(){
+      var nameEl=document.getElementById('stall-name');
+      if(nameEl)nameEl.addEventListener('change',function(){
+        var s=stallLoad(); if(!s)return;
+        s.name=nameEl.value.trim(); stallSave(s); stallRefreshSign(); stallToast('Stall name saved');
+      });
+      var del=document.getElementById('stall-del-btn');
+      if(del)del.addEventListener('click',function(){
+        var s=stallLoad(); if(!s||!s.posts||stallEditIdx<0)return;
+        s.posts.splice(stallEditIdx,1); stallEditIdx=-1;
+        stallSave(s); stallRefreshSign(); stallRender(); stallToast('Post deleted');
+      });
       var close=document.getElementById('stall-close');
       if(close)close.addEventListener('click',function(){toggleStallPanel(false);});
       var place=document.getElementById('stall-place-btn');
@@ -8371,16 +8438,107 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         var title=(titleEl.value||'').trim();
         if(!title){stallToast('Please enter a title');return;}
         s.posts=s.posts||[];
-        s.posts.unshift({id:'p'+Date.now().toString(36)+Math.floor(Math.random()*999),side:document.getElementById('stall-side').value,kind:document.getElementById('stall-kind').value,title:title,price:(document.getElementById('stall-price').value||'').trim(),note:(document.getElementById('stall-note').value||'').trim(),ts:Date.now()});
-        stallSave(s);stallRefreshSign();stallRender();
+        var rec={side:document.getElementById('stall-side').value,kind:document.getElementById('stall-kind').value,title:title,price:(document.getElementById('stall-price').value||'').trim(),note:(document.getElementById('stall-note').value||'').trim()};
+        if(stallEditIdx>=0&&s.posts[stallEditIdx]){
+          var old=s.posts[stallEditIdx]; rec.id=old.id; rec.ts=old.ts;
+          s.posts[stallEditIdx]=rec; stallToast('Saved');
+        }else{
+          if(s.posts.length>=STALL_SLOTS){stallToast('The stall grid is full ('+STALL_SLOTS+' slots)');return;}
+          rec.id='p'+Date.now().toString(36)+Math.floor(Math.random()*999); rec.ts=Date.now();
+          s.posts.push(rec); stallToast('Posted');
+        }
+        stallSave(s);stallRefreshSign();stallEditSlot(-1);
         titleEl.value='';document.getElementById('stall-price').value='';document.getElementById('stall-note').value='';
-        stallToast('Posted');
       });
     })();
     setInterval(function(){
       if(!document.body.classList.contains('in-map')){if(stallGroup)stallRemoveVisual();return;}
       stallEnsureVisual();
     },1200);
+    /* ============ ESPIL GUIDE (Han 2026-10-20 #6) ================
+       Espil himself appears in-game and teaches the world in five
+       stops - movement, shop decorating, chat, stalls, city
+       travel - after a short welcome. The tour offers itself
+       once, on a player's first entry (remembered on this
+       device), and the settings menu can call him back any
+       time. The portrait is an original canvas drawing. */
+    var ESPIL_GUIDE=[
+      {t:'Welcome to Espil Online',b:'Hi, I am Espil - I made this world, and I will walk you through it. Everything here stands on the real map: real streets, real buildings, real shops. Five short stops: moving, decorating a shop, chatting, stalls, and travelling between cities.'},
+      {t:'Moving',b:'Walk with the arrow keys, or the stick on touch screens. Your Jump key (Shift by default) jumps - press it again in mid-air for a double jump. Jump into a tall wall while pressing toward it and you will climb it. Space is your hand: it interacts with buildings, doors and stalls near you.'},
+      {t:'Your shop',b:'Step up to a building, press Space, then Enter, and you are inside. Buy from the counter with Leo, open Contact to see the real place behind it - and make the place yours with Design: set the shop sign, and pick the colours of the walls, rug and counter. Your design is saved for that building.'},
+      {t:'Chatting',b:'Press Enter to chat. Your words appear in the chat window on the left, under the name of the city. This world runs on trust, and so does its chat - be kind out there.'},
+      {t:'Stalls',b:'Press your Stall key (Y by default) to open a stall where you stand - one per city. Fill its grid: every slot is a Selling or Buying post with a Leo price, or leave the price blank for Negotiable. There are no fees here. A trade is a promise between two people - that is the law of this world.'},
+      {t:'Travelling',b:'The gear at the top right opens Settings, and CITY SELECT there takes you to another city. Auckland stands open beside Vancouver - on its harbour side you will find a gate marked ZEALANDIA. It is Coming Soon: here, the door gets built before the world behind it.'}
+    ];
+    var espilGuideStep=0, espilGuideFaceDrawn=false, espilGuideOffered=false;
+    function espilDrawGuideFace(){
+      var cv=document.getElementById('guide-face'); if(!cv)return;
+      var c=cv.getContext('2d');
+      var grd=c.createLinearGradient(0,0,0,112); grd.addColorStop(0,'#1d4256'); grd.addColorStop(1,'#12242f');
+      c.fillStyle=grd; c.fillRect(0,0,112,112);
+      c.fillStyle='#8ef7e8'; c.beginPath(); c.arc(56,120,36,Math.PI,0); c.fill();
+      c.fillStyle='#f2c79b'; c.beginPath(); c.arc(56,58,30,0,Math.PI*2); c.fill();
+      c.fillStyle='#2b2f38'; c.beginPath(); c.arc(56,52,31,Math.PI*1.02,Math.PI*1.98); c.fill();
+      c.fillRect(25,50,7,20); c.fillRect(80,50,7,20);
+      c.fillStyle='#ffd98a';
+      c.save(); c.translate(79,33); c.rotate(0.3);
+      c.beginPath();
+      for(var i=0;i<5;i++){ var a=-Math.PI/2+i*Math.PI*2/5; c.lineTo(Math.cos(a)*6,Math.sin(a)*6); var a2=a+Math.PI/5; c.lineTo(Math.cos(a2)*2.6,Math.sin(a2)*2.6); }
+      c.closePath(); c.fill(); c.restore();
+      c.fillStyle='#26303a';
+      c.beginPath(); c.ellipse(45,60,3.4,4.6,0,0,Math.PI*2); c.fill();
+      c.beginPath(); c.ellipse(67,60,3.4,4.6,0,0,Math.PI*2); c.fill();
+      c.fillStyle='#ffffff';
+      c.beginPath(); c.arc(46.2,58.2,1.3,0,Math.PI*2); c.fill();
+      c.beginPath(); c.arc(68.2,58.2,1.3,0,Math.PI*2); c.fill();
+      c.strokeStyle='#26303a'; c.lineWidth=2.4; c.lineCap='round';
+      c.beginPath(); c.arc(56,68,9,Math.PI*0.15,Math.PI*0.85); c.stroke();
+      c.fillStyle='rgba(242,140,140,.45)';
+      c.beginPath(); c.ellipse(36,70,5,3,0,0,Math.PI*2); c.fill();
+      c.beginPath(); c.ellipse(76,70,5,3,0,0,Math.PI*2); c.fill();
+    }
+    function espilGuidePaint(){
+      var s=ESPIL_GUIDE[espilGuideStep]; if(!s)return;
+      var t=document.getElementById('guide-title'), b=document.getElementById('guide-body');
+      if(t)t.textContent=s.t; if(b)b.textContent=s.b;
+      var d=document.getElementById('guide-dots');
+      if(d){ var out=''; for(var i=0;i<ESPIL_GUIDE.length;i++)out+=(i===espilGuideStep?'●':'○'); d.textContent=out; }
+      var pv=document.getElementById('guide-prev'), nx=document.getElementById('guide-next');
+      if(pv)pv.style.visibility=espilGuideStep===0?'hidden':'visible';
+      if(nx)nx.textContent=espilGuideStep===ESPIL_GUIDE.length-1?'Done':'Next';
+    }
+    function espilOpenGuide(step){
+      espilGuideStep=(typeof step==='number')?Math.max(0,Math.min(ESPIL_GUIDE.length-1,step)):0;
+      var o=document.getElementById('guide-panel'); if(!o)return;
+      if(!espilGuideFaceDrawn){ espilGuideFaceDrawn=true; espilDrawGuideFace(); }
+      espilGuidePaint();
+      o.classList.add('open'); o.setAttribute('aria-hidden','false');
+      window.__espilGuideStep=espilGuideStep;
+    }
+    function espilCloseGuide(){
+      var o=document.getElementById('guide-panel'); if(!o)return;
+      o.classList.remove('open'); o.setAttribute('aria-hidden','true');
+    }
+    window.__espilOpenGuide=espilOpenGuide;
+    window.__espilCloseGuide=espilCloseGuide;
+    (function guideWire(){
+      function onReady(){
+        var nx=document.getElementById('guide-next'), pv=document.getElementById('guide-prev'), cl=document.getElementById('guide-close');
+        if(nx)nx.addEventListener('click',function(){ if(espilGuideStep>=ESPIL_GUIDE.length-1){ espilCloseGuide(); return; } espilGuideStep++; window.__espilGuideStep=espilGuideStep; espilGuidePaint(); });
+        if(pv)pv.addEventListener('click',function(){ if(espilGuideStep>0){ espilGuideStep--; window.__espilGuideStep=espilGuideStep; espilGuidePaint(); } });
+        if(cl)cl.addEventListener('click',espilCloseGuide);
+        var sg=document.getElementById('set-guide');
+        if(sg)sg.addEventListener('click',function(){ toggleSettingsPanel(false); espilOpenGuide(0); });
+      }
+      if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',onReady); else onReady();
+    })();
+    setInterval(function(){
+      if(espilGuideOffered)return;
+      if(!document.body.classList.contains('in-map'))return;
+      espilGuideOffered=true;
+      try{ if(localStorage.getItem('espil_guide_seen'))return; localStorage.setItem('espil_guide_seen','1'); }catch(e){ return; }
+      setTimeout(function(){ espilOpenGuide(0); },900);
+    },1500);
     /* ============ DAY / NIGHT (Han batch 6 #1) ===================
        The map style does not follow the clock, so the game dims
        its own world: a brightness curve over the local hour drives
@@ -9199,6 +9357,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         if(espilBldgPanelRec)closeBuildingPanel();
         closeBuildingOpts();
         espilCloseShop();
+        espilCloseGuide();
         if(settingsOpen)toggleSettingsPanel(false);
         var _sm=document.getElementById('store-modal');
         if(_sm&&!_sm.classList.contains('hidden'))_sm.classList.add('hidden');
