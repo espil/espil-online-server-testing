@@ -1702,6 +1702,25 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       #loader .wave, #loader .bubble, #loader .swirl i, #loader .slosh, #loader .surface, #loader .water::after, #loader .glass-shine{animation:none}
       #loader{transition:opacity .2s}
     }
+    /* Viewport-fit pass (Han 2026-10-21, same block as the app
+       payload): every screen playable - the frame always equals the
+       visible viewport (the old min-height floor pushed framed-
+       absolute controls below short screens), and the touch
+       controls anchor to the viewport itself with safe-area inset. */
+    html, body { height:100dvh; }
+    .earth-frame { height:100dvh; min-height:0; }
+    .joystick { position:fixed; left:auto; right:max(12px,2.5vw); bottom:calc(clamp(104px,15vh,168px) + env(safe-area-inset-bottom,0px)); width:clamp(84px,13vmin,120px); height:clamp(84px,13vmin,120px); }
+    #quickbar { right:max(10px,1.5vw); bottom:calc(clamp(10px,2.2vh,18px) + env(safe-area-inset-bottom,0px)); grid-template-columns:repeat(5,clamp(30px,8.5vw,42px)); max-width:calc(100vw - 20px); }
+    .chat-window { left:max(10px,1.5vw); bottom:calc(clamp(10px,2.2vh,18px) + env(safe-area-inset-bottom,0px)); max-height:42dvh; }
+    .map-attack { right:clamp(84px,11vw,118px); bottom:calc(clamp(70px,11vh,104px) + env(safe-area-inset-bottom,0px)); width:clamp(52px,9vmin,76px); height:clamp(52px,9vmin,76px); }
+    .map-jump { right:max(12px,2vw); bottom:calc(clamp(70px,11vh,104px) + env(safe-area-inset-bottom,0px)); width:clamp(52px,9vmin,76px); height:clamp(52px,9vmin,76px); }
+    .skill-bar { bottom:calc(clamp(8px,1.8vh,14px) + env(safe-area-inset-bottom,0px)); }
+    @media (pointer:coarse) {
+      .joystick { right:4vw; bottom:calc(4vh + env(safe-area-inset-bottom,0px)); width:min(30vmin,148px); height:min(30vmin,148px); }
+      .map-attack { left:26vw; right:auto; bottom:calc(3vh + env(safe-area-inset-bottom,0px)); }
+      .map-jump { left:38vw; right:auto; bottom:calc(3vh + env(safe-area-inset-bottom,0px)); }
+    }
+
   </style>
   <noscript><style>#loader{display:none}</style></noscript>
   <!-- Leaflet for 3-stage map (QA #7, 2026-10-09) -->
