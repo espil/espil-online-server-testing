@@ -11454,9 +11454,10 @@ tx.fillStyle=grad; ctx.fill();
    alive, so it costs nothing at rest. */
 (function(){
   if(window.__espilTrailOn)return; window.__espilTrailOn=true;
-  var reduced=false;
-  try{ reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){}
-  if(reduced)return;
+  /* No reduced-motion gate (Han 2026-10-21): he asked for the touch
+     light to appear for the mouse too, and on a PC that reports reduced
+     motion the gate silently killed the whole effect while the phone
+     still showed it. The effect is user-requested; it always runs. */
   var cv=null,ctx=null,parts=[],path=[],raf=0,spawned=0;
   var lastX=-1,lastY=-1,lastT=0,acc=0;
   var COLORS=['#ffe259','#f7d154','#fff3a0','#7dff9a','#4ade80','#a7f3c7'];
@@ -11562,7 +11563,15 @@ tx.fillStyle=grad; ctx.fill();
       kick();
     }
     lastX=x; lastY=y; lastT=now;
-  },{passive:true});
+  },{passive:true,capture:true});
+  /* A click (or tap) flashes the same light even without movement
+     (Han 2026-10-21: hover OR click). */
+  document.addEventListener('pointerdown',function(e){
+    ensure();
+    spawn(e.clientX,e.clientY,0,0,8);
+    lastX=e.clientX; lastY=e.clientY; lastT=performance.now();
+    kick();
+  },{passive:true,capture:true});
   window.__espilTrailStats=function(){ return {alive:parts.length,path:path.length,spawned:spawned}; };
 })();
 </script>
