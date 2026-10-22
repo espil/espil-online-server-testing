@@ -2,6 +2,13 @@
 <html lang="en">
 <head>
   <script>
+  /* Handoff cover stamp (Han live-bug fix, 2026-10-21): when this
+     game-page load continues a Dive or a city switch (a pending city
+     waits in sessionStorage), mark <html> before first paint so the
+     landing chrome never renders on this load. */
+  try{ if(/\/vancouver(\.html)?$/.test(location.pathname)&&sessionStorage.getItem('espil_pending_city'))document.documentElement.classList.add('espil-handoff'); }catch(e){}
+  </script>
+  <script>
 /* 2026-10-13: ALL API keys live in /.env (gitignored, keys only). See .env.example.
    Loaded here so window.__ESPIL_ENV__ is ready before any key is used at runtime. */
 window.__ESPIL_ENV__={};
@@ -1720,6 +1727,22 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       .map-attack { left:26vw; right:auto; bottom:calc(3vh + env(safe-area-inset-bottom,0px)); }
       .map-jump { left:38vw; right:auto; bottom:calc(3vh + env(safe-area-inset-bottom,0px)); }
     }
+    /* Handoff cover (Han live-bug fix, 2026-10-21): on a handoff
+       boot the landing chrome never paints - the loader cover and
+       then the sign-in gate are the only surfaces. The gate and the
+       character panel live inside the frame too and are NOT in
+       this list, so they keep working. */
+    html.espil-handoff #intro, html.espil-handoff #globe-canvas,
+    html.espil-handoff #city-pins, html.espil-handoff .topbar,
+    html.espil-handoff #bgm-card, html.espil-handoff #city-status,
+    html.espil-handoff #city-list,
+    html.espil-handoff #dev-credit, html.espil-handoff #wip-banner { display:none !important; }
+    html.espil-handoff #city-info { visibility:hidden !important; } /* visibility, not display: the boot poller gates its ENTER click on the panel's computed display */
+    /* Time-of-day dark screen (Han's direct specification, 2026-10-21):
+       a plain black overlay at the top of the stack that darkens
+       with the local time of day. This is the simple overlay Han
+       asked for - NOT the purged day/night filter system. */
+    #espil-daynight { position:fixed; inset:0; background:#000; opacity:0; pointer-events:none; z-index:100000; transition:opacity 1.2s linear; }
 
   </style>
   <noscript><style>#loader{display:none}</style></noscript>
@@ -10253,6 +10276,20 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       clearZoomStages();
       if(window.EspilAudio&&window.EspilAudio.pop)window.EspilAudio.pop();
       hideCityInfo();
+      if(window.__espilHandoffEntry){
+        /* Handoff fast path (Han live-bug fix, 2026-10-21): this
+           load continues a Dive (or a city switch) - the entry
+           theatre already played on the previous page, so skip the
+           glide and the typing, converge the orbit at once, and
+           open the login gate immediately. With the cover rules
+           above, the landing never repaints on this load. */
+        window.__espilHandoffEntry=false;
+        targetDistance=1.34; orbitDistance=1.34;
+        entryTypedDone=true;
+        status.textContent='Entering '+selected.userData.name+'…';
+        maybeShowEntrySub();
+        return;
+      }
       /* Slow smooth dive toward the city while the name types out (smoothed 2026-10-06). */
       (function(){
         var gen=++zoomStageGen;
@@ -10721,11 +10758,12 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         if(++tries>2400)return;
         if(window.__espilCityKey)return; // an entry already began (manual or ours); stop.
         if(!window.__espilSelectCityByName||!window.__espilSelectCityByName(name)){ setTimeout(poll,250); return; }
+        window.__espilHandoffEntry=true; /* startCityEntry takes the fast path: no landing theatre, the gate opens at once */
         var et=0;
         (function clickEnter(){
           if(++et>2400)return;
           var info=document.getElementById('city-info'),btn=document.getElementById('city-info-enter');
-          if(info&&btn&&getComputedStyle(info).display!=='none'&&!btn.disabled){ btn.click(); return; }
+          if(info&&btn&&(getComputedStyle(info).display!=='none'||document.documentElement.classList.contains('espil-handoff'))&&!btn.disabled){ btn.click(); return; }
           setTimeout(clickEnter,250);
         })();
       })();
@@ -11349,6 +11387,28 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       drops.length=0; last=performance.now();
       if(!running){ running=true; requestAnimationFrame(frame); }
     };
+  })();
+  </script>
+  <script>
+  /* Time-of-day dark screen (Han 2026-10-21): full-screen black
+     overlay, pointer-transparent, always on top; opacity follows
+     the local clock - clear by day, half-dark deep at night, with
+     dawn and dusk ramps so day and night read clearly. */
+  (function(){
+    function opacityFor(d){
+      var h=d.getHours()+d.getMinutes()/60;
+      if(h>=7&&h<18)return 0;
+      if(h>=21||h<5)return 0.5;
+      if(h>=18)return 0.5*(h-18)/3;
+      return 0.5*(1-(h-5)/2);
+    }
+    window.__espilDayNightOpacity=opacityFor;
+    var el=document.createElement('div');
+    el.id='espil-daynight'; el.setAttribute('aria-hidden','true');
+    document.body.appendChild(el);
+    function apply(){ el.style.opacity=String(opacityFor(new Date())); }
+    apply();
+    setInterval(apply,30000);
   })();
   </script>
 </body>
