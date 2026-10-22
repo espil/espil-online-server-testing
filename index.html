@@ -8095,6 +8095,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        placeholder keeps the portal's teal language. --- */
     var ESPIL_TIMESTONE={x:10382,z:-1018};
     window.__espilTimeStonePos={x:ESPIL_TIMESTONE.x,z:ESPIL_TIMESTONE.z};
+    window.__espilTimeStoneFootprint={w:3.27,d:2.96}; /* real Meshy asset footprint (Marketing via Zealandia room, 2026-10-21) - the placeholder matches it 1:1 */
     var espilTimeStoneGroup=null, espilTimeStoneNear=false, espilTimeStoneArmed=true;
     window.__espilTimeStoneNear=false;
     function espilBuildTimeStone(){
@@ -8105,9 +8106,11 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       var stone=new THREE.Mesh(new THREE.OctahedronGeometry(0.95),stoneMat);
       stone.position.set(0,1.5,0); stone.name='espilTimeStoneCore';
       g.add(stone);
+      var base=new THREE.Mesh(new THREE.BoxGeometry(3.27,0.35,2.96),new THREE.MeshLambertMaterial({color:0x14332e,emissive:0x0b3d33,emissiveIntensity:0.5}));
+      base.position.y=0.18; g.add(base); /* plinth at the real asset's 3.27 x 2.96 m footprint */
       var ringMat=new THREE.MeshBasicMaterial({color:0x14e5c5,transparent:true,opacity:0.55,side:THREE.DoubleSide});
       var ring=new THREE.Mesh(new THREE.RingGeometry(1.7,2.15,40),ringMat);
-      ring.rotation.x=-Math.PI/2; ring.position.y=0.06;
+      ring.rotation.x=-Math.PI/2; ring.position.y=0.06; ring.scale.set(1.105,1,1); /* ellipse matching the footprint ratio */
       g.add(ring);
       var beamMat=new THREE.MeshBasicMaterial({color:0x9ff5e6,transparent:true,opacity:0.16,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide});
       var beam=new THREE.Mesh(new THREE.CylinderGeometry(0.5,1.5,60,12,1,true),beamMat);
@@ -8137,6 +8140,12 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         espilTimeStoneNear=false; window.__espilTimeStoneNear=false; espilTimeStoneArmed=true;
       }
     },150);
+    function espilTimeStoneCollide(p){
+      if(!p||espilCityKey()!=='auckland')return;
+      var dx=p.pos.x-ESPIL_TIMESTONE.x, dz=p.pos.z-ESPIL_TIMESTONE.z;
+      var d=Math.hypot(dx,dz), min=2.2; /* footprint half-width 1.64 + player radius 0.55, rounded */
+      if(d>0.001&&d<min){ p.pos.x=ESPIL_TIMESTONE.x+dx/d*min; p.pos.z=ESPIL_TIMESTONE.z+dz/d*min; }
+    }
     document.addEventListener('keydown',function(e){
       if(e.repeat)return;
       if(!document.body.classList.contains('in-map'))return;
@@ -8146,7 +8155,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(e.key!==(binds.interact||' '))return;
       if(espilCityKey()!=='auckland'||!espilTimeStoneGroup)return;
       var p=walkPlayer; if(!p)return;
-      if(Math.hypot(p.pos.x-ESPIL_TIMESTONE.x,p.pos.z-ESPIL_TIMESTONE.z)>2)return; /* execution range stays 2 m */
+      if(Math.hypot(p.pos.x-ESPIL_TIMESTONE.x,p.pos.z-ESPIL_TIMESTONE.z)>2.8)return; /* execution range 2.8 m from centre: the real footprint blocks approach at ~2.2 m */
       try{ localStorage.setItem('espil_timemachine_done','1'); }catch(_){}
       window.__espilTimeStoneDone=true;
       try{ window.dispatchEvent(new CustomEvent('espil-timemachine-interact',{detail:{x:ESPIL_TIMESTONE.x,z:ESPIL_TIMESTONE.z}})); }catch(_){}
@@ -9471,6 +9480,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         p.pos.x*=s;p.pos.z*=s;
       }
       espilInsideTick(p); /* IN-PLACE INTERIOR (Han batch 5 #1): footprint clamp + door state while inside a building */
+      espilTimeStoneCollide(p);
       /* 5km city: stream chunks around the player. Throttle to every ~0.25s. */
       p._chunkT=(p._chunkT||0)+dt;
       if(p._chunkT>.25){p._chunkT=0;updateChunks(p.pos.x,p.pos.z);}
