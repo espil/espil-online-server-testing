@@ -8157,7 +8157,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(e.key!==(binds.interact||' '))return;
       if(espilCityKey()!=='auckland'||!espilTimeStoneGroup)return;
       var p=walkPlayer; if(!p)return;
-      if(Math.hypot(p.pos.x-ESPIL_TIMESTONE.x,p.pos.z-ESPIL_TIMESTONE.z)>2.8)return; /* execution range 2.8 m from centre: the real footprint blocks approach at ~2.2 m */
+      if(Math.hypot(p.pos.x-ESPIL_TIMESTONE.x,p.pos.z-ESPIL_TIMESTONE.z)>3)return; /* execution range 3 m from centre (confirmed standard, Zealandia room 2026-10-21): the real footprint blocks approach at ~2.2 m */
       try{ localStorage.setItem('espil_timemachine_done','1'); }catch(_){}
       window.__espilTimeStoneDone=true;
       try{ window.dispatchEvent(new CustomEvent('espil-timemachine-interact',{detail:{x:ESPIL_TIMESTONE.x,z:ESPIL_TIMESTONE.z}})); }catch(_){}
