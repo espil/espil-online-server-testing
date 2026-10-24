@@ -2306,6 +2306,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.js"></script>
   <script src="assets/three.min.js"></script>
   <script src="assets/GLTFLoader.js"></script>
+  <script type="module">import { MeshoptDecoder } from './assets/zealandia/meshopt_decoder.js'; window.MeshoptDecoder = MeshoptDecoder;</script>
   <script>
   (function(){
     var reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -8214,6 +8215,156 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       window.__espilTimeStoneDone=true;
       try{ window.dispatchEvent(new CustomEvent('espil-timemachine-interact',{detail:{x:ESPIL_TIMESTONE.x,z:ESPIL_TIMESTONE.z}})); }catch(_){}
     });
+    /* --- AUCKLAND TIME STONE SCENE + WEB JOURNEY END (Han, 2026-10-23):
+       (1) Entering Auckland plays the Time Machine cinematic until the
+       Time Stone interact completes (espil_timemachine_done); after
+       that it never replays. Skip is always offered and the player is
+       pinned while it plays. (2) The Time Stone and Lunaris stand in
+       Auckland as real 3D assets (the app payload's optimized GLBs) -
+       the only placed 3D assets on the web. The stone GLB replaces the
+       placeholder core and plinth inside the same group, so footprint,
+       collision and events are unchanged; Lunaris stands 4.7 m south
+       of the stone on her Idle loop, with a TimeCast every third
+       cycle. (3) The web journey ENDS at the stone: the interact plays
+       the crack reveal and opens the app guidance panel - Zealandia
+       opens in the Espil Online app, never on the web. --- */
+    var ESPIL_AUCK_STR={
+      en:{skip:'Skip',play:'Play',cineTitle:'The Time Stone - Auckland',panelTitle:'The stone has spoken',panelBody:'The web journey ends here. Beyond this stone lies Zealandia - and Zealandia opens in the Espil Online app. Download the app, and the world past the stone begins.',close:'Close',nearHint:'Press Space - touch the Time Stone'},
+      ko:{skip:'건너뛰기',play:'재생',cineTitle:'타임 스톤 - Auckland',panelTitle:'타임 스톤이 응답했습니다',panelBody:'웹에서의 여정은 여기까지입니다. 이 돌 너머에는 Zealandia가 있습니다. Zealandia는 Espil Online 앱에서 열립니다. 앱을 다운로드하시면 돌 너머의 세계가 시작됩니다.',close:'닫기',nearHint:'Space - 타임 스톤을 만지세요'},
+      fr:{skip:'Passer',play:'Lire',cineTitle:'La Pierre du Temps - Auckland',panelTitle:'La pierre a parlé',panelBody:'Le voyage sur le web se termine ici. Au-delà de cette pierre se trouve Zealandia - et Zealandia s\'ouvre dans l\'application Espil Online. Téléchargez l\'application, et le monde au-delà de la pierre commence.',close:'Fermer',nearHint:'Espace - touchez la Pierre du Temps'},
+      zh:{skip:'跳过',play:'播放',cineTitle:'时间之石 - Auckland',panelTitle:'时间之石已回应',panelBody:'网页之旅到此结束。这块石头之外是 Zealandia,而 Zealandia 在 Espil Online 应用中开启。下载应用,石头之外的世界就此开始。',close:'关闭',nearHint:'按空格 - 触摸时间之石'}
+    };
+    function espilAuckT(k){ var c='en'; try{ c=window.__espilLang()||'en'; }catch(e){} var l=ESPIL_AUCK_STR[c]||ESPIL_AUCK_STR.en; return l[k]||ESPIL_AUCK_STR.en[k]||k; }
+    (function(){
+      var st=document.createElement('style'); st.id='espil-auck-style';
+      st.textContent='#espil-cine{position:fixed;inset:0;background:#000;z-index:100002;display:none;align-items:center;justify-content:center}'
+      +'#espil-cine.show{display:flex}#espil-cine video{width:100%;height:100%;object-fit:contain;background:#000}'
+      +'#espil-cine-title{position:absolute;left:22px;bottom:20px;color:#dff7f2;font:600 13px/1.4 "Avenir Next","Segoe UI",sans-serif;letter-spacing:.14em;text-transform:uppercase;opacity:.85}'
+      +'#espil-cine-skip{position:absolute;right:22px;bottom:18px;padding:9px 18px;border-radius:999px;border:1px solid rgba(142,247,232,.55);background:rgba(10,16,22,.72);color:#eaf6ff;font:600 13.5px "Avenir Next","Segoe UI",sans-serif;cursor:pointer}'
+      +'#espil-cine-skip:hover{background:rgba(20,40,44,.85)}'
+      +'#espil-cine-play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:none;padding:14px 30px;border-radius:999px;border:1px solid rgba(142,247,232,.7);background:rgba(10,16,22,.8);color:#eaf6ff;font:700 16px "Avenir Next","Segoe UI",sans-serif;cursor:pointer}'
+      +'#espil-cine-play.show{display:block}'
+      +'#espil-crack{position:fixed;inset:0;z-index:100003;pointer-events:none;opacity:0;background:radial-gradient(ellipse at 50% 46%,rgba(210,255,246,.5),rgba(20,229,197,.12) 42%,transparent 68%)}'
+      +'#espil-crack.show{animation:espilCrackIn 1.15s ease-out forwards}'
+      +'#espil-crack svg{width:100%;height:100%;filter:drop-shadow(0 0 7px rgba(20,229,197,.95))}'
+      +'@keyframes espilCrackIn{0%{opacity:0}12%{opacity:1}70%{opacity:1}100%{opacity:0}}'
+      +'#espil-app-panel{position:fixed;inset:0;z-index:100004;display:none;align-items:center;justify-content:center;background:rgba(4,8,12,.45)}'
+      +'#espil-app-panel.show{display:flex}'
+      +'#espil-app-card{max-width:430px;width:calc(100% - 44px);background:rgba(13,19,27,.96);border:1px solid rgba(20,229,197,.4);border-radius:16px;padding:26px 26px 22px;color:#eaf6ff;box-shadow:0 24px 70px rgba(0,0,0,.55)}'
+      +'#espil-app-title{font:700 20px/1.3 "Avenir Next","Segoe UI",sans-serif;margin-bottom:10px}'
+      +'#espil-app-body{font:400 14.5px/1.65 "Avenir Next","Segoe UI",sans-serif;color:#cfd8e3}'
+      +'#espil-app-chip{display:inline-block;margin-top:15px;padding:8px 13px;border-radius:10px;background:rgba(20,229,197,.12);color:#8ef7e8;font:700 13.5px "Avenir Next","Segoe UI",sans-serif}'
+      +'#espil-app-close{display:block;width:100%;margin-top:18px;padding:11px 0;border-radius:11px;border:1px solid rgba(142,247,232,.5);background:rgba(20,229,197,.14);color:#eaf6ff;font:700 14px "Avenir Next","Segoe UI",sans-serif;cursor:pointer}';
+      document.head.appendChild(st);
+    })();
+    /* (1) cinematic on Auckland entry */
+    var espilCineShown=false, espilCinePlaying=false, espilCinePin=null, espilCinePinTimer=null;
+    function espilCineBuild(){
+      if(document.getElementById('espil-cine'))return;
+      var wrap=document.createElement('div'); wrap.id='espil-cine';
+      wrap.innerHTML='<video id="espil-cine-video" playsinline muted preload="none"><source src="assets/cinematic/timemachine.webm" type="video/webm"><source src="assets/cinematic/timemachine.mp4" type="video/mp4"></video><div id="espil-cine-title"></div><button id="espil-cine-skip" type="button"></button><button id="espil-cine-play" type="button"></button>';
+      document.body.appendChild(wrap);
+      document.getElementById('espil-cine-skip').addEventListener('click',espilCineStop);
+      var v=document.getElementById('espil-cine-video');
+      v.addEventListener('ended',espilCineStop);
+      v.addEventListener('error',function(){ if(v.error)espilCineStop(); });
+      document.getElementById('espil-cine-play').addEventListener('click',function(){ this.classList.remove('show'); try{ v.play(); }catch(e){} });
+    }
+    function espilCinePlay(){
+      if(espilCineShown||espilCinePlaying)return;
+      var done=false; try{ done=localStorage.getItem('espil_timemachine_done')==='1'; }catch(e){}
+      if(done)return;
+      espilCineBuild(); espilCineShown=true; espilCinePlaying=true; window.__espilCinematicPlaying=true;
+      document.getElementById('espil-cine-title').textContent=espilAuckT('cineTitle');
+      document.getElementById('espil-cine-skip').textContent=espilAuckT('skip');
+      document.getElementById('espil-cine').classList.add('show');
+      var p=walkPlayer; espilCinePin=(p&&p.pos)?{x:p.pos.x,z:p.pos.z}:null;
+      espilCinePinTimer=setInterval(function(){ var q=walkPlayer; if(q&&q.pos&&espilCinePin){ q.pos.x=espilCinePin.x; q.pos.z=espilCinePin.z; } },100);
+      var v=document.getElementById('espil-cine-video');
+      var pb=document.getElementById('espil-cine-play'); pb.textContent='\u25B6 ' + espilAuckT('play'); pb.classList.remove('show');
+      try{ var pr=v.play(); if(pr&&pr.catch)pr.catch(function(){ pb.classList.add('show'); }); }catch(e){ pb.classList.add('show'); }
+      setTimeout(function(){ if(!espilCinePlaying)return; if(v.error){ espilCineStop(); return; } if(v.paused&&v.currentTime===0)pb.classList.add('show'); },25000);
+    }
+    function espilCineStop(){
+      if(!espilCinePlaying)return;
+      espilCinePlaying=false; window.__espilCinematicPlaying=false; window.__espilCinematicDone=true;
+      var wrap=document.getElementById('espil-cine'); if(wrap)wrap.classList.remove('show');
+      var v=document.getElementById('espil-cine-video'); if(v){ try{ v.pause(); }catch(e){} }
+      if(espilCinePinTimer){ clearInterval(espilCinePinTimer); espilCinePinTimer=null; }
+    }
+    window.addEventListener('espil-arrival',function(e){ if(e&&e.detail&&e.detail.city==='auckland')espilCinePlay(); });
+    (function(){ var n=0; var iv=setInterval(function(){ n++; var la=window.__espilLastArrival; if(la&&la.city==='auckland'){ espilCinePlay(); clearInterval(iv); } if(n>40)clearInterval(iv); },500); })();
+    /* (2) the stone GLB and Lunaris */
+    var espilStoneGlbBusy=false, espilLunarisBusy=false, espilLunarisState=null, espilLunarisCycle=0;
+    function espilAuckLoader(){ var l=new THREE.GLTFLoader(); try{ if(window.MeshoptDecoder)l.setMeshoptDecoder(window.MeshoptDecoder); }catch(e){} return l; }
+    function espilFitHeight(obj,h){ var b=new THREE.Box3().setFromObject(obj); var s=b.max.y-b.min.y; if(s>0)obj.scale.setScalar(h/s); var b2=new THREE.Box3().setFromObject(obj); obj.position.y-=b2.min.y; }
+    function espilNoCull(obj){ obj.traverse(function(n){ if(n.isMesh||n.isSkinnedMesh)n.frustumCulled=false; }); }
+    function espilBuildStoneGlb(){
+      if(espilStoneGlbBusy||window.__espilTimeStoneGlb||!espilTimeStoneGroup)return;
+      espilStoneGlbBusy=true;
+      espilAuckLoader().load('assets/zealandia/timestone.glb',function(gltf){
+        var obj=gltf.scene; espilNoCull(obj); espilFitHeight(obj,5.52);
+        espilTimeStoneGroup.children.slice().forEach(function(ch){ if(ch.name==='espilTimeStoneCore'||(ch.geometry&&ch.geometry.type==='BoxGeometry'))ch.visible=false; });
+        espilTimeStoneGroup.add(obj);
+        window.__espilTimeStoneGlb=true; window.__espilTimeStoneGlbObj=obj;
+      },undefined,function(){ espilStoneGlbBusy=false; });
+    }
+    function espilBuildLunaris(){
+      if(espilLunarisBusy||espilLunarisState||espilCityKey()!=='auckland'||typeof mapScene==='undefined'||!mapScene)return;
+      espilLunarisBusy=true;
+      espilAuckLoader().load('assets/zealandia/lunaris.glb',function(gltf){
+        var obj=gltf.scene; espilNoCull(obj); espilFitHeight(obj,1.8);
+        var x=ESPIL_TIMESTONE.x, z=ESPIL_TIMESTONE.z+4.7;
+        var y=0; try{ var sy=espilOwnSurfaceY(x,z); if(typeof sy==='number')y=sy; }catch(e){}
+        obj.position.set(x,y,z); obj.lookAt(ESPIL_TIMESTONE.x,y,ESPIL_TIMESTONE.z);
+        mapScene.add(obj);
+        var mixer=new THREE.AnimationMixer(obj); var acts={};
+        (gltf.animations||[]).forEach(function(clip){ acts[clip.name]=mixer.clipAction(clip); });
+        espilLunarisState={obj:obj,mixer:mixer,acts:acts};
+        if(acts.Idle){ acts.Idle.play(); }
+        window.__espilLunarisBuilt=true; window.__espilLunarisPos={x:x,z:z}; window.__espilLunarisState=espilLunarisState;
+        var clock=new THREE.Clock();
+        (function tick(){ requestAnimationFrame(tick); if(espilLunarisState&&espilLunarisState.mixer)espilLunarisState.mixer.update(Math.min(clock.getDelta(),0.1)); })();
+        setInterval(function(){
+          if(!espilLunarisState||!espilLunarisState.acts.TimeCast||!espilLunarisState.acts.Idle)return;
+          espilLunarisCycle++;
+          if(espilLunarisCycle%3!==0)return;
+          var tc=espilLunarisState.acts.TimeCast, id=espilLunarisState.acts.Idle;
+          tc.reset(); tc.setLoop(THREE.LoopOnce,1); tc.clampWhenFinished=true; tc.fadeIn(0.3); tc.play(); id.fadeOut(0.3);
+          setTimeout(function(){ if(!espilLunarisState)return; tc.fadeOut(0.3); id.reset().fadeIn(0.3).play(); },(tc.getClip().duration||3)*1000);
+        },12000);
+      },undefined,function(){ espilLunarisBusy=false; });
+    }
+    setInterval(function(){
+      if(!document.body.classList.contains('in-map'))return;
+      if(espilCityKey()!=='auckland')return;
+      espilBuildStoneGlb(); espilBuildLunaris();
+    },800);
+    /* (3) crack reveal + app guidance panel: the web journey ends here */
+    function espilCrackBuild(){
+      if(document.getElementById('espil-crack'))return;
+      var d=document.createElement('div'); d.id='espil-crack';
+      d.innerHTML='<svg viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid slice"><g stroke="#cffff5" stroke-width="3" fill="none" stroke-linejoin="round"><path d="M512,0 L496,96 L518,168 L488,262 L516,344 L492,452 L520,548 L504,700"/><path d="M516,344 L612,392 L668,378"/><path d="M488,262 L392,300 L344,286"/><path d="M492,452 L420,520 L428,586"/><path d="M518,168 L596,214 L652,204"/><path d="M516,344 L452,420 L462,486"/></g></svg>';
+      document.body.appendChild(d);
+      var p=document.createElement('div'); p.id='espil-app-panel';
+      p.innerHTML='<div id="espil-app-card"><div id="espil-app-title"></div><div id="espil-app-body"></div><span id="espil-app-chip">Espil Online: A to Zealandia</span><button id="espil-app-close" type="button"></button></div>';
+      document.body.appendChild(p);
+      document.getElementById('espil-app-close').addEventListener('click',function(){ p.classList.remove('show'); window.__espilAppPanelOpen=false; });
+    }
+    window.addEventListener('espil-timemachine-near',function(){ try{ if(window.__espilToast)window.__espilToast(espilAuckT('nearHint')); }catch(e){} });
+    window.addEventListener('espil-timemachine-interact',function(){
+      espilCineStop();
+      espilCrackBuild();
+      var c=document.getElementById('espil-crack');
+      c.classList.remove('show'); void c.offsetWidth; c.classList.add('show'); window.__espilCrackShown=true;
+      setTimeout(function(){
+        document.getElementById('espil-app-title').textContent=espilAuckT('panelTitle');
+        document.getElementById('espil-app-body').textContent=espilAuckT('panelBody');
+        document.getElementById('espil-app-close').textContent=espilAuckT('close');
+        document.getElementById('espil-app-panel').classList.add('show'); window.__espilAppPanelOpen=true;
+      },520);
+      try{ window.dispatchEvent(new CustomEvent('espil-guide',{detail:{type:'timemachine-end'}})); }catch(e){}
+    });
     /* --- NAV PATH (guide step 8, joint production 2026-10-21): a
        glowing green route on the ground from the player to a target,
        routed over the city's own walkable class grid (A* on the 2 m
@@ -8529,7 +8680,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       {t:'Your shop',b:'Step up to a building, press Space, then Enter, and you are inside. Buy from the counter with Leo, open Contact to see the real place behind it - and make the place yours with Design: set the shop sign, and pick the colours of the walls, rug and counter. Your design is saved for that building.'},
       {t:'Chatting',b:'Press Enter to chat. Your words appear in the chat window on the left, under the name of the city. This world runs on trust, and so does its chat - be kind out there.'},
       {t:'Stalls',b:'Press your Stall key (Y by default) to open a stall where you stand - one per city. Fill its grid: every slot is a Selling or Buying post with a Leo price, or leave the price blank for Negotiable. There are no fees here. A trade is a promise between two people - that is the law of this world.'},
-      {t:'Travelling',b:'The gear at the top right opens Settings, and CITY SELECT there takes you to another city. Auckland stands open beside Vancouver - on its harbour side you will find a gate marked ZEALANDIA. It is Coming Soon: here, the door gets built before the world behind it.'}
+      {t:'Travelling',b:'The gear at the top right opens Settings, and CITY SELECT there takes you to another city. Auckland stands open beside Vancouver - there a Time Stone waits, with Lunaris watching over it. Touch the stone, and the web journey ends: Zealandia itself opens in the Espil Online app.'}
     ];
     var espilGuideStep=0, espilGuideFaceDrawn=false, espilGuideOffered=false;
     function espilDrawGuideFace(){
