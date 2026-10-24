@@ -9251,6 +9251,22 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     window.addEventListener('espil-chat-recv',function(e){
       if(e&&e.detail)addChatMsg(e.detail.who||'',e.detail.text||'',!!e.detail.sys);
     });
+    var __espilRemoteMarkers={};
+    window.__espilMinimapSet=function(id,x,z,info){
+      if(typeof L==='undefined'||!leafletMap||typeof gameToLatLng!=='function')return;
+      var ll=gameToLatLng(x,z);
+      var mk=__espilRemoteMarkers[id];
+      if(!mk){
+        var nm=((info&&info.name)||'Guest').replace(/[<>&"']/g,'');
+        var col=(info&&info.gender==='f')?'#e77fc0':'#7fc97f';
+        mk=L.marker(ll,{interactive:false,icon:L.divIcon({className:'',html:'<div style="text-align:center;"><div style="width:12px;height:12px;margin:0 auto;border-radius:50%;background:'+col+';border:2px solid #fff;box-shadow:0 1px 6px rgba(0,0,0,.5);"></div><div style="font-size:9px;color:#fff;text-shadow:0 1px 3px #000;white-space:nowrap;">'+nm+'</div></div>',iconSize:[42,26],iconAnchor:[21,6]})}).addTo(leafletMap);
+        __espilRemoteMarkers[id]=mk;
+      } else mk.setLatLng(ll);
+    };
+    window.__espilMinimapRemove=function(id){ var mk=__espilRemoteMarkers[id]; if(mk){ try{ leafletMap.removeLayer(mk); }catch(_){} delete __espilRemoteMarkers[id]; } };
+    window.__espilMinimapClear=function(){ for(var k in __espilRemoteMarkers)window.__espilMinimapRemove(k); };
+    window.__espilPlayerPose=function(){ if(typeof walkPlayer==='undefined'||!walkPlayer||!walkPlayer.pos)return null; return {x:walkPlayer.pos.x,y:walkPlayer.pos.y,z:walkPlayer.pos.z,a:(typeof walkPlayer.faceY==='number'?walkPlayer.faceY:0)}; };
+    window.__espilMinimapCount=function(){ return Object.keys(__espilRemoteMarkers).length; };
     window.addEventListener('sell-bubble',function(e){
       espilSellBubble(e&&e.detail&&e.detail.text);
     });
@@ -11604,8 +11620,10 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
    memory (and the guest's own localStorage for the name prefill); the
    server stores nothing. Connects on city arrival to
    wss://api.espil.online/ws?room=<cityKey>; endpoint overridable via
-   window.__espilChatEndpoint for local testing. Position relay is out
-   of scope for v1 (spec marks it optional). */
+   window.__espilChatEndpoint for local testing.
+   v2 (Han's order 2026-10-24): own position is sent every 1 s while
+   joined; received positions drive the other users' minimap markers
+   through the world script's __espilMinimapSet/Remove bridges. */
 (function(){
   'use strict';
   if (window.__espilChatClient) return;
@@ -11613,7 +11631,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
 
   var ENDPOINT = window.__espilChatEndpoint || 'wss://api.espil.online/ws';
   var ws = null, room = null, myId = null, users = {}, joined = false;
-  var backoff = 1000, retryTimer = null, sendWindow = [];
+  var backoff = 1000, retryTimer = null, posTimer = null, sendWindow = [];
   var NAME_PH = { en: 'Your name', ko: '이름을 입력하세요', fr: 'Votre nom', zh: '你的名字' };
 
   function $(id){ return document.getElementById(id); }
@@ -11653,6 +11671,19 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     el.title = names.join(', ');
   }
   function sysLine(text){ line('', text, true); }
+  function r2(n){ return Math.round((+n || 0) * 100) / 100; }
+
+  function startPos(){
+    stopPos();
+    posTimer = setInterval(function(){
+      if (!ws || ws.readyState !== 1 || !joined) return;
+      var p = null;
+      try { p = window.__espilPlayerPose ? window.__espilPlayerPose() : null; } catch(_){}
+      if (!p) return;
+      try { ws.send(JSON.stringify({ t: 'pos', x: r2(p.x), y: r2(p.y), z: r2(p.z), a: r2(p.a) })); } catch(_){}
+    }, 1000);
+  }
+  function stopPos(){ if (posTimer) { clearInterval(posTimer); posTimer = null; } }
 
   function connect(r){
     room = r;
@@ -11671,12 +11702,20 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if (m.t === 'welcome') {
         myId = m.id; users = {}; joined = true;
         (m.users || []).forEach(function(u){ users[u.id] = u; });
-        renderPresence();
+        try { if (window.__espilMinimapClear) window.__espilMinimapClear(); } catch(_){}
+        renderPresence(); startPos();
         sysLine('— ' + Object.keys(users).length + ' here —');
       } else if (m.t === 'join' && m.user) {
         users[m.user.id] = m.user; renderPresence();
       } else if (m.t === 'leave') {
         delete users[m.id]; renderPresence();
+        try { if (window.__espilMinimapRemove) window.__espilMinimapRemove(m.id); } catch(_){}
+      } else if (m.t === 'pos') {
+        var u = users[m.id];
+        if (u) {
+          u.pos = { x: m.x, y: m.y, z: m.z, a: m.a };
+          try { if (window.__espilMinimapSet) window.__espilMinimapSet(m.id, m.x, m.z, u); } catch(_){}
+        }
       } else if (m.t === 'chat' && m.from) {
         line(m.from.name || 'Guest', String(m.text || ''), false);
       } else if (m.t === 'error') {
@@ -11687,7 +11726,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         }
       }
     };
-    ws.onclose = function(){ joined = false; renderPresence(); scheduleRetry(); };
+    ws.onclose = function(){ joined = false; stopPos(); renderPresence(); scheduleRetry(); };
     ws.onerror = function(){ try { ws.close(); } catch(_){} };
   }
   function scheduleRetry(){
@@ -11696,7 +11735,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     retryTimer = setTimeout(function(){ if (room) connect(room); }, backoff);
     backoff = Math.min(15000, backoff * 2);
   }
-  function stopRetry(){ clearTimeout(retryTimer); room = null; }
+  function stopRetry(){ clearTimeout(retryTimer); room = null; stopPos(); }
 
   /* Send hook used by the chat window's sendChat (world script). Returns
      true when the message went to the server; the server echoes it back
