@@ -11629,7 +11629,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
 
   var ENDPOINT = window.__espilChatEndpoint || 'wss://api.espil.online/ws';
   var ws = null, room = null, myId = null, users = {}, joined = false;
-  var backoff = 1000, retryTimer = null, posTimer = null, sendWindow = [];
+  var backoff = 1000, retryTimer = null, posTimer = null, pingTimer = null, sendWindow = [];
   var NAME_PH = { en: 'Your name', ko: '이름을 입력하세요', fr: 'Votre nom', zh: '你的名字' };
 
   function $(id){ return document.getElementById(id); }
@@ -11682,6 +11682,16 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     }, 1000);
   }
   function stopPos(){ if (posTimer) { clearInterval(posTimer); posTimer = null; } }
+  /* Server hardening v1.1: sockets idle for 5 minutes are closed. The
+     1 s position send normally keeps the socket warm; this 60 s ping
+     covers any gap (spec: ping or pos at least every 60 s). */
+  function startPing(){
+    stopPing();
+    pingTimer = setInterval(function(){
+      if (ws && ws.readyState === 1) { try { ws.send(JSON.stringify({ t: 'ping' })); } catch(_){} }
+    }, 60000);
+  }
+  function stopPing(){ if (pingTimer) { clearInterval(pingTimer); pingTimer = null; } }
 
   function connect(r){
     room = r;
@@ -11692,6 +11702,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     try { ws = new WebSocket(url); } catch(e){ scheduleRetry(); return; }
     ws.onopen = function(){
       backoff = 1000;
+      startPing();
       try { ws.send(JSON.stringify({ t: 'join', name: myName(), gender: myGender() })); } catch(_){}
     };
     ws.onmessage = function(ev){
@@ -11724,7 +11735,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         }
       }
     };
-    ws.onclose = function(){ joined = false; stopPos(); renderPresence(); scheduleRetry(); };
+    ws.onclose = function(){ joined = false; stopPos(); stopPing(); renderPresence(); scheduleRetry(); };
     ws.onerror = function(){ try { ws.close(); } catch(_){} };
   }
   function scheduleRetry(){
@@ -11733,7 +11744,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     retryTimer = setTimeout(function(){ if (room) connect(room); }, backoff);
     backoff = Math.min(15000, backoff * 2);
   }
-  function stopRetry(){ clearTimeout(retryTimer); room = null; stopPos(); }
+  function stopRetry(){ clearTimeout(retryTimer); room = null; stopPos(); stopPing(); }
 
   /* Send hook used by the chat window's sendChat (world script). Returns
      true when the message went to the server; the server echoes it back
