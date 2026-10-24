@@ -1920,6 +1920,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
             <span class="char-tag" data-i18n="readyF">Ready</span>
           </button>
         </div>
+        <input id="char-name" type="text" maxlength="16" autocomplete="off" placeholder="Your name" aria-label="Your name" style="display:block;width:100%;box-sizing:border-box;margin:10px 0 2px;background:rgba(6,12,18,.85);border:1px solid rgba(134,238,228,.45);border-radius:9px;padding:9px 11px;font-size:14px;color:#fff;outline:none;" />
         <p class="bypass-note" id="char-bypass" hidden>TESTING BYPASS &mdash; entering as <b>Male</b>&hellip;</p>
         <button class="char-confirm" id="char-confirm" type="button">ENTER AS MALE &rarr;</button>
       </div>
@@ -9245,6 +9246,9 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           setTimeout(function(){ try{ chatBubble.classList.remove('sell'); }catch(_){} },4500); }
       }catch(_){}
     }
+    window.addEventListener('espil-chat-recv',function(e){
+      if(e&&e.detail)addChatMsg(e.detail.who||'',e.detail.text||'',!!e.detail.sys);
+    });
     window.addEventListener('sell-bubble',function(e){
       espilSellBubble(e&&e.detail&&e.detail.text);
     });
@@ -9257,6 +9261,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       chatInput.value='';
       setChatTyping(false);
       if(!t)return;
+      if(window.__espilChatSend&&window.__espilChatSend(t)){ showChatBubble(t); return; }
       addChatMsg('You',t,false);
       showChatBubble(t); /* Han 2026-10-16 #11 */
     }
@@ -11591,6 +11596,151 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     setInterval(apply,30000);
   })();
   </script>
+<script>
+/* Espil presence + chat client (spec v1, Architecture room 2026-10-24).
+   Stateless guest layer: the name and gender live only in this tab's
+   memory (and the guest's own localStorage for the name prefill); the
+   server stores nothing. Connects on city arrival to
+   wss://api.espil.online/ws?room=<cityKey>; endpoint overridable via
+   window.__espilChatEndpoint for local testing. Position relay is out
+   of scope for v1 (spec marks it optional). */
+(function(){
+  'use strict';
+  if (window.__espilChatClient) return;
+  window.__espilChatClient = true;
+
+  var ENDPOINT = window.__espilChatEndpoint || 'wss://api.espil.online/ws';
+  var ws = null, room = null, myId = null, users = {}, joined = false;
+  var backoff = 1000, retryTimer = null, sendWindow = [];
+  var NAME_PH = { en: 'Your name', ko: '이름을 입력하세요', fr: 'Votre nom', zh: '你的名字' };
+
+  function $(id){ return document.getElementById(id); }
+  function lang(){ try { return window.__espilLang ? window.__espilLang() : 'en'; } catch(_){ return 'en'; } }
+  function myName(){
+    var inp = $('char-name');
+    var v = inp ? inp.value.trim() : '';
+    if (!v) { try { v = (localStorage.getItem('espil_guest_name') || '').trim(); } catch(_){ v = ''; } }
+    return (v || 'Guest').slice(0, 16);
+  }
+  function myGender(){
+    if (window.__espilGuestGender) return window.__espilGuestGender;
+    var sel = document.querySelector('.char-card.is-selected');
+    if (sel && sel.getAttribute('data-gender')) return sel.getAttribute('data-gender') === 'female' ? 'f' : 'm';
+    return 'm';
+  }
+  function line(who, text, sys){
+    try { window.dispatchEvent(new CustomEvent('espil-chat-recv', { detail: { who: who, text: text, sys: !!sys } })); } catch(_){}
+  }
+  function presenceEl(){
+    var el = $('chat-presence');
+    if (!el) {
+      var head = document.querySelector('.chat-head');
+      if (!head) return null;
+      el = document.createElement('span');
+      el.id = 'chat-presence';
+      el.style.cssText = 'margin-left:auto;font-size:11px;color:#9fd8e8;white-space:nowrap;padding-right:2px;';
+      var exp = $('chat-expand');
+      if (exp) head.insertBefore(el, exp); else head.appendChild(el);
+    }
+    return el;
+  }
+  function renderPresence(){
+    var el = presenceEl(); if (!el) return;
+    var names = Object.keys(users).map(function(k){ return users[k].name; });
+    el.textContent = ws && joined ? ('\u25CF ' + names.length) : '';
+    el.title = names.join(', ');
+  }
+  function sysLine(text){ line('', text, true); }
+
+  function connect(r){
+    room = r;
+    clearTimeout(retryTimer);
+    if (ws) { try { ws.onclose = null; ws.close(); } catch(_){} ws = null; }
+    joined = false; myId = null; users = {}; renderPresence();
+    var url = ENDPOINT + (ENDPOINT.indexOf('?') >= 0 ? '&' : '?') + 'room=' + encodeURIComponent(r);
+    try { ws = new WebSocket(url); } catch(e){ scheduleRetry(); return; }
+    ws.onopen = function(){
+      backoff = 1000;
+      try { ws.send(JSON.stringify({ t: 'join', name: myName(), gender: myGender() })); } catch(_){}
+    };
+    ws.onmessage = function(ev){
+      var m; try { m = JSON.parse(ev.data); } catch(_){ return; }
+      if (!m || !m.t) return;
+      if (m.t === 'welcome') {
+        myId = m.id; users = {}; joined = true;
+        (m.users || []).forEach(function(u){ users[u.id] = u; });
+        renderPresence();
+        sysLine('— ' + Object.keys(users).length + ' here —');
+      } else if (m.t === 'join' && m.user) {
+        users[m.user.id] = m.user; renderPresence();
+      } else if (m.t === 'leave') {
+        delete users[m.id]; renderPresence();
+      } else if (m.t === 'chat' && m.from) {
+        line(m.from.name || 'Guest', String(m.text || ''), false);
+      } else if (m.t === 'error') {
+        if (m.code === 'room_full') { sysLine('This city is full right now (100). Chat unavailable.'); stopRetry(); }
+        else if (m.code === 'rate_limited') { sysLine('Slow down a little.'); }
+        else if (m.code === 'not_joined' && ws) {
+          try { ws.send(JSON.stringify({ t: 'join', name: myName(), gender: myGender() })); } catch(_){}
+        }
+      }
+    };
+    ws.onclose = function(){ joined = false; renderPresence(); scheduleRetry(); };
+    ws.onerror = function(){ try { ws.close(); } catch(_){} };
+  }
+  function scheduleRetry(){
+    if (!room) return;
+    clearTimeout(retryTimer);
+    retryTimer = setTimeout(function(){ if (room) connect(room); }, backoff);
+    backoff = Math.min(15000, backoff * 2);
+  }
+  function stopRetry(){ clearTimeout(retryTimer); room = null; }
+
+  /* Send hook used by the chat window's sendChat (world script). Returns
+     true when the message went to the server; the server echoes it back
+     to everyone including the sender, so no local echo is added. */
+  window.__espilChatSend = function(text){
+    if (!ws || ws.readyState !== 1 || !joined) return false;
+    var now = Date.now();
+    sendWindow = sendWindow.filter(function(t){ return now - t < 5000; });
+    if (sendWindow.length >= 5) { sysLine('Slow down a little.'); return true; }
+    sendWindow.push(now);
+    try { ws.send(JSON.stringify({ t: 'chat', text: String(text).slice(0, 300) })); return true; }
+    catch(_){ return false; }
+  };
+  window.__espilChatState = function(){
+    return { connected: !!(ws && ws.readyState === 1), joined: joined, room: room, myId: myId,
+             users: Object.keys(users).map(function(k){ return users[k]; }) };
+  };
+
+  window.addEventListener('espil-arrival', function(e){
+    var city = e && e.detail && e.detail.city;
+    if (city) connect(String(city).toLowerCase());
+  });
+
+  function wirePanel(){
+    var inp = $('char-name');
+    if (inp) {
+      try { var saved = localStorage.getItem('espil_guest_name'); if (saved && !inp.value) inp.value = saved; } catch(_){}
+      var applyPh = function(){ inp.placeholder = NAME_PH[lang()] || NAME_PH.en; };
+      applyPh(); setInterval(applyPh, 1500);
+      inp.addEventListener('input', function(){
+        try { localStorage.setItem('espil_guest_name', inp.value.trim().slice(0, 16)); } catch(_){}
+      });
+      inp.addEventListener('keydown', function(e){ e.stopPropagation(); });
+    }
+    var male = $('char-male'), female = $('char-female');
+    if (male) male.addEventListener('click', function(){ window.__espilGuestGender = 'm'; });
+    if (female) female.addEventListener('click', function(){ window.__espilGuestGender = 'f'; });
+    var input = $('chat-input');
+    if (input) input.setAttribute('maxlength', '300');
+    presenceEl();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wirePanel);
+  else wirePanel();
+})();
+
+</script>
 </body>
 </html>
 tx.fillStyle=grad; ctx.fill();
