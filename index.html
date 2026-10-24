@@ -11729,7 +11729,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         (m.users || []).forEach(function(u){ users[u.id] = u; });
         try { if (window.__espilMinimapClear) window.__espilMinimapClear(); } catch(_){}
         renderPresence(); startPos();
-        sysLine('— ' + Object.keys(users).length + ' here —');
+        sysLine('- ' + Object.keys(users).length + ' here -');
       } else if (m.t === 'join' && m.user) {
         users[m.user.id] = m.user; renderPresence();
       } else if (m.t === 'leave') {
@@ -11746,6 +11746,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
            timestamp and text) so a line can never render twice. */
         var key = m.from.id + '|' + m.ts + '|' + m.text;
         if (seenChats[key]) return;
+        if (Object.keys(seenChats).length > 500) seenChats = {};
         seenChats[key] = 1;
         line(m.from.name || 'Guest', String(m.text || ''), false);
       } else if (m.t === 'error') {
