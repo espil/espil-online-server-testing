@@ -11638,12 +11638,20 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
   function $(id){ return document.getElementById(id); }
   function lang(){ try { return window.__espilLang ? window.__espilLang() : 'en'; } catch(_){ return 'en'; } }
   function myName(){
+    /* Spec v1: the name lives only in this connection's memory - no
+       localStorage prefill (UI-room conformance note, 2026-10-24). */
     var inp = $('char-name');
     var v = inp ? inp.value.trim() : '';
-    if (!v) { try { v = (localStorage.getItem('espil_guest_name') || '').trim(); } catch(_){ v = ''; } }
     return (v || 'Guest').slice(0, 16);
   }
   function myGender(){
+    /* The build's own record first (espil_character, the same source
+       the world script reads), then this session's card clicks, then
+       the panel's selected card. */
+    try {
+      var rec = JSON.parse(localStorage.getItem('espil_character') || 'null');
+      if (rec && rec.gender) return rec.gender === 'female' ? 'f' : 'm';
+    } catch(_){}
     if (window.__espilGuestGender) return window.__espilGuestGender;
     var sel = document.querySelector('.char-card.is-selected');
     if (sel && sel.getAttribute('data-gender')) return sel.getAttribute('data-gender') === 'female' ? 'f' : 'm';
@@ -11778,21 +11786,41 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
              users: Object.keys(users).map(function(k){ return users[k]; }) };
   };
 
+  var lastArrivalAt = 0;
   window.addEventListener('espil-arrival', function(e){
     var city = e && e.detail && e.detail.city;
-    if (city) connect(String(city).toLowerCase());
+    if (city) { lastArrivalAt = Date.now(); connect(String(city).toLowerCase()); }
   });
+
+  /* UI-room delta: do not haunt the room from the globe. While joined,
+     if the page has been out of the in-map state for over 3 s (the user
+     returned to orbit), leave the room; the next arrival rejoins. */
+  setInterval(function(){
+    if (!joined && !room) return;
+    if (Date.now() - lastArrivalAt < 6000) { window.__espilOutSince = 0; return; }
+    var inMap = document.body && document.body.classList.contains('in-map');
+    if (inMap) { window.__espilOutSince = 0; return; }
+    if (!window.__espilOutSince) { window.__espilOutSince = Date.now(); return; }
+    if (Date.now() - window.__espilOutSince > 3000 && room) {
+      var old = ws;
+      stopRetry(); users = {}; joined = false; renderPresence();
+      try { if (window.__espilMinimapClear) window.__espilMinimapClear(); } catch(_){}
+      if (old) { try { old.onclose = null; old.close(); } catch(_){} }
+      if (ws === old) ws = null;
+    }
+  }, 1000);
 
   function wirePanel(){
     var inp = $('char-name');
     if (inp) {
-      try { var saved = localStorage.getItem('espil_guest_name'); if (saved && !inp.value) inp.value = saved; } catch(_){}
       var applyPh = function(){ inp.placeholder = NAME_PH[lang()] || NAME_PH.en; };
       applyPh(); setInterval(applyPh, 1500);
-      inp.addEventListener('input', function(){
-        try { localStorage.setItem('espil_guest_name', inp.value.trim().slice(0, 16)); } catch(_){}
+      inp.addEventListener('keydown', function(e){
+        e.stopPropagation();
+        /* UI-room delta: Enter in the name field presses the panel's
+           confirm button, so the entry flow works keyboard-only. */
+        if (e.key === 'Enter') { var c = $('char-confirm'); if (c) { e.preventDefault(); c.click(); } }
       });
-      inp.addEventListener('keydown', function(e){ e.stopPropagation(); });
     }
     var male = $('char-male'), female = $('char-female');
     if (male) male.addEventListener('click', function(){ window.__espilGuestGender = 'm'; });
