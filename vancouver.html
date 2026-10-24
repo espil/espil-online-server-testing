@@ -1744,6 +1744,19 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        asked for - NOT the purged day/night filter system. */
     #espil-daynight { position:fixed; inset:0; background:#000; opacity:0; pointer-events:none; z-index:100000; transition:opacity 1.2s linear; }
 
+      /* Language selector (Han 2026-10-23) */
+    .lang-wrap{ position:relative; display:inline-flex; }
+    #lang-toggle{ min-width:74px; }
+    .lang-menu{ position:absolute; top:calc(100% + 8px); right:0; min-width:150px;
+      display:none; flex-direction:column; gap:2px; padding:6px; z-index:1200;
+      background:rgba(8,18,22,.92); border:1px solid rgba(134,238,228,.35);
+      border-radius:12px; backdrop-filter:blur(10px); box-shadow:0 14px 34px rgba(0,0,0,.45); }
+    .lang-menu.open{ display:flex; }
+    .lang-opt{ appearance:none; border:0; background:transparent; color:#ddfffc;
+      font:700 .8rem/1.2 "Manrope",sans-serif; text-align:left; padding:8px 10px;
+      border-radius:8px; cursor:pointer; }
+    .lang-opt:hover,.lang-opt:focus-visible{ background:rgba(134,238,228,.14); outline:none; }
+    .lang-opt.on{ background:rgba(134,238,228,.2); }
   </style>
   <noscript><style>#loader{display:none}</style></noscript>
   <!-- Leaflet for 3-stage map (QA #7, 2026-10-09) -->
@@ -1804,15 +1817,26 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         </div>
       </div>
     </div>
-    <div class="intro-continue" id="intro-continue">TAP OR PRESS ANY KEY TO CONTINUE</div>
+    <div class="intro-continue" id="intro-continue" data-i18n="introContinue">TAP OR PRESS ANY KEY TO CONTINUE</div>
   </div>
   <main class="earth-frame" id="earth-frame">
     <canvas id="globe-canvas" role="application" tabindex="0" aria-label="Interactive fixed Earth with selectable city landmarks. Drag to orbit the camera, scroll to zoom, or choose a city for a tilted navigation view."></canvas>
     <div id="city-pins" aria-hidden="true"></div>
     <header class="topbar">
       <div class="topbar-actions">
-        <button class="pill-btn" id="notice-open" type="button" aria-label="Open notices">Notice</button>
+        <button class="pill-btn" id="notice-open" type="button" aria-label="Open notices" data-i18n="noticeBtn">Notice</button>
         <button class="pill-btn" id="bgm-toggle" type="button" aria-pressed="true" aria-label="Toggle theme music" aria-describedby="bgm-card">&#9834;</button>
+        <!-- Language selector (Han 2026-10-23): beside the BGM button,
+             showing the current language; the list opens below it. -->
+        <span class="lang-wrap" id="lang-wrap">
+          <button class="pill-btn" id="lang-toggle" type="button" aria-haspopup="listbox" aria-expanded="false">English</button>
+          <span class="lang-menu" id="lang-menu" role="listbox" aria-hidden="true">
+            <button type="button" class="lang-opt" data-lang="ko" role="option">한국어</button>
+            <button type="button" class="lang-opt" data-lang="fr" role="option">Français</button>
+            <button type="button" class="lang-opt" data-lang="en" role="option">English</button>
+            <button type="button" class="lang-opt" data-lang="zh" role="option">中文</button>
+          </span>
+        </span>
         <!-- Settings gear (Han batch 5 #3, 2026-10-20): the EXIT
              button that stood here (Han 2026-10-18) is removed on
              Han's order; the gear at the same spot opens the
@@ -1836,8 +1860,8 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     <div class="modal-backdrop" id="signin-modal" aria-hidden="true">
       <div class="modal" role="dialog" aria-modal="true" aria-label="Sign in to ESPIL Online">
         <button class="modal-close" id="signin-close" type="button" aria-label="Close sign in">&times;</button>
-        <h2>ENTER ESPIL ONLINE</h2>
-        <p class="modal-sub">Choose how you'd like to arrive.</p>
+        <h2 data-i18n="signinTitle">ENTER ESPIL ONLINE</h2>
+        <p class="modal-sub" data-i18n="signinSub">Choose how you'd like to arrive.</p>
         <p class="bypass-note" id="signin-bypass" hidden>TESTING BYPASS &mdash; continuing as guest&hellip;</p>
         <!-- Production config (Han 2026-10-18): login is deactivated -
              guest mode only. The social buttons are disabled; the one
@@ -1849,7 +1873,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           <button class="provider" type="button" data-provider="Apple" disabled><span class="p-dot" style="background:#e8e8e8;color:#e8e8e8"></span>Apple</button>
           <button class="provider" type="button" data-provider="Facebook" disabled><span class="p-dot" style="background:#1877F2;color:#1877F2"></span>Facebook</button>
         </div>
-        <button class="provider guest-enter" id="guest-enter" type="button">ENTER AS GUEST</button>
+        <button class="provider guest-enter" id="guest-enter" type="button" data-i18n="guestEnter">ENTER AS GUEST</button>
       </div>
     </div>
     <!-- Notice panel (Han 2026-10-19): opened from the landing topbar.
@@ -1858,13 +1882,13 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     <div class="modal-backdrop" id="notice-modal" aria-hidden="true">
       <div class="modal notice-modal" role="dialog" aria-modal="true" aria-label="Notices">
         <button class="modal-close" id="notice-close" type="button" aria-label="Close notices">&times;</button>
-        <h2>Notices</h2>
-        <p class="modal-sub">Espil Online news and updates</p>
+        <h2 data-i18n="noticeTitle">Notices</h2>
+        <p class="modal-sub" data-i18n="noticeSub">Espil Online news and updates</p>
         <div class="notice-tabs" role="tablist" aria-label="Notice sections">
-          <button class="notice-tab on" type="button" role="tab" aria-selected="true" data-ntab="announce">Announcements</button>
-          <button class="notice-tab" type="button" role="tab" aria-selected="false" data-ntab="updates">Updates</button>
-          <button class="notice-tab" type="button" role="tab" aria-selected="false" data-ntab="planned">Planned</button>
-          <button class="notice-tab" type="button" role="tab" aria-selected="false" data-ntab="issues">Known Issues &amp; Bug Reports</button>
+          <button class="notice-tab on" type="button" role="tab" aria-selected="true" data-ntab="announce" data-i18n="tabAnnounce">Announcements</button>
+          <button class="notice-tab" type="button" role="tab" aria-selected="false" data-ntab="updates" data-i18n="tabUpdates">Updates</button>
+          <button class="notice-tab" type="button" role="tab" aria-selected="false" data-ntab="planned" data-i18n="tabPlanned">Planned</button>
+          <button class="notice-tab" type="button" role="tab" aria-selected="false" data-ntab="issues" data-i18n="tabIssues">Known Issues &amp; Bug Reports</button>
         </div>
         <div class="notice-pane on" data-npane="announce" role="tabpanel">
           <ul class="notice-list" id="notice-announce"></ul>
@@ -1884,18 +1908,18 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     <div class="char-custom" id="char-custom" aria-hidden="true" role="dialog" aria-label="Choose your character">
       <div class="char-card-wrap">
         <button class="char-back" id="char-back" type="button" aria-label="Back to city info">&#8592;</button>
-        <h2>CHOOSE YOUR CHARACTER</h2>
+        <h2 data-i18n="charTitle">CHOOSE YOUR CHARACTER</h2>
         <p class="char-sub">Your traveler for Vancouver Downtown.</p>
         <div class="char-grid">
           <button class="char-card is-selected" id="char-male" type="button" data-gender="male" aria-label="Male character">
             <span class="char-face" aria-hidden="true">&#9794;</span>
-            <span class="char-name">Male</span>
-            <span class="char-tag">Ready</span>
+            <span class="char-name" data-i18n="male">Male</span>
+            <span class="char-tag" data-i18n="readyM">Ready</span>
           </button>
           <button class="char-card" id="char-female" type="button" data-gender="female" aria-label="Female character">
             <span class="char-face" aria-hidden="true">&#9792;</span>
-            <span class="char-name">Female</span>
-            <span class="char-tag">Ready</span>
+            <span class="char-name" data-i18n="female">Female</span>
+            <span class="char-tag" data-i18n="readyF">Ready</span>
           </button>
         </div>
         <p class="bypass-note" id="char-bypass" hidden>TESTING BYPASS &mdash; entering as <b>Male</b>&hellip;</p>
@@ -1909,7 +1933,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       <div class="city-phase" id="city-phase" aria-hidden="true">
         <h2 class="city-phase-name" id="city-phase-name"></h2>
         <p class="map-hint" id="map-hint"></p>
-        <button class="city-return" id="city-return" type="button">RETURN TO EARTH</button>
+        <button class="city-return" id="city-return" type="button" data-i18n="returnEarth">RETURN TO EARTH</button>
       </div>
       <!-- #12 (Han 2nd QA): Store interaction modal -->
       <div id="store-modal" class="hidden" role="dialog" aria-label="Store interaction" style="display:none!important">
@@ -1917,52 +1941,52 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           <button id="store-modal-close" type="button" aria-label="Close">×</button>
           <!-- Step 1: Choose a place (action window) -->
           <div id="store-list-view">
-            <h3>Choose a place</h3>
-            <p style="font-size:.8rem;color:#9fb3c8;margin:-8px 0 12px;">↑↓ to select, Enter to interact, ESC to cancel</p>
+            <h3 data-i18n="storeChoose">Choose a place</h3>
+            <p style="font-size:.8rem;color:#9fb3c8;margin:-8px 0 12px;" data-i18n="storeHint">↑↓ to select, Enter to interact, ESC to cancel</p>
             <div id="store-list"></div>
           </div>
           <!-- Step 2: Place info (separate screen) -->
           <div id="store-detail-view" class="hidden">
-            <button id="store-back" type="button">← Back</button>
+            <button id="store-back" type="button" data-i18n="storeBack">← Back</button>
             <h3 id="store-detail-name"></h3>
             <div class="store-actions">
-              <button data-action="info" type="button">Info</button>
-              <button data-action="reviews" type="button">Reviews</button>
-              <button data-action="photos" type="button">Photos</button>
-              <button data-action="enter" type="button">Enter →</button>
+              <button data-action="info" type="button" data-i18n="storeInfo">Info</button>
+              <button data-action="reviews" type="button" data-i18n="storeReviews">Reviews</button>
+              <button data-action="photos" type="button" data-i18n="storePhotos">Photos</button>
+              <button data-action="enter" type="button" data-i18n="storeEnter">Enter →</button>
             </div>
             <div id="store-detail-content"></div>
           </div>
         </div>
       </div>
-      <div id="sprint-indicator">SPRINT ON</div>
-      <button id="sprint-toggle" type="button" aria-label="Toggle sprint">SPRINT</button>
+      <div id="sprint-indicator" data-i18n="sprintOn">SPRINT ON</div>
+      <button id="sprint-toggle" type="button" aria-label="Toggle sprint" data-i18n="sprint">SPRINT</button>
       <div class="city-message" id="city-message" aria-live="polite">Vancouver</div>
     </div>
       <div class="building-name hidden" id="building-name" aria-live="polite"><span class="loc-dot"></span><span id="building-name-text"></span></div>
-      <div class="interact-prompt hidden" id="interact-prompt"><span class="key">SPACE</span>Interact</div>
+      <div class="interact-prompt hidden" id="interact-prompt"><span class="key">SPACE</span><span data-i18n="interact">Interact</span></div>
 
     <div class="city-info" id="city-info" aria-hidden="true" role="dialog" aria-label="City details">
       <button class="city-info-back" id="city-info-back" type="button" aria-label="Back to globe">&#8592;</button>
       <img class="city-info-img" id="city-info-img" alt="">
       <h2 class="city-info-name" id="city-info-name"></h2>
-      <button class="city-info-enter" id="city-info-enter" type="button">DIVE</button>
+      <button class="city-info-enter" id="city-info-enter" type="button" data-i18n="dive">DIVE</button>
       <p class="city-info-credit" id="city-info-credit" style="display:none"></p>
     </div>
     <div class="city-entry" id="city-entry" aria-hidden="true" role="button" tabindex="0" aria-label="Enter the city">
       <p class="city-entry-name" aria-hidden="true"><span id="city-entry-typed"></span><span class="city-entry-caret" id="city-entry-caret"></span></p>
-      <div class="city-entry-sub" id="city-entry-sub">TAP OR PRESS ANY KEY TO ENTER</div>
+      <div class="city-entry-sub" id="city-entry-sub" data-i18n="entryTap">TAP OR PRESS ANY KEY TO ENTER</div>
       <div id="city-loading" aria-hidden="true">
-        <div class="load-label">LOADING CITY…</div>
+        <div class="load-label" data-i18n="loadingCity">LOADING CITY…</div>
         <div class="load-bar-bg"><div class="load-bar-fill" id="city-load-fill"></div></div>
         <div class="load-pct" id="city-load-pct">0%</div>
       </div>
     </div>
     <div class="city-comingsoon" id="city-comingsoon" aria-hidden="true" role="dialog" aria-label="Coming soon">
-      <p class="city-comingsoon-kicker">TESTING PHASE</p>
-      <h2>COMING SOON</h2>
+      <p class="city-comingsoon-kicker" data-i18n="csKicker">TESTING PHASE</p>
+      <h2 data-i18n="csTitle">COMING SOON</h2>
       <p class="city-comingsoon-city" id="city-comingsoon-city"></p>
-      <button class="city-comingsoon-back" id="city-comingsoon-back" type="button">&#8592; BACK TO EARTH</button>
+      <button class="city-comingsoon-back" id="city-comingsoon-back" type="button" data-i18n="csBack">&#8592; BACK TO EARTH</button>
     </div>
     <div id="dna-flash" aria-hidden="true"></div>
     <div class="joystick" id="joystick" aria-hidden="true">
@@ -2023,40 +2047,47 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       <div class="set-card">
         <div class="st-head">
           <div>
-            <h3>SETTINGS</h3>
-            <p class="set-sub">Options for your walk in the world.</p>
+            <h3 data-i18n="setTitle">SETTINGS</h3>
+            <p class="set-sub" data-i18n="setSub">Options for your walk in the world.</p>
           </div>
           <button class="st-close" id="set-close" type="button" aria-label="Close settings">&#10005;</button>
         </div>
-        <label for="opt-city">CITY SELECT</label>
+        <label for="opt-city" data-i18n="citySelect">CITY SELECT</label>
         <select id="opt-city"></select>
+        <label for="opt-lang" style="margin-top:16px;" data-i18n="langLabel">LANGUAGE</label>
+        <select id="opt-lang">
+          <option value="ko">한국어</option>
+          <option value="fr">Français</option>
+          <option value="en">English</option>
+          <option value="zh">中文</option>
+        </select>
         <p class="set-note">Choosing a city returns you to the globe, on approach to that city. The current city is selected by default.</p>
         <!-- Settings menu (Han batch 5 #3, 2026-10-20): Return to
              Earth, button settings, sound settings, log out
              (disabled in the guest build), developer info. -->
         <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px;">
-          <button class="pill-btn" id="set-return" type="button">Return to Earth</button>
+          <button class="pill-btn" id="set-return" type="button" data-i18n="setReturn">Return to Earth</button>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;">
-          <button class="pill-btn" id="set-guide" type="button">Guide - learn the world with Espil</button>
+          <button class="pill-btn" id="set-guide" type="button" data-i18n="setGuide">Guide - learn the world with Espil</button>
         </div>
-        <label style="margin-top:16px;">BUTTON SETTINGS</label>
+        <label style="margin-top:16px;" data-i18n="buttonSettings">BUTTON SETTINGS</label>
         <div style="display:flex;flex-direction:column;gap:6px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><span>Jump</span><button class="pill-btn" id="kb-jump" type="button">Shift</button></div>
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><span>Interact</span><button class="pill-btn" id="kb-interact" type="button">Space</button></div>
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><span>Stall</span><button class="pill-btn" id="kb-stall" type="button">Y</button></div>
-          <button class="pill-btn" id="kb-reset" type="button" style="align-self:flex-start;">Reset buttons</button>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><span data-i18n="kbJump">Jump</span><button class="pill-btn" id="kb-jump" type="button">Shift</button></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><span data-i18n="kbInteract">Interact</span><button class="pill-btn" id="kb-interact" type="button">Space</button></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><span data-i18n="kbStall">Stall</span><button class="pill-btn" id="kb-stall" type="button">Y</button></div>
+          <button class="pill-btn" id="kb-reset" type="button" style="align-self:flex-start;" data-i18n="kbReset">Reset buttons</button>
         </div>
-        <p class="set-note">Choose a button, then press the new key. Movement stays on the arrow keys and the joystick.</p>
-        <label style="margin-top:16px;">SOUND SETTINGS</label>
+        <p class="set-note" data-i18n="kbNote">Choose a button, then press the new key. Movement stays on the arrow keys and the joystick.</p>
+        <label style="margin-top:16px;" data-i18n="soundSettings">SOUND SETTINGS</label>
         <div style="display:flex;align-items:center;gap:10px;">
-          <span>Music volume</span>
+          <span data-i18n="musicVol">Music volume</span>
           <input id="set-vol" type="range" min="0" max="100" value="50" style="flex:1;">
-          <label style="display:flex;align-items:center;gap:4px;"><input id="set-mute" type="checkbox"> Mute</label>
+          <label style="display:flex;align-items:center;gap:4px;"><input id="set-mute" type="checkbox"> <span data-i18n="mute">Mute</span></label>
         </div>
         <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px;">
-          <button class="pill-btn" id="set-logout" type="button" disabled aria-disabled="true" style="opacity:.45;">Log out</button>
-          <button class="pill-btn" id="set-devinfo-btn" type="button">Developer info</button>
+          <button class="pill-btn" id="set-logout" type="button" disabled aria-disabled="true" style="opacity:.45;" data-i18n="logout">Log out</button>
+          <button class="pill-btn" id="set-devinfo-btn" type="button" data-i18n="devInfo">Developer info</button>
           <div id="set-devinfo" style="display:none;text-align:left;">
             <p class="set-note" style="line-height:1.7;">Espil Online - an MMORPG in real cities, beginning as a mall.<br>Developed by Han (quadclipse), Espil.<br>Contact: han@espil.online<br>Web: espil.online</p>
           </div>
@@ -2068,29 +2099,29 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     <div id="chat-bubble" aria-hidden="true"></div>
     <div class="chat-window" id="chat-window" aria-hidden="true" aria-label="Chat">
       <div class="chat-head">
-        <button type="button" class="chat-channel is-active">Channel</button>
-        <button type="button" class="chat-channel">Local</button>
-        <button type="button" class="chat-channel">Party</button>
+        <button type="button" class="chat-channel is-active" data-i18n="chatChannel">Channel</button>
+        <button type="button" class="chat-channel" data-i18n="chatLocal">Local</button>
+        <button type="button" class="chat-channel" data-i18n="chatParty">Party</button>
         <button type="button" class="chat-expand" id="chat-expand" aria-label="Expand chat">+</button>
       </div>
       <div class="chat-log" id="chat-log" aria-live="polite"></div>
       <input class="chat-input" id="chat-input" type="text" maxlength="200"
-             placeholder="Press Enter to chat…" autocomplete="off" aria-label="Chat message" />
+             placeholder="Press Enter to chat…" data-i18n-ph="chatPh" autocomplete="off" aria-label="Chat message" />
     </div>
     <div class="skill-tree" id="skill-tree" aria-hidden="true" role="dialog" aria-label="Skill tree: Keeper">
       <div class="st-card">
         <div class="st-head">
           <div>
-            <h2>KEEPER</h2>
-            <p class="st-sub">Espil&rsquo;s own craft &mdash; the cauldron is both forge and weapon.</p>
+            <h2 data-i18n="keeperTitle">KEEPER</h2>
+            <p class="st-sub" data-i18n="keeperSub">Espil&rsquo;s own craft &mdash; the cauldron is both forge and weapon.</p>
           </div>
           <button class="st-close" id="st-close" type="button" aria-label="Close skill tree">&#10005;</button>
         </div>
-        <div class="st-knrow"><span id="st-kn">📚 Knowledge: 10</span><button class="st-study" id="st-study" type="button">▶ Watch a video (demo) +5</button></div>
-        <p class="st-knsub">Knowledge comes from watching videos — not from leveling up. Spend it to grow each branch toward mastery.</p>
+        <div class="st-knrow"><span id="st-kn">📚 Knowledge: 10</span><button class="st-study" id="st-study" type="button" data-i18n="studyBtn">▶ Watch a video (demo) +5</button></div>
+        <p class="st-knsub" data-i18n="keeperNote">Knowledge comes from watching videos — not from leveling up. Spend it to grow each branch toward mastery.</p>
         <div class="st-treeview" id="st-treeview" role="tree" aria-label="Keeper skill tree"></div>
         <div class="st-desc" id="st-desc"></div>
-        <p class="st-foot">Walking, running, jumping — every human movement is a skill. New branches grow with the combat update.</p>
+        <p class="st-foot" data-i18n="keeperFoot">Walking, running, jumping — every human movement is a skill. New branches grow with the combat update.</p>
       </div>
     </div>
     <!-- QA #14 (UI room, 2026-10-06): Inventory panel (I key). -->
@@ -2098,12 +2129,12 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       <div class="st-card">
         <div class="st-head">
           <div>
-            <h2>INVENTORY</h2>
-            <p class="st-sub">Your belongings. Press I to close.</p>
+            <h2 data-i18n="invTitle">INVENTORY</h2>
+            <p class="st-sub" data-i18n="invSub">Your belongings. Press I to close.</p>
           </div>
           <button class="st-close" id="inv-close" type="button" aria-label="Close inventory">&#10005;</button>
         </div>
-        <div class="st-grid" id="inv-grid"><p class="st-foot">Empty for now.</p></div>
+        <div class="st-grid" id="inv-grid"><p class="st-foot" data-i18n="invEmpty">Empty for now.</p></div>
       </div>
     </div>
     <!-- QA #14 (UI room, 2026-10-06): Character status + outfit panel (P key). -->
@@ -2111,12 +2142,12 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       <div class="st-card">
         <div class="st-head">
           <div>
-            <h2>CHARACTER</h2>
-            <p class="st-sub">Status and outfit. Press P to close.</p>
+            <h2 data-i18n="charPanelTitle">CHARACTER</h2>
+            <p class="st-sub" data-i18n="charPanelSub">Status and outfit. Press P to close.</p>
           </div>
           <button class="st-close" id="char-close" type="button" aria-label="Close character panel">&#10005;</button>
         </div>
-        <div class="st-grid" id="char-grid"><p class="st-foot">Outfit system arrives with the character update.</p></div>
+        <div class="st-grid" id="char-grid"><p class="st-foot" data-i18n="charPanelFoot">Outfit system arrives with the character update.</p></div>
       </div>
     </div>
     <!-- QA #18 (UI room, 2026-10-09): Friends/Party panel (U key since 2026-10-19 - Y is the stall). Local UI only — sync needs server. -->
@@ -2124,21 +2155,21 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       <div class="st-card">
         <div class="st-head">
           <div>
-            <h2>FRIENDS / PARTY</h2>
-            <p class="st-sub">Press U to close. Friend sync needs the server.</p>
+            <h2 data-i18n="friendsTitle">FRIENDS / PARTY</h2>
+            <p class="st-sub" data-i18n="friendsSub">Press U to close. Friend sync needs the server.</p>
           </div>
           <button class="st-close" id="friends-close" type="button" aria-label="Close friends panel">&#10005;</button>
         </div>
         <div class="st-grid" id="friends-grid">
           <p class="st-foot" id="friends-username">Your name: (set in character customization)</p>
-          <p class="st-foot">No friends yet. Add by username:</p>
+          <p class="st-foot" data-i18n="friendsNone">No friends yet. Add by username:</p>
           <div style="display:flex;gap:8px;margin:8px 0;">
-            <input type="text" id="friend-add-input" placeholder="Username" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(134,238,228,.3);background:rgba(0,0,0,.3);color:#ddfffc;" />
-            <button class="pill-btn" id="friend-add-btn" type="button">ADD</button>
+            <input type="text" id="friend-add-input" placeholder="Username" data-i18n-ph="usernamePh" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(134,238,228,.3);background:rgba(0,0,0,.3);color:#ddfffc;" />
+            <button class="pill-btn" id="friend-add-btn" type="button" data-i18n="add">ADD</button>
           </div>
-          <div id="friends-list"><p class="st-foot">Friend list is local only until the server is ready.</p></div>
-          <p class="st-foot" style="margin-top:12px;">PARTY</p>
-          <p class="st-foot">Party invites need the server - they arrive when the server opens.</p>
+          <div id="friends-list"><p class="st-foot" data-i18n="friendsLocal">Friend list is local only until the server is ready.</p></div>
+          <p class="st-foot" style="margin-top:12px;" data-i18n="partyHead">PARTY</p>
+          <p class="st-foot" data-i18n="partyNote">Party invites need the server - they arrive when the server opens.</p>
         </div>
       </div>
     </div>
@@ -2147,46 +2178,46 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       <div class="st-card">
         <div class="st-head">
           <div>
-            <h2>My Stall</h2>
-            <p class="st-sub">Press Y to close. You can open one stall per city.</p>
+            <h2 data-i18n="stallTitle">My Stall</h2>
+            <p class="st-sub" data-i18n="stallSub">Press Y to close. You can open one stall per city.</p>
           </div>
           <button class="st-close" id="stall-close" type="button" aria-label="Close stall panel">&#10005;</button>
         </div>
         <div class="st-grid" id="stall-grid">
           <p class="st-foot" id="stall-status">No stall open yet.</p>
           <div style="display:flex;gap:8px;align-items:center;margin:8px 0;">
-            <label for="stall-name" style="font-size:.85rem;">Stall name</label>
-            <input type="text" id="stall-name" maxlength="24" placeholder="My Stall" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(134,238,228,.3);background:rgba(0,0,0,.3);color:#ddfffc;" />
+            <label for="stall-name" style="font-size:.85rem;" data-i18n="stallNameLabel">Stall name</label>
+            <input type="text" id="stall-name" maxlength="24" placeholder="My Stall" data-i18n-ph="stallNamePh" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(134,238,228,.3);background:rgba(0,0,0,.3);color:#ddfffc;" />
           </div>
           <div style="display:flex;gap:8px;margin:8px 0;flex-wrap:wrap;">
-            <button class="pill-btn" id="stall-place-btn" type="button">Open stall here</button>
-            <button class="pill-btn" id="stall-remove-btn" type="button" style="display:none;">Close stall</button>
-            <button class="pill-btn" id="stall-view-btn" type="button" style="display:none;">View as visitor</button>
+            <button class="pill-btn" id="stall-place-btn" type="button" data-i18n="stallOpen">Open stall here</button>
+            <button class="pill-btn" id="stall-remove-btn" type="button" style="display:none;" data-i18n="stallCloseBtn">Close stall</button>
+            <button class="pill-btn" id="stall-view-btn" type="button" style="display:none;" data-i18n="stallView">View as visitor</button>
           </div>
           <div id="stall-board" style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:6px;"></div>
           <div id="stall-form">
-            <p class="st-foot" id="stall-form-title" style="margin-top:12px;">Add a post - pick an empty slot, fill this in, and Post</p>
+            <p class="st-foot" id="stall-form-title" style="margin-top:12px;" data-i18n="stallFormTitle">Add a post - pick an empty slot, fill this in, and Post</p>
             <div style="display:flex;gap:8px;margin:8px 0;">
               <select id="stall-side" style="padding:8px;border-radius:8px;border:1px solid rgba(134,238,228,.3);background:rgba(0,0,0,.3);color:#ddfffc;">
-                <option value="sell">Selling</option>
-                <option value="buy">Buying</option>
+                <option value="sell" data-i18n="selling">Selling</option>
+                <option value="buy" data-i18n="buying">Buying</option>
               </select>
               <select id="stall-kind" style="padding:8px;border-radius:8px;border:1px solid rgba(134,238,228,.3);background:rgba(0,0,0,.3);color:#ddfffc;">
-                <option value="item">Item</option>
-                <option value="service">Service</option>
+                <option value="item" data-i18n="kindItem">Item</option>
+                <option value="service" data-i18n="kindService">Service</option>
               </select>
             </div>
-            <input type="text" id="stall-title" placeholder="Title (e.g. Espil House model)" style="width:100%;box-sizing:border-box;padding:8px;border-radius:8px;border:1px solid rgba(134,238,228,.3);background:rgba(0,0,0,.3);color:#ddfffc;" />
+            <input type="text" id="stall-title" placeholder="Title (e.g. Espil House model)" data-i18n-ph="stallTitlePh" style="width:100%;box-sizing:border-box;padding:8px;border-radius:8px;border:1px solid rgba(134,238,228,.3);background:rgba(0,0,0,.3);color:#ddfffc;" />
             <div style="display:flex;gap:8px;margin:8px 0;">
-              <input type="text" id="stall-price" placeholder="Price (Leo amount, blank = negotiable)" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(134,238,228,.3);background:rgba(0,0,0,.3);color:#ddfffc;" />
-              <input type="text" id="stall-note" placeholder="Note (optional)" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(134,238,228,.3);background:rgba(0,0,0,.3);color:#ddfffc;" />
+              <input type="text" id="stall-price" placeholder="Price (Leo amount, blank = negotiable)" data-i18n-ph="stallPricePh" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(134,238,228,.3);background:rgba(0,0,0,.3);color:#ddfffc;" />
+              <input type="text" id="stall-note" placeholder="Note (optional)" data-i18n-ph="stallNotePh" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(134,238,228,.3);background:rgba(0,0,0,.3);color:#ddfffc;" />
             </div>
             <div style="display:flex;gap:8px;">
-              <button class="pill-btn" id="stall-add-btn" type="button">Post</button>
-              <button class="pill-btn" id="stall-del-btn" type="button" style="display:none;">Delete post</button>
+              <button class="pill-btn" id="stall-add-btn" type="button" data-i18n="post">Post</button>
+              <button class="pill-btn" id="stall-del-btn" type="button" style="display:none;" data-i18n="deletePost">Delete post</button>
             </div>
           </div>
-          <p class="st-foot" style="margin-top:12px;">The stall window is a grid, the way the classic merchant stalls did it: every post takes one slot with its price tag. No fees, ever - trading here runs on trust. Real item trading and Leo settlement arrive when the server opens.</p>
+          <p class="st-foot" style="margin-top:12px;" data-i18n="stallFoot">The stall window is a grid, the way the classic merchant stalls did it: every post takes one slot with its price tag. No fees, ever - trading here runs on trust. Real item trading and Leo settlement arrive when the server opens.</p>
         </div>
       </div>
     </div>
@@ -2205,9 +2236,9 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           </div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;margin-top:16px;">
-          <button class="pill-btn" id="guide-prev" type="button">Back</button>
+          <button class="pill-btn" id="guide-prev" type="button" data-i18n="guideBack">Back</button>
           <span id="guide-dots" style="flex:1;text-align:center;letter-spacing:.3em;opacity:.8;"></span>
-          <button class="pill-btn" id="guide-next" type="button">Next</button>
+          <button class="pill-btn" id="guide-next" type="button" data-i18n="guideNext">Next</button>
         </div>
       </div>
     </div>
@@ -2218,10 +2249,10 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         <h2 id="bldg-name">Building</h2>
         <p class="st-sub" id="bldg-meta">-</p>
         <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
-          <button class="pill-btn" id="bldg-enter" type="button">Enter</button>
-          <button class="pill-btn" id="bldg-cancel" type="button">Close</button>
+          <button class="pill-btn" id="bldg-enter" type="button" data-i18n="bldgEnter">Enter</button>
+          <button class="pill-btn" id="bldg-cancel" type="button" data-i18n="bldgClose">Close</button>
         </div>
-        <p class="st-foot" style="margin-top:12px;">You step inside this building, at its real size and place.</p>
+        <p class="st-foot" style="margin-top:12px;" data-i18n="bldgFoot">You step inside this building, at its real size and place.</p>
       </div>
     </div>
     <!-- Inside options (Han batch 5 #2, 2026-10-20): shown the moment you enter a building. -->
@@ -2229,11 +2260,11 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       <div class="st-card">
         <button class="x" id="bldg-opts-close" type="button" aria-label="Close">&times;</button>
         <h2 id="bldg-opts-name">Building</h2>
-        <p class="st-sub">You are inside this building.</p>
+        <p class="st-sub" data-i18n="bldgInsideSub">You are inside this building.</p>
         <div id="bldg-opts-main" style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
-          <button class="pill-btn" id="bldg-opt-stores" type="button">Find stores</button>
-          <button class="pill-btn" id="bldg-opt-contact" type="button">Contact</button>
-          <button class="pill-btn" id="bldg-opt-leave" type="button">Leave building</button>
+          <button class="pill-btn" id="bldg-opt-stores" type="button" data-i18n="findStores">Find stores</button>
+          <button class="pill-btn" id="bldg-opt-contact" type="button" data-i18n="contact">Contact</button>
+          <button class="pill-btn" id="bldg-opt-leave" type="button" data-i18n="leaveBuilding">Leave building</button>
         </div>
         <div id="bldg-contact" style="display:none;margin-top:14px;text-align:left;">
           <p class="st-sub" id="bldg-contact-lines" style="line-height:1.7;">Loading...</p>
@@ -3011,7 +3042,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       var panel=document.getElementById('char-custom');
       var note=document.getElementById('char-bypass');
       var csub=panel?panel.querySelector('.char-sub'):null;
-      if(csub)csub.textContent='Your traveler for '+espilCityDisplayName()+'.';
+      if(csub)csub.textContent=(window.__espilT?window.__espilT('charSub').replace('{city}',espilCityDisplayName()):'Your traveler for '+espilCityDisplayName()+'.');
       setChosen('male');
       if(note)note.hidden=true; /* no auto-entry note in the production flow */
       if(panel)panel.setAttribute('aria-hidden','false');
@@ -3025,7 +3056,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       var confirm=document.getElementById('char-confirm'),note=document.getElementById('char-bypass');
       if(male)male.classList.toggle('is-selected',g==='male');
       if(female)female.classList.toggle('is-selected',g==='female');
-      if(confirm)confirm.innerHTML='ENTER AS '+g.toUpperCase()+' &rarr;';
+      if(confirm)confirm.innerHTML=((window.__espilT?window.__espilT(g==='female'?'enterAsFemale':'enterAsMale'):'ENTER AS '+g.toUpperCase())+' &rarr;');
       if(note&&TEST_BYPASS)note.innerHTML='TESTING BYPASS &mdash; entering as <b>'+g.charAt(0).toUpperCase()+g.slice(1)+'</b>&hellip;';
     }
     function confirmCharacter(gender){
@@ -11445,6 +11476,213 @@ tx.fillStyle=grad; ctx.fill();
     };
   })();
   </script>
+<script>
+  /* Language selection (Han 2026-10-23). The selector sits beside the
+     BGM button and shows the current language; the settings panel
+     carries the same choice. Static chrome is tagged data-i18n /
+     data-i18n-ph and re-rendered from this table; the two dynamic
+     writers (character sub-line, ENTER AS ...) read through
+     window.__espilT. City names, brand names, user content and
+     JS-rendered editorial bodies are not translated. The choice
+     persists in localStorage 'espil_lang'; the first visit follows
+     the browser language. */
+  (function(){
+    "use strict";
+    var NAMES={ko:'한국어',fr:'Français',en:'English',zh:'中文'};
+    var ORDER=['ko','fr','en','zh'];
+    var DICT={
+noticeBtn:{en:'Notice',ko:'공지',fr:'Avis',zh:'通知'},
+signinTitle:{en:'ENTER ESPIL ONLINE',ko:'ESPIL ONLINE 입장',fr:'ENTRER DANS ESPIL ONLINE',zh:'进入 ESPIL ONLINE'},
+signinSub:{en:"Choose how you'd like to arrive.",ko:'어떻게 입장하시겠습니까?',fr:'Choisissez comment vous souhaitez arriver.',zh:'请选择您的进入方式。'},
+guestEnter:{en:'ENTER AS GUEST',ko:'게스트로 입장',fr:'ENTRER EN INVITÉ',zh:'以访客身份进入'},
+noticeTitle:{en:'Notices',ko:'공지사항',fr:'Avis',zh:'公告'},
+noticeSub:{en:'Espil Online news and updates',ko:'Espil Online 소식과 업데이트',fr:"Actualités et mises à jour d'Espil Online",zh:'Espil Online 新闻与更新'},
+tabAnnounce:{en:'Announcements',ko:'공지',fr:'Annonces',zh:'公告'},
+tabUpdates:{en:'Updates',ko:'업데이트',fr:'Mises à jour',zh:'更新'},
+tabPlanned:{en:'Planned',ko:'예정',fr:'À venir',zh:'计划中'},
+tabIssues:{en:'Known Issues & Bug Reports',ko:'알려진 문제와 버그 제보',fr:'Problèmes connus et rapports de bugs',zh:'已知问题与错误报告'},
+introContinue:{en:'TAP OR PRESS ANY KEY TO CONTINUE',ko:'탭하거나 아무 키나 눌러 계속',fr:'TOUCHEZ OU APPUYEZ SUR UNE TOUCHE POUR CONTINUER',zh:'点按或按任意键继续'},
+charTitle:{en:'CHOOSE YOUR CHARACTER',ko:'캐릭터 선택',fr:'CHOISISSEZ VOTRE PERSONNAGE',zh:'选择您的角色'},
+charSub:{en:'Your traveler for {city}.',ko:'{city} 여행을 함께할 캐릭터입니다.',fr:'Votre voyageur pour {city}.',zh:'您在{city}的旅行者。'},
+male:{en:'Male',ko:'남성',fr:'Homme',zh:'男性'},
+female:{en:'Female',ko:'여성',fr:'Femme',zh:'女性'},
+readyM:{en:'Ready',ko:'준비 완료',fr:'Prêt',zh:'已就绪'},
+readyF:{en:'Ready',ko:'준비 완료',fr:'Prête',zh:'已就绪'},
+enterAsMale:{en:'ENTER AS MALE',ko:'남성으로 입장',fr:'ENTRER EN HOMME',zh:'以男性身份进入'},
+enterAsFemale:{en:'ENTER AS FEMALE',ko:'여성으로 입장',fr:'ENTRER EN FEMME',zh:'以女性身份进入'},
+returnEarth:{en:'RETURN TO EARTH',ko:'지구로 돌아가기',fr:'RETOUR À LA TERRE',zh:'返回地球'},
+storeChoose:{en:'Choose a place',ko:'장소를 선택하세요',fr:'Choisissez un lieu',zh:'选择一个地点'},
+storeHint:{en:'↑↓ to select, Enter to interact, ESC to cancel',ko:'↑↓ 선택, Enter 상호작용, ESC 취소',fr:'↑↓ pour choisir, Entrée pour interagir, Échap pour annuler',zh:'↑↓ 选择，Enter 互动，ESC 取消'},
+storeBack:{en:'← Back',ko:'← 뒤로',fr:'← Retour',zh:'← 返回'},
+storeInfo:{en:'Info',ko:'정보',fr:'Infos',zh:'信息'},
+storeReviews:{en:'Reviews',ko:'리뷰',fr:'Avis',zh:'评价'},
+storePhotos:{en:'Photos',ko:'사진',fr:'Photos',zh:'照片'},
+storeEnter:{en:'Enter →',ko:'입장 →',fr:'Entrer →',zh:'进入 →'},
+sprintOn:{en:'SPRINT ON',ko:'질주 켜짐',fr:'SPRINT ACTIVÉ',zh:'疾跑开启'},
+sprint:{en:'SPRINT',ko:'질주',fr:'SPRINT',zh:'疾跑'},
+interact:{en:'Interact',ko:'상호작용',fr:'Interagir',zh:'互动'},
+dive:{en:'DIVE',ko:'다이브',fr:'PLONGER',zh:'潜入'},
+entryTap:{en:'TAP OR PRESS ANY KEY TO ENTER',ko:'탭하거나 아무 키나 눌러 입장',fr:'TOUCHEZ OU APPUYEZ SUR UNE TOUCHE POUR ENTRER',zh:'点按或按任意键进入'},
+loadingCity:{en:'LOADING CITY…',ko:'도시 불러오는 중…',fr:'CHARGEMENT DE LA VILLE…',zh:'正在加载城市…'},
+csKicker:{en:'TESTING PHASE',ko:'테스트 단계',fr:'PHASE DE TEST',zh:'测试阶段'},
+csTitle:{en:'COMING SOON',ko:'곧 공개',fr:'BIENTÔT',zh:'即将推出'},
+csBack:{en:'← BACK TO EARTH',ko:'← 지구로 돌아가기',fr:'← RETOUR À LA TERRE',zh:'← 返回地球'},
+setTitle:{en:'SETTINGS',ko:'설정',fr:'PARAMÈTRES',zh:'设置'},
+setSub:{en:'Options for your walk in the world.',ko:'이 세계를 걷는 여정을 위한 옵션입니다.',fr:'Options pour votre voyage dans ce monde.',zh:'为您在这个世界的旅程提供的选项。'},
+citySelect:{en:'CITY SELECT',ko:'도시 선택',fr:'CHOIX DE LA VILLE',zh:'城市选择'},
+langLabel:{en:'LANGUAGE',ko:'언어',fr:'LANGUE',zh:'语言'},
+setReturn:{en:'Return to Earth',ko:'지구로 돌아가기',fr:'Retour à la Terre',zh:'返回地球'},
+setGuide:{en:'Guide - learn the world with Espil',ko:'가이드 - Espil과 함께 세계 배우기',fr:'Guide - découvrez le monde avec Espil',zh:'指南 - 与 Espil 一起了解世界'},
+buttonSettings:{en:'BUTTON SETTINGS',ko:'버튼 설정',fr:'PARAMÈTRES DES TOUCHES',zh:'按键设置'},
+kbJump:{en:'Jump',ko:'점프',fr:'Saut',zh:'跳跃'},
+kbInteract:{en:'Interact',ko:'상호작용',fr:'Interagir',zh:'互动'},
+kbStall:{en:'Stall',ko:'노점',fr:'Étal',zh:'摊位'},
+kbReset:{en:'Reset buttons',ko:'버튼 초기화',fr:'Réinitialiser les touches',zh:'重置按键'},
+kbNote:{en:'Choose a button, then press the new key. Movement stays on the arrow keys and the joystick.',ko:'버튼을 고른 뒤 새 키를 누르세요. 이동은 방향키와 조이스틱을 그대로 씁니다.',fr:'Choisissez une touche, puis appuyez sur la nouvelle. Le déplacement reste aux flèches et au joystick.',zh:'选择一个按键，然后按下新键。移动仍使用方向键和摇杆。'},
+soundSettings:{en:'SOUND SETTINGS',ko:'소리 설정',fr:'PARAMÈTRES SONORES',zh:'声音设置'},
+musicVol:{en:'Music volume',ko:'음악 볼륨',fr:'Volume de la musique',zh:'音乐音量'},
+mute:{en:'Mute',ko:'음소거',fr:'Muet',zh:'静音'},
+logout:{en:'Log out',ko:'로그아웃',fr:'Se déconnecter',zh:'退出登录'},
+devInfo:{en:'Developer info',ko:'개발자 정보',fr:'Infos développeur',zh:'开发者信息'},
+chatChannel:{en:'Channel',ko:'채널',fr:'Canal',zh:'频道'},
+chatLocal:{en:'Local',ko:'주변',fr:'Local',zh:'本地'},
+chatParty:{en:'Party',ko:'파티',fr:'Groupe',zh:'队伍'},
+chatPh:{en:'Press Enter to chat…',ko:'Enter를 눌러 채팅…',fr:'Appuyez sur Entrée pour discuter…',zh:'按 Enter 聊天…'},
+keeperTitle:{en:'KEEPER',ko:'키퍼',fr:'GARDIEN',zh:'守护者'},
+keeperSub:{en:"Espil's own craft — the cauldron is both forge and weapon.",ko:'Espil 본인의 기예입니다. 가마솥은 대장간이자 무기입니다.',fr:"L'art propre d'Espil — le chaudron est à la fois forge et arme.",zh:'Espil 本人的技艺——大锅既是锻炉，也是武器。'},
+studyBtn:{en:'▶ Watch a video (demo) +5',ko:'▶ 영상 보기 (데모) +5',fr:'▶ Regarder une vidéo (démo) +5',zh:'▶ 观看视频（演示）+5'},
+keeperNote:{en:'Knowledge comes from watching videos — not from leveling up. Spend it to grow each branch toward mastery.',ko:'지식은 영상을 보며 얻습니다. 레벨업으로는 얻지 못합니다. 지식을 써서 각 가지를 숙련으로 키우세요.',fr:'Le savoir vient des vidéos — pas des niveaux. Dépensez-le pour faire grandir chaque branche vers la maîtrise.',zh:'知识来自观看视频，而不是升级。用知识让每个分支走向精通。'},
+keeperFoot:{en:'Walking, running, jumping — every human movement is a skill. New branches grow with the combat update.',ko:'걷기, 달리기, 점프까지 사람의 모든 움직임이 스킬입니다. 새 가지는 전투 업데이트와 함께 자랍니다.',fr:'Marcher, courir, sauter — chaque mouvement humain est une compétence. De nouvelles branches viendront avec la mise à jour combat.',zh:'行走、奔跑、跳跃——人的每个动作都是技能。新分支将随战斗更新到来。'},
+invTitle:{en:'INVENTORY',ko:'인벤토리',fr:'INVENTAIRE',zh:'物品栏'},
+invSub:{en:'Your belongings. Press I to close.',ko:'소지품입니다. I를 눌러 닫습니다.',fr:'Vos affaires. Appuyez sur I pour fermer.',zh:'您的物品。按 I 关闭。'},
+invEmpty:{en:'Empty for now.',ko:'아직 비어 있습니다.',fr:'Vide pour le moment.',zh:'目前是空的。'},
+charPanelTitle:{en:'CHARACTER',ko:'캐릭터',fr:'PERSONNAGE',zh:'角色'},
+charPanelSub:{en:'Status and outfit. Press P to close.',ko:'상태와 복장입니다. P를 눌러 닫습니다.',fr:'État et tenue. Appuyez sur P pour fermer.',zh:'状态与服装。按 P 关闭。'},
+charPanelFoot:{en:'Outfit system arrives with the character update.',ko:'복장 시스템은 캐릭터 업데이트와 함께 옵니다.',fr:'Le système de tenues arrivera avec la mise à jour des personnages.',zh:'服装系统将随角色更新到来。'},
+friendsTitle:{en:'FRIENDS / PARTY',ko:'친구 / 파티',fr:'AMIS / GROUPE',zh:'好友 / 队伍'},
+friendsSub:{en:'Press U to close. Friend sync needs the server.',ko:'U를 눌러 닫습니다. 친구 동기화에는 서버가 필요합니다.',fr:'Appuyez sur U pour fermer. La synchronisation des amis nécessite le serveur.',zh:'按 U 关闭。好友同步需要服务器。'},
+friendsNone:{en:'No friends yet. Add by username:',ko:'아직 친구가 없습니다. 사용자 이름으로 추가하세요:',fr:"Pas encore d'amis. Ajoutez par nom d'utilisateur :",zh:'还没有好友。通过用户名添加：'},
+usernamePh:{en:'Username',ko:'사용자 이름',fr:"Nom d'utilisateur",zh:'用户名'},
+add:{en:'ADD',ko:'추가',fr:'AJOUTER',zh:'添加'},
+friendsLocal:{en:'Friend list is local only until the server is ready.',ko:'친구 목록은 서버가 열리기 전까지 이 기기에만 저장됩니다.',fr:"La liste d'amis reste locale tant que le serveur n'est pas prêt.",zh:'在服务器就绪之前，好友列表仅保存在本地。'},
+partyHead:{en:'PARTY',ko:'파티',fr:'GROUPE',zh:'队伍'},
+partyNote:{en:'Party invites need the server - they arrive when the server opens.',ko:'파티 초대에는 서버가 필요합니다. 서버가 열리면 옵니다.',fr:'Les invitations de groupe nécessitent le serveur — elles arriveront à son ouverture.',zh:'队伍邀请需要服务器——服务器开放后即可使用。'},
+stallTitle:{en:'My Stall',ko:'내 노점',fr:'Mon étal',zh:'我的摊位'},
+stallSub:{en:'Press Y to close. You can open one stall per city.',ko:'Y를 눌러 닫습니다. 도시마다 노점 하나를 열 수 있습니다.',fr:'Appuyez sur Y pour fermer. Un étal par ville.',zh:'按 Y 关闭。每个城市可以开设一个摊位。'},
+stallNameLabel:{en:'Stall name',ko:'노점 이름',fr:"Nom de l'étal",zh:'摊位名称'},
+stallNamePh:{en:'My Stall',ko:'내 노점',fr:'Mon étal',zh:'我的摊位'},
+stallOpen:{en:'Open stall here',ko:'여기에 노점 열기',fr:"Ouvrir l'étal ici",zh:'在这里摆摊'},
+stallCloseBtn:{en:'Close stall',ko:'노점 닫기',fr:"Fermer l'étal",zh:'关闭摊位'},
+stallView:{en:'View as visitor',ko:'방문자 시점으로 보기',fr:'Voir en visiteur',zh:'以访客视角查看'},
+stallFormTitle:{en:'Add a post - pick an empty slot, fill this in, and Post',ko:'게시물 추가 - 빈 칸을 고르고 내용을 채운 뒤 게시하세요',fr:'Ajouter une annonce - choisissez un emplacement vide, remplissez et publiez',zh:'添加帖子——选择一个空位，填写后发布'},
+selling:{en:'Selling',ko:'판매 중',fr:'Vente',zh:'出售'},
+buying:{en:'Buying',ko:'구매 중',fr:'Achat',zh:'求购'},
+kindItem:{en:'Item',ko:'아이템',fr:'Objet',zh:'物品'},
+kindService:{en:'Service',ko:'서비스',fr:'Service',zh:'服务'},
+stallTitlePh:{en:'Title (e.g. Espil House model)',ko:'제목 (예: Espil House 모형)',fr:'Titre (ex. modèle Espil House)',zh:'标题（例如 Espil House 模型）'},
+stallPricePh:{en:'Price (Leo amount, blank = negotiable)',ko:'가격 (Leo 금액, 비우면 협의 가능)',fr:'Prix (montant en Leo, vide = négociable)',zh:'价格（Leo 金额，留空 = 可协商）'},
+stallNotePh:{en:'Note (optional)',ko:'메모 (선택)',fr:'Note (optionnel)',zh:'备注（可选）'},
+post:{en:'Post',ko:'게시',fr:'Publier',zh:'发布'},
+deletePost:{en:'Delete post',ko:'게시물 삭제',fr:"Supprimer l'annonce",zh:'删除帖子'},
+stallFoot:{en:'The stall window is a grid, the way the classic merchant stalls did it: every post takes one slot with its price tag. No fees, ever - trading here runs on trust. Real item trading and Leo settlement arrive when the server opens.',ko:'노점 창은 고전 상인 노점처럼 칸으로 나뉩니다. 게시물 하나가 가격표를 달고 한 칸을 차지합니다. 수수료는 영원히 없습니다. 이곳의 거래는 신뢰로 돌아갑니다. 실제 아이템 거래와 Leo 정산은 서버가 열리면 옵니다.',fr:"La fenêtre de l'étal est une grille, comme les étals marchands classiques : chaque annonce occupe un emplacement avec son prix. Aucun frais, jamais — ici, le commerce repose sur la confiance. Le vrai échange d'objets et le règlement en Leo arriveront avec le serveur.",zh:'摊位窗口是网格状的，就像经典的商人摊位：每个帖子占一个格子并带有价格标签。永远不收取费用——这里的交易靠信任运转。真正的物品交易和 Leo 结算将在服务器开放后到来。'},
+guideBack:{en:'Back',ko:'뒤로',fr:'Retour',zh:'返回'},
+guideNext:{en:'Next',ko:'다음',fr:'Suivant',zh:'下一步'},
+bldgEnter:{en:'Enter',ko:'입장',fr:'Entrer',zh:'进入'},
+bldgClose:{en:'Close',ko:'닫기',fr:'Fermer',zh:'关闭'},
+bldgFoot:{en:'You step inside this building, at its real size and place.',ko:'실제 크기와 자리 그대로 이 건물 안으로 들어갑니다.',fr:'Vous entrez dans ce bâtiment, à sa taille et à sa place réelles.',zh:'您将按真实大小和位置进入这座建筑。'},
+bldgInsideSub:{en:'You are inside this building.',ko:'이 건물 안에 있습니다.',fr:'Vous êtes dans ce bâtiment.',zh:'您正在这座建筑内。'},
+findStores:{en:'Find stores',ko:'상점 찾기',fr:'Trouver des boutiques',zh:'查找商店'},
+contact:{en:'Contact',ko:'연락',fr:'Contact',zh:'联系'},
+leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtiment',zh:'离开建筑'}
+    };
+    var cur='en';
+    try{
+      var saved=localStorage.getItem('espil_lang');
+      if(saved&&NAMES[saved])cur=saved;
+      else{
+        var nav=(navigator.language||'en').slice(0,2).toLowerCase();
+        if(NAMES[nav])cur=nav;
+      }
+    }catch(e){}
+    function t(key){
+      var row=DICT[key];
+      if(!row)return key;
+      return row[cur]||row.en||key;
+    }
+    window.__espilT=t;
+    window.__espilLang=function(){ return cur; };
+    function apply(){
+      document.documentElement.setAttribute('lang',cur==='zh'?'zh-CN':cur);
+      var els=document.querySelectorAll('[data-i18n]');
+      for(var i=0;i<els.length;i++){
+        var k=els[i].getAttribute('data-i18n');
+        if(DICT[k])els[i].textContent=t(k);
+      }
+      var phs=document.querySelectorAll('[data-i18n-ph]');
+      for(var j=0;j<phs.length;j++){
+        var k2=phs[j].getAttribute('data-i18n-ph');
+        if(DICT[k2])phs[j].setAttribute('placeholder',t(k2));
+      }
+      var btn=document.getElementById('lang-toggle');
+      if(btn)btn.textContent=NAMES[cur];
+      var opts=document.querySelectorAll('.lang-opt');
+      for(var m=0;m<opts.length;m++){
+        var on=opts[m].getAttribute('data-lang')===cur;
+        opts[m].classList.toggle('on',on);
+        opts[m].setAttribute('aria-selected',on?'true':'false');
+      }
+      var sel=document.getElementById('opt-lang');
+      if(sel&&sel.value!==cur)sel.value=cur;
+      /* the character panel's dynamic lines follow the language too */
+      var panel=document.getElementById('char-custom');
+      if(panel&&panel.getAttribute('aria-hidden')==='false'){
+        var csub=panel.querySelector('.char-sub');
+        if(csub&&typeof window.espilCityDisplayName==='function')
+          csub.textContent=t('charSub').replace('{city}',window.espilCityDisplayName());
+        var conf=document.getElementById('char-confirm');
+        var maleCard=document.getElementById('char-male');
+        if(conf)
+          conf.innerHTML=t(maleCard&&maleCard.classList.contains('is-selected')?'enterAsMale':'enterAsFemale')+' &rarr;';
+      }
+    }
+    window.__espilSetLang=function(code){
+      if(!NAMES[code])return;
+      cur=code;
+      try{ localStorage.setItem('espil_lang',code); }catch(e){}
+      apply();
+    };
+    var toggle=document.getElementById('lang-toggle');
+    var menu=document.getElementById('lang-menu');
+    function closeMenu(){
+      if(menu){ menu.classList.remove('open'); menu.setAttribute('aria-hidden','true'); }
+      if(toggle)toggle.setAttribute('aria-expanded','false');
+    }
+    if(toggle&&menu){
+      toggle.addEventListener('click',function(e){
+        e.stopPropagation();
+        var open=menu.classList.toggle('open');
+        menu.setAttribute('aria-hidden',open?'false':'true');
+        toggle.setAttribute('aria-expanded',open?'true':'false');
+      });
+      var opts=menu.querySelectorAll('.lang-opt');
+      for(var i=0;i<opts.length;i++){
+        (function(b){
+          b.addEventListener('click',function(){
+            window.__espilSetLang(b.getAttribute('data-lang'));
+            closeMenu();
+          });
+        })(opts[i]);
+      }
+      document.addEventListener('pointerdown',function(e){
+        if(menu.classList.contains('open')&&!e.target.closest('#lang-wrap'))closeMenu();
+      });
+      document.addEventListener('keydown',function(e){ if(e.key==='Escape')closeMenu(); });
+    }
+    var sel=document.getElementById('opt-lang');
+    if(sel)sel.addEventListener('change',function(){ window.__espilSetLang(sel.value); });
+    apply();
+  })();
+</script>
 <script>
 /* Pointer shadow (Han 2026-10-21): a shooting-star trail for
    the Earth-mark cursor - yellow and green light scattering
