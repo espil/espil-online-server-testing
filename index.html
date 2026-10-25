@@ -9402,6 +9402,16 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       try{ if(R.group.parent)R.group.parent.remove(R.group); }catch(_){}
       try{ if(R.shadow.parent)R.shadow.parent.remove(R.shadow); }catch(_){}
       try{ if(R.mixer)R.mixer.stopAllAction(); }catch(_){}
+      /* Dispose the model's GPU resources too, not just the plate's
+         (Architecture recommendation, 2026-10-24): each remote parsed
+         its own GLB copy, so its geometries/materials are safe to free
+         here - long sessions must not accumulate them. */
+      if(R.visual){ try{ R.visual.traverse(function(o){
+        if(o.geometry){ try{ o.geometry.dispose(); }catch(_){} }
+        if(o.material){ var ms=Array.isArray(o.material)?o.material:[o.material];
+          ms.forEach(function(mm){ for(var key in mm){ var vv=mm[key]; if(vv&&vv.isTexture){ try{ vv.dispose(); }catch(_){} } } try{ mm.dispose(); }catch(_){} }); }
+      }); }catch(_){} }
+      try{ R.shadow.geometry.dispose(); R.shadow.material.dispose(); }catch(_){}
       if(R.plate){ try{ R.plate.material.map.dispose(); R.plate.material.dispose(); }catch(_){} }
     };
     window.__espilAvatarClear=function(){ for(var k in __espilRemotes)window.__espilAvatarRemove(k); };
@@ -11871,7 +11881,19 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     ws.onopen = function(){
       backoff = 1000;
       startPing();
-      try { ws.send(JSON.stringify({ t: 'join', name: myName(), gender: myGender() })); } catch(_){}
+      var nm = myName();
+      /* Record the name the guest typed into the character panel this
+         session under the game's own display-name key (espil_username,
+         read by the friends panel but written nowhere in the build -
+         Architecture finding, 2026-10-24). A later visit whose panel
+         is skipped then joins with that name via myName()'s fallback
+         instead of 'Guest'. Only a panel-typed value is recorded; the
+         fallback itself never rewrites storage. */
+      try {
+        var inp = $('char-name');
+        if (inp && inp.value.trim()) localStorage.setItem('espil_username', nm);
+      } catch(_){}
+      try { ws.send(JSON.stringify({ t: 'join', name: nm, gender: myGender() })); } catch(_){}
     };
     ws.onmessage = function(ev){
       var m; try { m = JSON.parse(ev.data); } catch(_){ return; }
@@ -11912,7 +11934,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         }
       }
     };
-    ws.onclose = function(){ joined = false; stopPos(); stopPing(); renderPresence(); maybeNotifyLocal(); scheduleRetry(); };
+    ws.onclose = function(){ joined = false; stopPos(); stopPing(); renderPresence(); try { if (window.__espilAvatarClear) window.__espilAvatarClear(); } catch(_){} maybeNotifyLocal(); scheduleRetry(); };
     ws.onerror = function(){ try { ws.close(); } catch(_){} };
   }
   function scheduleRetry(){
