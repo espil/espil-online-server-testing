@@ -9267,16 +9267,29 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     window.__espilMinimapClear=function(){ for(var k in __espilRemoteMarkers)window.__espilMinimapRemove(k); };
     window.__espilPlayerPose=function(){ if(typeof walkPlayer==='undefined'||!walkPlayer||!walkPlayer.pos)return null; return {x:walkPlayer.pos.x,y:walkPlayer.pos.y,z:walkPlayer.pos.z,a:(typeof walkPlayer.faceY==='number'?walkPlayer.faceY:0)}; };
     window.__espilMinimapCount=function(){ return Object.keys(__espilRemoteMarkers).length; };
-    /* __espilRemoteAvatars v1 - in-world avatars for other connected
-       users (Han's decision, 2026-10-24). Fed by the presence client:
-       __espilAvatarSet runs on every relayed pos fix (1 s cadence) and
-       renders that user as a character in mapScene - same body GLBs,
-       same zoom scale law and contact shadow as the local walker -
-       with a canvas nameplate. Movement between fixes is interpolated
-       here; locomotion uses only the body file's embedded Idle /
-       Walking / Running clips. Removal on leave / disconnect. */
+    /* __espilRemoteAvatars v2 - in-world avatars for other connected
+       users (Han's decision, 2026-10-24; perf revision 2026-10-24,
+       live feedback item 1). Fed by the presence client:
+       __espilAvatarSet runs on every relayed pos fix (1 s cadence).
+       PERF MODEL: the body GLB is parsed ONCE per gender into a
+       master; every remote CLONES the master (geometry, materials
+       and textures are shared GPU resources - the clone only rebinds
+       its skeleton to its own bones and gets its own mixer). Mixer
+       updates are tiered by avatar count and distance so per-frame
+       cost grows slowly with the room size. Movement between fixes
+       is interpolated; locomotion uses only the body file's embedded
+       Idle / Walking / Running clips. Removal on leave / disconnect;
+       shared resources are NOT disposed per user (the masters are
+       bounded at two per session) - only the per-user nameplate and
+       contact shadow are. */
     var __espilRemotes={};
     var __espilRemoteTickOn=false;
+    var __espilTickN=0;
+    var __espilParses=0;
+    var __espilMasters={
+      m:{state:0,scene:null,clips:null,groundY:0,waiters:[]},
+      f:{state:0,scene:null,clips:null,groundY:0,waiters:[]}
+    };
     function __espilMapScene(){ try{ return (typeof mapScene!=='undefined'&&mapScene)?mapScene:null; }catch(_){ return null; } }
     function __espilMakeNameplate(name){
       try{
@@ -9292,14 +9305,58 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         return sp;
       }catch(_){ return null; }
     }
+    function __espilEnsureMaster(gender,cb){
+      var key=(gender==='f'||gender==='female')?'f':'m';
+      var M=__espilMasters[key];
+      if(M.state===2){ cb(M); return; }
+      M.waiters.push(cb);
+      if(M.state===1)return;
+      M.state=1;
+      try{
+        if(typeof THREE.GLTFLoader==='undefined')throw new Error('no GLTFLoader');
+        new THREE.GLTFLoader().load(key==='f'?'assets/character/female_idle.glb':'assets/character/male.glb',function(gltf){
+          __espilParses++;
+          M.scene=gltf.scene;
+          M.clips=gltf.animations||[];
+          /* grounding offset measured once, at the render transform
+             (rotation pi, scale 1.5), exactly like the local walker */
+          M.scene.rotation.y=Math.PI;
+          M.scene.scale.setScalar(1.5);
+          M.scene.updateMatrixWorld(true);
+          var bbox=new THREE.Box3().setFromObject(M.scene);
+          M.groundY=-bbox.min.y;
+          M.scene.rotation.y=0;
+          M.scene.scale.setScalar(1);
+          M.state=2;
+          var ws=M.waiters; M.waiters=[];
+          for(var i=0;i<ws.length;i++){ try{ ws[i](M); }catch(_){} }
+        },undefined,function(){ M.state=0; var ws=M.waiters; M.waiters=[]; for(var i=0;i<ws.length;i++){ try{ ws[i](null); }catch(_){} } });
+      }catch(_){ M.state=0; var ws2=M.waiters; M.waiters=[]; for(var j=0;j<ws2.length;j++){ try{ ws2[j](null); }catch(__){} } }
+    }
+    function __espilCloneModel(M){
+      var src=M.scene;
+      var clone=src.clone(true);
+      var srcNodes=[],cloneNodes=[];
+      src.traverse(function(o){ srcNodes.push(o); });
+      clone.traverse(function(o){ cloneNodes.push(o); });
+      for(var i=0;i<cloneNodes.length;i++){
+        var cn=cloneNodes[i], sn=srcNodes[i];
+        if(sn&&cn&&sn.isSkinnedMesh&&cn.isSkinnedMesh&&cn.skeleton){
+          var bones=cn.skeleton.bones.map(function(b){ return cloneNodes[srcNodes.indexOf(b)]; });
+          cn.skeleton=new THREE.Skeleton(bones,cn.skeleton.boneInverses);
+        }
+      }
+      return clone;
+    }
+    var __espilPhaseSeq=0;
     function __espilBuildRemoteAvatar(gender){
-      var female=(gender==='f'||gender==='female');
       var g=new THREE.Group();
       var shadow=new THREE.Mesh(new THREE.CircleGeometry(.55,20),
         new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:.26,depthWrite:false}));
       shadow.rotation.x=-Math.PI/2;
       var R={group:g,shadow:shadow,mixer:null,actions:{},curAnim:null,ready:false,visual:null,baseY:0,
-             cur:{x:0,y:0,z:0},tgt:{x:0,y:0,z:0,a:0},faceY:0,speed:0,fixSpeed:0,fixAt:0,lastAt:0,plate:null};
+             cur:{x:0,y:0,z:0},tgt:{x:0,y:0,z:0,a:0},faceY:0,speed:0,fixSpeed:0,fixAt:0,lastAt:0,plate:null,
+             phase:(__espilPhaseSeq++)%7,acc:0,gone:false};
       R.playAnim=function(name){
         if(!R.mixer||!R.actions[name]||R.curAnim===name)return;
         var prev=R.actions[R.curAnim],next=R.actions[name];
@@ -9308,20 +9365,19 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         next.__espilGen=(next.__espilGen||0)+1;
         if(prev&&prev!==next){ prev.fadeOut(.18); (function(pp,gg){ setTimeout(function(){ if(pp.__espilGen===gg)pp.stop(); },220); })(prev,prev.__espilGen||0); }
       };
-      try{
-        if(typeof THREE.GLTFLoader==='undefined')throw new Error('no GLTFLoader');
-        new THREE.GLTFLoader().load(female?'assets/character/female_idle.glb':'assets/character/male.glb',function(gltf){
-          var model=gltf.scene;
+      __espilEnsureMaster(gender,function(M){
+        if(R.gone||!M||!M.scene)return;
+        try{
+          var model=__espilCloneModel(M);
           model.rotation.y=Math.PI;
           model.scale.setScalar(1.5);
-          var bbox=new THREE.Box3().setFromObject(model);
-          model.position.y-=bbox.min.y;
+          model.position.y=M.groundY;
           model.traverse(function(o){ if(o.isMesh){ o.castShadow=true; } });
-          R.visual=model; R.baseY=model.position.y;
+          R.visual=model; R.baseY=M.groundY;
           g.add(model);
           var mixer=new THREE.AnimationMixer(model);
           R.mixer=mixer;
-          var clips=gltf.animations||[];
+          var clips=M.clips||[];
           function findClip(rx){ for(var i=0;i<clips.length;i++){ if(rx.test(clips[i].name))return clips[i]; } return null; }
           var idleClip=findClip(/baselayer|idle/i)||clips[0];
           var walkClip=findClip(/walking/i),runClip=findClip(/running/i);
@@ -9330,8 +9386,8 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           if(runClip)R.actions.run=mixer.clipAction(runClip);
           R.ready=true;
           R.playAnim('idle');
-        });
-      }catch(_){ }
+        }catch(_){ }
+      });
       return R;
     }
     function __espilStartRemoteTick(){
@@ -9343,9 +9399,15 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         var now=performance.now();
         var dt=Math.min(0.05,(now-last)/1000); last=now;
         if(dt<=0)return;
+        __espilTickN++;
         var F=(typeof window.__espilAvatarScaleF==='number'&&window.__espilAvatarScaleF>0)?window.__espilAvatarScaleF:1;
-        for(var id in __espilRemotes){
-          var R=__espilRemotes[id]; if(!R)continue;
+        var ids=Object.keys(__espilRemotes);
+        var count=ids.length;
+        var stride=count<=6?1:(count<=14?2:3);
+        var pp=null;
+        try{ pp=window.__espilPlayerPose?window.__espilPlayerPose():null; }catch(_){ pp=null; }
+        for(var ii=0;ii<ids.length;ii++){
+          var R=__espilRemotes[ids[ii]]; if(!R)continue;
           var dx=R.tgt.x-R.cur.x, dy=R.tgt.y-R.cur.y, dz=R.tgt.z-R.cur.z;
           var dist=Math.sqrt(dx*dx+dz*dz);
           if(dist>15||Math.abs(dy)>15){ R.cur.x=R.tgt.x; R.cur.y=R.tgt.y; R.cur.z=R.tgt.z; }
@@ -9362,11 +9424,20 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           R.shadow.material.opacity=Math.max(.08,.26-Math.max(0,R.cur.y-.05)*.05);
           if(R.visual){ R.visual.scale.setScalar(1.5*F); R.visual.position.y=R.baseY*F; }
           if(R.plate){ R.plate.position.y=2.05*F; var ph=0.6*F; R.plate.scale.set(ph*3.4,ph,1); }
-          if(R.ready){
-            var want=R.speed>6.5?'run':(R.speed>0.35?'walk':'idle');
-            if(!R.actions[want])want='idle';
-            R.playAnim(want);
-            if(R.mixer)R.mixer.update(dt);
+          if(R.ready&&R.mixer){
+            /* tiered mixer updates: near avatars animate at full rate;
+               far ones (> 80 m) and crowded rooms step down */
+            var far=false;
+            if(pp){ var pdx=R.cur.x-pp.x, pdz=R.cur.z-pp.z; far=(pdx*pdx+pdz*pdz)>6400; }
+            var s=far?Math.max(stride,3):stride;
+            R.acc+=dt;
+            if(((__espilTickN+R.phase)%s)===0){
+              var want=R.speed>6.5?'run':(R.speed>0.35?'walk':'idle');
+              if(!R.actions[want])want='idle';
+              R.playAnim(want);
+              R.mixer.update(R.acc);
+              R.acc=0;
+            }
           }
         }
       })();
@@ -9401,24 +9472,23 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     window.__espilAvatarRemove=function(id){
       var R=__espilRemotes[id]; if(!R)return;
       delete __espilRemotes[id];
+      R.gone=true;
       try{ if(R.group.parent)R.group.parent.remove(R.group); }catch(_){}
       try{ if(R.shadow.parent)R.shadow.parent.remove(R.shadow); }catch(_){}
       try{ if(R.mixer)R.mixer.stopAllAction(); }catch(_){}
-      /* Dispose the model's GPU resources too, not just the plate's
-         (Architecture recommendation, 2026-10-24): each remote parsed
-         its own GLB copy, so its geometries/materials are safe to free
-         here - long sessions must not accumulate them. */
-      if(R.visual){ try{ R.visual.traverse(function(o){
-        if(o.geometry){ try{ o.geometry.dispose(); }catch(_){} }
-        if(o.material){ var ms=Array.isArray(o.material)?o.material:[o.material];
-          ms.forEach(function(mm){ for(var key in mm){ var vv=mm[key]; if(vv&&vv.isTexture){ try{ vv.dispose(); }catch(_){} } } try{ mm.dispose(); }catch(_){} }); }
-      }); }catch(_){} }
+      /* The model's geometry/materials/textures are SHARED with the
+         gender master and every other clone - disposing them here
+         would break the remaining avatars. Only per-user resources
+         (nameplate, contact shadow) are disposed. The two masters
+         are bounded for the whole session, so nothing accumulates
+         (perf revision of the v1 dispose rule, 2026-10-24). */
       try{ R.shadow.geometry.dispose(); R.shadow.material.dispose(); }catch(_){}
       if(R.plate){ try{ R.plate.material.map.dispose(); R.plate.material.dispose(); }catch(_){} }
     };
     window.__espilAvatarClear=function(){ for(var k in __espilRemotes)window.__espilAvatarRemove(k); };
     window.__espilAvatarCount=function(){ return Object.keys(__espilRemotes).length; };
     window.__espilRemotePose=function(id){ var R=__espilRemotes[id]; return R?{x:R.cur.x,y:R.cur.y,z:R.cur.z,speed:R.speed,anim:R.curAnim,ready:R.ready}:null; };
+    window.__espilAvatarStats=function(){ return {parses:__espilParses,masters:{m:__espilMasters.m.state,f:__espilMasters.f.state},remotes:Object.keys(__espilRemotes).length}; };
     /* __espilRemoteAvatars END */
     window.addEventListener('sell-bubble',function(e){
       espilSellBubble(e&&e.detail&&e.detail.text);
