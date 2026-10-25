@@ -9265,6 +9265,149 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     window.__espilMinimapClear=function(){ for(var k in __espilRemoteMarkers)window.__espilMinimapRemove(k); };
     window.__espilPlayerPose=function(){ if(typeof walkPlayer==='undefined'||!walkPlayer||!walkPlayer.pos)return null; return {x:walkPlayer.pos.x,y:walkPlayer.pos.y,z:walkPlayer.pos.z,a:(typeof walkPlayer.faceY==='number'?walkPlayer.faceY:0)}; };
     window.__espilMinimapCount=function(){ return Object.keys(__espilRemoteMarkers).length; };
+    /* __espilRemoteAvatars v1 - in-world avatars for other connected
+       users (Han's decision, 2026-10-24). Fed by the presence client:
+       __espilAvatarSet runs on every relayed pos fix (1 s cadence) and
+       renders that user as a character in mapScene - same body GLBs,
+       same zoom scale law and contact shadow as the local walker -
+       with a canvas nameplate. Movement between fixes is interpolated
+       here; locomotion uses only the body file's embedded Idle /
+       Walking / Running clips. Removal on leave / disconnect. */
+    var __espilRemotes={};
+    var __espilRemoteTickOn=false;
+    function __espilMapScene(){ try{ return (typeof mapScene!=='undefined'&&mapScene)?mapScene:null; }catch(_){ return null; } }
+    function __espilMakeNameplate(name){
+      try{
+        var cv=document.createElement('canvas'); cv.width=256; cv.height=64;
+        var cx=cv.getContext('2d');
+        cx.font='600 30px sans-serif'; cx.textAlign='center'; cx.textBaseline='middle';
+        var nm=String(name||'Guest').slice(0,16);
+        cx.lineWidth=6; cx.strokeStyle='rgba(0,0,0,.85)';
+        cx.strokeText(nm,128,34); cx.fillStyle='#fff'; cx.fillText(nm,128,34);
+        var tex=new THREE.CanvasTexture(cv);
+        var sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthWrite:false}));
+        sp.renderOrder=50;
+        return sp;
+      }catch(_){ return null; }
+    }
+    function __espilBuildRemoteAvatar(gender){
+      var female=(gender==='f'||gender==='female');
+      var g=new THREE.Group();
+      var shadow=new THREE.Mesh(new THREE.CircleGeometry(.55,20),
+        new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:.26,depthWrite:false}));
+      shadow.rotation.x=-Math.PI/2;
+      var R={group:g,shadow:shadow,mixer:null,actions:{},curAnim:null,ready:false,visual:null,baseY:0,
+             cur:{x:0,y:0,z:0},tgt:{x:0,y:0,z:0,a:0},faceY:0,speed:0,fixSpeed:0,fixAt:0,lastAt:0,plate:null};
+      R.playAnim=function(name){
+        if(!R.mixer||!R.actions[name]||R.curAnim===name)return;
+        var prev=R.actions[R.curAnim],next=R.actions[name];
+        R.curAnim=name;
+        next.reset().fadeIn(.18).play();
+        next.__espilGen=(next.__espilGen||0)+1;
+        if(prev&&prev!==next){ prev.fadeOut(.18); (function(pp,gg){ setTimeout(function(){ if(pp.__espilGen===gg)pp.stop(); },220); })(prev,prev.__espilGen||0); }
+      };
+      try{
+        if(typeof THREE.GLTFLoader==='undefined')throw new Error('no GLTFLoader');
+        new THREE.GLTFLoader().load(female?'assets/character/female_idle.glb':'assets/character/male.glb',function(gltf){
+          var model=gltf.scene;
+          model.rotation.y=Math.PI;
+          model.scale.setScalar(1.5);
+          var bbox=new THREE.Box3().setFromObject(model);
+          model.position.y-=bbox.min.y;
+          model.traverse(function(o){ if(o.isMesh){ o.castShadow=true; } });
+          R.visual=model; R.baseY=model.position.y;
+          g.add(model);
+          var mixer=new THREE.AnimationMixer(model);
+          R.mixer=mixer;
+          var clips=gltf.animations||[];
+          function findClip(rx){ for(var i=0;i<clips.length;i++){ if(rx.test(clips[i].name))return clips[i]; } return null; }
+          var idleClip=findClip(/baselayer|idle/i)||clips[0];
+          var walkClip=findClip(/walking/i),runClip=findClip(/running/i);
+          if(idleClip)R.actions.idle=mixer.clipAction(idleClip);
+          if(walkClip)R.actions.walk=mixer.clipAction(walkClip);
+          if(runClip)R.actions.run=mixer.clipAction(runClip);
+          R.ready=true;
+          R.playAnim('idle');
+        });
+      }catch(_){ }
+      return R;
+    }
+    function __espilStartRemoteTick(){
+      if(__espilRemoteTickOn)return;
+      __espilRemoteTickOn=true;
+      var last=performance.now();
+      (function tick(){
+        requestAnimationFrame(tick);
+        var now=performance.now();
+        var dt=Math.min(0.05,(now-last)/1000); last=now;
+        if(dt<=0)return;
+        var F=(typeof window.__espilAvatarScaleF==='number'&&window.__espilAvatarScaleF>0)?window.__espilAvatarScaleF:1;
+        for(var id in __espilRemotes){
+          var R=__espilRemotes[id]; if(!R)continue;
+          var dx=R.tgt.x-R.cur.x, dy=R.tgt.y-R.cur.y, dz=R.tgt.z-R.cur.z;
+          var dist=Math.sqrt(dx*dx+dz*dz);
+          if(dist>15||Math.abs(dy)>15){ R.cur.x=R.tgt.x; R.cur.y=R.tgt.y; R.cur.z=R.tgt.z; }
+          else { var k=1-Math.exp(-dt*5); R.cur.x+=dx*k; R.cur.y+=dy*k; R.cur.z+=dz*k; }
+          var goal=(now-R.lastAt>2200)?0:R.fixSpeed;
+          R.speed+=(goal-R.speed)*Math.min(1,dt*5);
+          var da=R.tgt.a-R.faceY;
+          while(da>Math.PI)da-=Math.PI*2; while(da<-Math.PI)da+=Math.PI*2;
+          R.faceY+=da*Math.min(1,dt*8);
+          R.group.position.set(R.cur.x,R.cur.y,R.cur.z);
+          R.group.rotation.y=R.faceY;
+          R.shadow.position.set(R.cur.x,.03,R.cur.z);
+          var ss=Math.min(F,4); R.shadow.scale.set(ss,ss,1);
+          R.shadow.material.opacity=Math.max(.08,.26-Math.max(0,R.cur.y-.05)*.05);
+          if(R.visual){ R.visual.scale.setScalar(1.5*F); R.visual.position.y=R.baseY*F; }
+          if(R.plate){ R.plate.position.y=2.05*F; var ph=0.6*F; R.plate.scale.set(ph*3.4,ph,1); }
+          if(R.ready){
+            var want=R.speed>6.5?'run':(R.speed>0.35?'walk':'idle');
+            if(!R.actions[want])want='idle';
+            R.playAnim(want);
+            if(R.mixer)R.mixer.update(dt);
+          }
+        }
+      })();
+    }
+    window.__espilAvatarSet=function(id,x,y,z,a,info){
+      var scene=__espilMapScene();
+      if(typeof THREE==='undefined'||!scene)return;
+      var now=performance.now();
+      var R=__espilRemotes[id];
+      if(!R){
+        R=__espilBuildRemoteAvatar(info&&info.gender);
+        R.cur={x:x,y:y,z:z}; R.tgt={x:x,y:y,z:z,a:(typeof a==='number'?a:0)};
+        R.faceY=R.tgt.a; R.fixAt=now; R.lastAt=now;
+        R.plate=__espilMakeNameplate(info&&info.name);
+        if(R.plate)R.group.add(R.plate);
+        R.group.position.set(x,y,z);
+        scene.add(R.group); scene.add(R.shadow);
+        __espilRemotes[id]=R;
+        __espilStartRemoteTick();
+      } else {
+        var dtf=(now-(R.fixAt||now))/1000;
+        if(dtf>0.2){
+          var ddx=x-R.tgt.x, ddz=z-R.tgt.z;
+          R.fixSpeed=Math.sqrt(ddx*ddx+ddz*ddz)/dtf;
+          R.fixAt=now;
+        }
+        R.tgt.x=x; R.tgt.y=y; R.tgt.z=z;
+        if(typeof a==='number')R.tgt.a=a;
+        R.lastAt=now;
+      }
+    };
+    window.__espilAvatarRemove=function(id){
+      var R=__espilRemotes[id]; if(!R)return;
+      delete __espilRemotes[id];
+      try{ if(R.group.parent)R.group.parent.remove(R.group); }catch(_){}
+      try{ if(R.shadow.parent)R.shadow.parent.remove(R.shadow); }catch(_){}
+      try{ if(R.mixer)R.mixer.stopAllAction(); }catch(_){}
+      if(R.plate){ try{ R.plate.material.map.dispose(); R.plate.material.dispose(); }catch(_){} }
+    };
+    window.__espilAvatarClear=function(){ for(var k in __espilRemotes)window.__espilAvatarRemove(k); };
+    window.__espilAvatarCount=function(){ return Object.keys(__espilRemotes).length; };
+    window.__espilRemotePose=function(id){ var R=__espilRemotes[id]; return R?{x:R.cur.x,y:R.cur.y,z:R.cur.z,speed:R.speed,anim:R.curAnim,ready:R.ready}:null; };
+    /* __espilRemoteAvatars END */
     window.addEventListener('sell-bubble',function(e){
       espilSellBubble(e&&e.detail&&e.detail.text);
     });
@@ -11640,6 +11783,15 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        localStorage prefill (UI-room conformance note, 2026-10-24). */
     var inp = $('char-name');
     var v = inp ? inp.value.trim() : '';
+    if (!v) {
+      /* Returning browser: the character panel is skipped when a
+         character record exists, so the input never appears and the
+         join name collapsed to 'Guest' (live finding, 2026-10-24).
+         Carry the game's own stored display name instead. This is a
+         read-only fallback - nothing is written back, and the guest
+         panel name itself is still never persisted (spec v1). */
+      try { v = (localStorage.getItem('espil_username') || '').trim(); } catch(_){ v = ''; }
+    }
     return (v || 'Guest').slice(0, 16);
   }
   function myGender(){
@@ -11728,6 +11880,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         myId = m.id; users = {}; joined = true; everJoined = true;
         (m.users || []).forEach(function(u){ users[u.id] = u; });
         try { if (window.__espilMinimapClear) window.__espilMinimapClear(); } catch(_){}
+        try { if (window.__espilAvatarClear) window.__espilAvatarClear(); } catch(_){}
         renderPresence(); startPos();
         sysLine('- ' + Object.keys(users).length + ' here -');
       } else if (m.t === 'join' && m.user) {
@@ -11735,11 +11888,13 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       } else if (m.t === 'leave') {
         delete users[m.id]; renderPresence();
         try { if (window.__espilMinimapRemove) window.__espilMinimapRemove(m.id); } catch(_){}
+        try { if (window.__espilAvatarRemove) window.__espilAvatarRemove(m.id); } catch(_){}
       } else if (m.t === 'pos') {
         var u = users[m.id];
         if (u) {
           u.pos = { x: m.x, y: m.y, z: m.z, a: m.a };
           try { if (window.__espilMinimapSet) window.__espilMinimapSet(m.id, m.x, m.z, u); } catch(_){}
+          try { if (window.__espilAvatarSet) window.__espilAvatarSet(m.id, m.x, m.y, m.z, m.a, u); } catch(_){}
         }
       } else if (m.t === 'chat' && m.from) {
         /* UI-room delta: drop an exact re-delivery (same sender session,
@@ -11804,6 +11959,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       var old = ws;
       stopRetry(); users = {}; joined = false; renderPresence();
       try { if (window.__espilMinimapClear) window.__espilMinimapClear(); } catch(_){}
+        try { if (window.__espilAvatarClear) window.__espilAvatarClear(); } catch(_){}
       if (old) { try { old.onclose = null; old.close(); } catch(_){} }
       if (ws === old) ws = null;
     }
