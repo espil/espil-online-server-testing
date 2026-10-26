@@ -7322,8 +7322,13 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
          the door leaves; Space anywhere else toggles the shop UI. */
       if(window.__espilInside&&espilInsideDoor){
         var _dd=Math.sqrt((walkPlayer.pos.x-espilInsideDoor.x)*(walkPlayer.pos.x-espilInsideDoor.x)+(walkPlayer.pos.z-espilInsideDoor.z)*(walkPlayer.pos.z-espilInsideDoor.z));
-        if(_dd<1.8)espilLeaveBuilding();
-        else { var _su=document.getElementById('shop-ui'); if(_su&&_su.classList.contains('open'))espilCloseShop(); else espilOpenShop(); }
+        if(_dd<1.8){ espilLeaveBuilding(); return; }
+        /* v3 (Han 2026-10-26): inside, Space works the kiosk - near it,
+           the kiosk hook fires; anywhere else only closes an open card. */
+        var _ks=(typeof window.__espilKioskState==='function')?window.__espilKioskState():null;
+        if(_ks&&_ks.d<2.2){ if(typeof window.__espilUseKiosk==='function')window.__espilUseKiosk(); return; }
+        var _su=document.getElementById('shop-ui'); if(_su&&_su.classList.contains('open'))espilCloseShop();
+        else if(window.__espilToast)window.__espilToast('Use the kiosk by the entrance to order');
         return;
       }
       /* Han PC verdict 2026-10-19 #7: interact executes only at the
@@ -8831,19 +8836,38 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       var p=walkPlayer; if(!p||!rec)return;
       if(!window.__espilInteriorBuilt)espilBuildInterior();
       if(!window.__espilShopBuilt)espilBuildShopFitout();
+      if(window.__espilFitoutGroup)window.__espilFitoutGroup.visible=true;
+      /* Footprint-derived room size (Han 2026-10-21 direction, staged
+         2026-10-26): the room group scales with the entered building's
+         footprint bbox, clamped so tiny kiosks and huge halls both stay
+         walkable; door, spawn and the inside clamps follow the scale. */
+      var sx=1,sz=1;
+      if(rec.ring&&rec.ring.length>2){
+        var mnx=1e18,mxx=-1e18,mnz=1e18,mxz=-1e18;
+        for(var ri=0;ri<rec.ring.length;ri++){ var rp=rec.ring[ri]; if(rp[0]<mnx)mnx=rp[0]; if(rp[0]>mxx)mxx=rp[0]; if(rp[1]<mnz)mnz=rp[1]; if(rp[1]>mxz)mxz=rp[1]; }
+        sx=Math.max(.5,Math.min(2,(mxx-mnx)/24)); sz=Math.max(.5,Math.min(2,(mxz-mnz)/16));
+      }
+      espilIntScale={x:sx,z:sz};
+      if(espilIntGroup)espilIntGroup.scale.set(sx,1,sz);
+      if(window.__espilFitoutGroup)window.__espilFitoutGroup.scale.set(sx,1,sz);
+      /* Interior framing (v3): pull the map zoom out so the whole
+         store map reads at once, Pokemon-store style; restored on leave. */
+      if(typeof espilP1!=='undefined'&&espilP1&&espilP1.map){ espilIntPrevZoom=(typeof espilP1.zoomT==='number')?espilP1.zoomT:null; espilP1.zoomT=18.3; }
       espilInsideRec=rec;
-      espilInsideDoor={x:ESPIL_INT.x,z:ESPIL_INT.z+7.3};
+      espilInsideDoor={x:ESPIL_INT.x,z:ESPIL_INT.z+7.3*sz};
       espilInsideOutside={x:p.pos.x,y:p.pos.y,z:p.pos.z};
       espilInteriorSetSign(espilBldgName);
       espilFadeThrough(function(){
-        p.pos.set(ESPIL_INT.x,0.05,ESPIL_INT.z+5.2); p.velY=0; p.onGround=true;
-        window.__espilInside={name:espilBldgName,interior:true,door:{x:ESPIL_INT.x,z:ESPIL_INT.z+7.3}};
-        espilOpenShop();
+        p.pos.set(ESPIL_INT.x,0.05,ESPIL_INT.z+5.2*sz); p.velY=0; p.onGround=true;
+        window.__espilInside={name:espilBldgName,interior:true,door:{x:ESPIL_INT.x,z:ESPIL_INT.z+7.3*sz}};
+        /* v3: no shop on entry - orders start at the kiosk inside. */
         try{ window.dispatchEvent(new CustomEvent('espil-guide',{detail:{type:'interior',name:espilBldgName}})); }catch(e){} /* guide hook */
       });
     }
     function espilLeaveBuilding(){
       var p=walkPlayer; if(!p)return;
+      if(espilIntPrevZoom!==null&&typeof espilP1!=='undefined'&&espilP1&&espilP1.map){ espilP1.zoomT=espilIntPrevZoom; }
+      espilIntPrevZoom=null; espilKioskHint=false;
       var out=espilInsideOutside;
       espilInsideRec=null; espilInsideDoor=null; espilInsideOutside=null; espilInsideHint=false;
       window.__espilInside=null;
@@ -9065,18 +9089,35 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         M(new THREE.CylinderGeometry(0.26,0.26,0.09,10),LM(0xb3312c),tp[0]-0.95,0.45,tp[1]);
         M(new THREE.CylinderGeometry(0.26,0.26,0.09,10),LM(0xb3312c),tp[0]+0.95,0.45,tp[1]);
       });
-      mapScene.add(g);
+      /* the kiosk terminal by the entrance (v3) */
+      M(new THREE.BoxGeometry(0.9,1.25,0.5),LM(0x2b3440),3.6,0.63,3.4);
+      M(new THREE.BoxGeometry(1.0,0.06,0.62),LM(0x8ef7e8),3.6,1.28,3.4);
+      var kbCvs=document.createElement('canvas'); kbCvs.width=256; kbCvs.height=320;
+      var kx2=kbCvs.getContext('2d');
+      kx2.fillStyle='#0d2b33'; kx2.fillRect(0,0,256,320);
+      kx2.strokeStyle='#8ef7e8'; kx2.lineWidth=6; kx2.strokeRect(10,10,236,300);
+      kx2.fillStyle='#8ef7e8'; kx2.font='800 44px "Avenir Next","Segoe UI",sans-serif'; kx2.textAlign='center';
+      kx2.fillText('ORDER',128,110);
+      kx2.font='700 30px "Avenir Next","Segoe UI",sans-serif'; kx2.fillStyle='#eaf6ff';
+      kx2.fillText('KIOSK',128,160);
+      kx2.fillStyle='#ffd23c'; kx2.beginPath(); kx2.arc(128,228,26,0,6.29); kx2.fill();
+      var kbScr=M(new THREE.PlaneGeometry(0.72,0.9),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(kbCvs)}),3.6,1.33,3.67);
+      kbScr.rotation.x=-0.18;
+      mapScene.add(g); window.__espilFitoutGroup=g;
     }
     function espilInsideTick(p){
       if(!window.__espilInside)return;
       if(!document.body.classList.contains('in-map')){ espilInsideRec=null; espilInsideDoor=null; espilInsideOutside=null; window.__espilInside=null; espilCloseShop(); closeBuildingOpts(); return; }
-      if(p.pos.x<ESPIL_INT.x-11.5)p.pos.x=ESPIL_INT.x-11.5;
-      if(p.pos.x>ESPIL_INT.x+11.5)p.pos.x=ESPIL_INT.x+11.5;
-      if(p.pos.z<ESPIL_INT.z-6.1)p.pos.z=ESPIL_INT.z-6.1;
-      if(p.pos.z>ESPIL_INT.z+7.3)p.pos.z=ESPIL_INT.z+7.3;
+      if(p.pos.x<ESPIL_INT.x-11.5*espilIntScale.x)p.pos.x=ESPIL_INT.x-11.5*espilIntScale.x;
+      if(p.pos.x>ESPIL_INT.x+11.5*espilIntScale.x)p.pos.x=ESPIL_INT.x+11.5*espilIntScale.x;
+      if(p.pos.z<ESPIL_INT.z-6.1*espilIntScale.z)p.pos.z=ESPIL_INT.z-6.1*espilIntScale.z;
+      if(p.pos.z>ESPIL_INT.z+7.3*espilIntScale.z)p.pos.z=ESPIL_INT.z+7.3*espilIntScale.z;
       var doorD=espilInsideDoor?Math.sqrt((p.pos.x-espilInsideDoor.x)*(p.pos.x-espilInsideDoor.x)+(p.pos.z-espilInsideDoor.z)*(p.pos.z-espilInsideDoor.z)):99;
       if(doorD<1.8&&!espilInsideHint){ espilInsideHint=true; if(window.__espilToast)window.__espilToast('Press Space to leave the building'); }
       if(doorD>=1.8)espilInsideHint=false;
+      var _ks2=(typeof window.__espilKioskState==='function')?window.__espilKioskState():null;
+      if(_ks2&&_ks2.d<2.2&&!espilKioskHint){ espilKioskHint=true; if(window.__espilToast)window.__espilToast('Press Space to use the kiosk'); }
+      if(_ks2&&_ks2.d>=2.2)espilKioskHint=false;
     }
     /* RETIRED (Han batch 5 #1): the shared-room teleport is gone -
        entering is in-place now (espilEnterInside). These remain as
@@ -9085,6 +9126,9 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(espilBldgPanelRec)espilEnterInside(espilBldgPanelRec);
     }
     function espilExitInterior(){ espilLeaveBuilding(); }
+    var espilIntGroup=null, espilIntScale={x:1,z:1};
+    var espilIntPrevZoom=null; /* map zoom before entry framing, restored on leave */
+    var espilKioskHint=false;
     var espilIntSignCanvas=null;
     function espilInteriorSetSign(name){
       if(!espilIntSignCanvas)return;
@@ -9100,6 +9144,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     function espilBuildInterior(){
       window.__espilInteriorBuilt=true;
       var g=new THREE.Group(); g.position.set(ESPIL_INT.x,0,ESPIL_INT.z);
+      espilIntGroup=g;
       function M(geo,mat,x,y,z,ry){
         var m=new THREE.Mesh(geo,mat); m.position.set(x,y,z); if(ry)m.rotation.y=ry;
         m.frustumCulled=false; g.add(m); return m;
@@ -9264,6 +9309,194 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     window.__espilMinimapRemove=function(id){ var mk=__espilRemoteMarkers[id]; if(mk){ try{ leafletMap.removeLayer(mk); }catch(_){} delete __espilRemoteMarkers[id]; } };
     window.__espilMinimapClear=function(){ for(var k in __espilRemoteMarkers)window.__espilMinimapRemove(k); };
     window.__espilPlayerPose=function(){ if(typeof walkPlayer==='undefined'||!walkPlayer||!walkPlayer.pos)return null; return {x:walkPlayer.pos.x,y:walkPlayer.pos.y,z:walkPlayer.pos.z,a:(typeof walkPlayer.faceY==='number'?walkPlayer.faceY:0)}; };
+    /* ============ INTERIOR CAMERA + FACING + GRAFFITI + OWNER (Han 2026-10-26, UI-room spec W2-W5) ============ */
+    window.__espilOpenShop=function(){ espilOpenShop(); }; /* HUD hook for the UI bridge */
+    /* KIOSK (Han 2026-10-26 v3): the order terminal stands at local
+       (3.6, 3.4) in the interior; the world reports its distance and
+       fires the UI's kiosk hook on interact (classic-shop fallback
+       while the UI module is absent). */
+    window.__espilKioskState=function(){
+      if(!window.__espilInside||!walkPlayer||!walkPlayer.pos)return null;
+      var kx=ESPIL_INT.x+3.6*espilIntScale.x, kz=ESPIL_INT.z+3.4*espilIntScale.z;
+      var dx=walkPlayer.pos.x-kx, dz=walkPlayer.pos.z-kz;
+      return {x:kx, z:kz, d:Math.sqrt(dx*dx+dz*dz)};
+    };
+    window.__espilUseKiosk=function(){
+      window.__espilKioskOpened=(window.__espilKioskOpened||0)+1;
+      if(window.__espilKb&&window.__espilKb.openKiosk){ try{ window.__espilKb.openKiosk(); return; }catch(_){} }
+      espilOpenShop();
+    };
+    /* W3: the building the player faces within ~6 m (wall distance),
+       or the current building while inside. {name, key, x, z} with
+       x/z = the closest point on the building's wall. */
+    var espilFacingNameCache={};
+    window.__espilFacingBuilding=function(){
+      var pose=window.__espilPlayerPose(); if(!pose)return null;
+      if(window.__espilInside&&espilInsideRec){
+        return {name:(typeof espilBldgName==='string'&&espilBldgName)?espilBldgName:'Building', key:espilBldgKeyOf(espilInsideRec), x:espilInsideRec.cx, z:espilInsideRec.cz};
+      }
+      var fx=-Math.sin(pose.a), fz=-Math.cos(pose.a);
+      var cell=16; /* ESPIL_POLY_CELL */
+      var bcx=Math.floor(pose.x/cell), bcz=Math.floor(pose.z/cell);
+      var seen={}, best=null, bestD=1e18;
+      for(var gx=bcx-1;gx<=bcx+1;gx++)for(var gz=bcz-1;gz<=bcz+1;gz++){
+        var arr=espilPolyBucketAt(gx*cell+cell/2, gz*cell+cell/2); if(!arr)continue;
+        for(var i=0;i<arr.length;i++){
+          var rec=arr[i]; if(!rec||seen[rec.cx+','+rec.cz])continue; seen[rec.cx+','+rec.cz]=1;
+          var pr=espilPolyProbe(rec,pose.x,pose.z); if(!pr)continue;
+          if(pr.d>6.5||pr.d<-0.5)continue;
+          if(pr.d>0.35){
+            var dx=pr.cx-pose.x, dz=pr.cz-pose.z, L=Math.sqrt(dx*dx+dz*dz)||1;
+            if((dx/L)*fx+(dz/L)*fz<0.45)continue; /* not in the facing half-plane */
+          }
+          if(pr.d<bestD){ bestD=pr.d; best={rec:rec, pr:pr}; }
+        }
+      }
+      if(!best)return null;
+      var key=espilBldgKeyOf(best.rec);
+      var name=espilFacingNameCache[key]||null;
+      if(!name&&typeof espilBldgName==='string'&&espilBldgName&&espilBldgName!=='Building'&&(espilBldgPanelRec===best.rec||espilInsideRec===best.rec))name=espilBldgName;
+      if(!name){
+        try{ var ll=mapToLatLng(best.rec.cx,best.rec.cz); var ck=ll.lat.toFixed(4)+','+ll.lng.toFixed(4); if(typeof bldgNameCache!=='undefined'&&bldgNameCache[ck])name=bldgNameCache[ck]; }catch(_){}
+      }
+      if(!name){
+        name='Building';
+        try{ fetchBuildingName({x:best.rec.cx,z:best.rec.cz},function(nm){ if(nm)espilFacingNameCache[key]=nm; }); }catch(_){}
+      }
+      return {name:name, key:key, x:best.pr.cx, z:best.pr.cz};
+    };
+    /* W4: graffiti tags on building walls. Entries {building, text,
+       x, z, a, ts} arrive via the 'espil-graffiti' CustomEvent
+       (placed/removed/sync) from the UI bridge's store; the world
+       renders each entry's text as a tag on the wall at (x, z). */
+    var espilGrafGroup=null, espilGrafTags=[];
+    function espilGrafEnsure(){
+      if(espilGrafGroup||typeof mapScene==='undefined'||!mapScene)return espilGrafGroup;
+      espilGrafGroup=new THREE.Group(); espilGrafGroup.name='espil-graffiti';
+      mapScene.add(espilGrafGroup); return espilGrafGroup;
+    }
+    function espilGrafSame(a,b){ return a&&b&&a.building===b.building&&a.text===b.text&&Math.abs(a.x-b.x)<0.6&&Math.abs(a.z-b.z)<0.6; }
+    function espilGrafAdd(entry){
+      if(!entry||!entry.text)return;
+      for(var i=0;i<espilGrafTags.length;i++)if(espilGrafSame(espilGrafTags[i].entry,entry))return;
+      if(!espilGrafEnsure())return;
+      var cvs=document.createElement('canvas'); cvs.width=512; cvs.height=128;
+      var c=cvs.getContext('2d');
+      c.clearRect(0,0,512,128);
+      c.translate(256,64); c.rotate(-0.035);
+      c.font='900 italic 72px "Avenir Next","Segoe UI",sans-serif';
+      c.textAlign='center'; c.textBaseline='middle';
+      var tw=c.measureText(entry.text).width, maxW=480;
+      if(tw>maxW)c.font='900 italic '+Math.floor(72*maxW/tw)+'px "Avenir Next","Segoe UI",sans-serif';
+      c.lineWidth=10; c.strokeStyle='rgba(24,20,16,.92)'; c.lineJoin='round';
+      c.strokeText(entry.text,0,0);
+      c.fillStyle='#ffd23c'; c.fillText(entry.text,0,0);
+      c.lineWidth=3; c.strokeStyle='rgba(255,255,255,.35)'; c.strokeText(entry.text,0,-2);
+      var tex=new THREE.CanvasTexture(cvs);
+      var mat=new THREE.MeshBasicMaterial({map:tex,transparent:true,depthWrite:false});
+      var m=new THREE.Mesh(new THREE.PlaneGeometry(4.6,1.15),mat);
+      /* orient on the wall: probe for the outward normal; the stored
+         heading (the placer stood facing the wall) is the fallback */
+      var nx=Math.sin(entry.a||0), nz=Math.cos(entry.a||0);
+      try{
+        var arr=espilPolyBucketAt(entry.x,entry.z);
+        if(arr)for(var j=0;j<arr.length;j++){ var pr2=espilPolyProbe(arr[j],entry.x,entry.z); if(pr2&&pr2.d<2.5){ nx=pr2.nx; nz=pr2.nz; break; } }
+      }catch(_){}
+      m.position.set(entry.x+nx*0.22, 2.3, entry.z+nz*0.22);
+      m.rotation.y=Math.atan2(nx,nz);
+      m.frustumCulled=false; m.renderOrder=5;
+      espilGrafGroup.add(m);
+      espilGrafTags.push({entry:entry, mesh:m});
+    }
+    function espilGrafRemove(entry){
+      for(var i=espilGrafTags.length-1;i>=0;i--){
+        if(espilGrafSame(espilGrafTags[i].entry,entry)){
+          var t=espilGrafTags.splice(i,1)[0];
+          if(espilGrafGroup)espilGrafGroup.remove(t.mesh);
+          try{ t.mesh.material.map.dispose(); t.mesh.material.dispose(); t.mesh.geometry.dispose(); }catch(_){}
+        }
+      }
+    }
+    function espilGrafSync(list){
+      for(var i=espilGrafTags.length-1;i>=0;i--)espilGrafRemove(espilGrafTags[i].entry);
+      (list||[]).forEach(espilGrafAdd);
+    }
+    window.addEventListener('espil-graffiti',function(e){
+      var d=e&&e.detail; if(!d)return;
+      if(d.type==='placed'&&d.entry)espilGrafAdd(d.entry);
+      else if(d.type==='removed'&&d.entry)espilGrafRemove(d.entry);
+      else if(d.type==='sync')espilGrafSync(d.list||[]);
+    });
+    window.__espilGraffitiRender={count:function(){ return espilGrafTags.length; }, sync:espilGrafSync, list:function(){ return espilGrafTags.map(function(t){ return {x:t.mesh.position.x, y:t.mesh.position.y, z:t.mesh.position.z, ry:t.mesh.rotation.y, text:t.entry.text}; }); }};
+    (function espilGrafBoot(){
+      var tries=0;
+      var iv=setInterval(function(){
+        tries++;
+        if(window.__espilGraffiti&&window.__espilGraffiti.list){ espilGrafSync(window.__espilGraffiti.list()||[]); clearInterval(iv); return; }
+        if(tries===2){
+          try{ var mine=JSON.parse(localStorage.getItem('espil_graffiti_mine')||'[]'); if(mine&&mine.length)espilGrafSync(mine); }catch(_){}
+        }
+        if(tries>40)clearInterval(iv);
+      },500);
+    })();
+    /* W5: OWNER chip above the avatar of the building's designer.
+       Registry data rules when present; while a building has no
+       registered designer (test phase, Han 2026-10-26) the player
+       inside is its acting host and carries the chip. Own chip shows
+       in third person (the avatar itself is hidden in first person). */
+    var espilOwnerChip=null;
+    function espilOwnerChipMake(){
+      var cvs=document.createElement('canvas'); cvs.width=256; cvs.height=80;
+      var c=cvs.getContext('2d');
+      c.fillStyle='#c9962e'; c.strokeStyle='#ffe9a8'; c.lineWidth=4;
+      c.beginPath();
+      if(c.roundRect)c.roundRect(28,10,200,60,30); else c.rect(28,10,200,60);
+      c.fill(); c.stroke();
+      c.fillStyle='#fff7dd'; c.font='800 40px "Avenir Next","Segoe UI",sans-serif';
+      c.textAlign='center'; c.textBaseline='middle'; c.fillText('OWNER',128,42);
+      var tex=new THREE.CanvasTexture(cvs);
+      /* A plane, not a THREE.Sprite: sprites do not render in the
+         Mapbox custom layer (verified 2026-10-26 - chip state was
+         healthy, visible, in-scene, yet nothing drew); planes do
+         (the graffiti tags are planes). Billboarded to the camera
+         every tick in espilOwnerChipTick. */
+      var sp=new THREE.Mesh(new THREE.PlaneGeometry(2.2,0.69),
+        new THREE.MeshBasicMaterial({map:tex,transparent:true,depthTest:false,side:THREE.DoubleSide}));
+      sp.renderOrder=30; sp.visible=false; sp.frustumCulled=false;
+      return sp;
+    }
+    function espilOwnerChipTick(fp){
+      if(!espilOwnerChip){
+        if(typeof mapScene==='undefined'||!mapScene)return;
+        espilOwnerChip=espilOwnerChipMake(); mapScene.add(espilOwnerChip);
+      }
+      var show=false;
+      if(window.__espilInside&&espilInsideRec&&!fp&&walkPlayer&&walkPlayer.pos){
+        var rights=espilInteriorRights(espilInsideRec);
+        var me=espilCurrentIdentity();
+        if(!me){ try{ var un=(localStorage.getItem('espil_username')||'').trim(); if(un)me='guest:'+un; }catch(_){} }
+        var registered=!!espilDesignerRegistry[espilBldgKeyOf(espilInsideRec)];
+        show=(me&&rights.designer===me)||(!registered&&rights.designer===ESPIL_OPERATOR_ID);
+        if(show){ /* Height alone does not clear the head in the steep
+             interior view (vertical offsets project weakly), so the
+             marker also steps 1.1 m away from the follow camera in
+             the ground plane, which reads as up-screen. */
+          var _awx=(typeof walkCamYaw==='number')?-Math.sin(walkCamYaw):0, _awz=(typeof walkCamYaw==='number')?-Math.cos(walkCamYaw):0;
+          espilOwnerChip.position.set(walkPlayer.pos.x+_awx*1.1,walkPlayer.pos.y+5.0,walkPlayer.pos.z+_awz*1.1); /* +5.0: measured in the rig - the steep interior view compresses vertical offsets to ~14 px per metre at the avatar's depth, so a nominal 3 m float still landed on the face */
+          if(typeof mapCamera!=='undefined'&&mapCamera)espilOwnerChip.quaternion.copy(mapCamera.quaternion); }
+        window.__espilOwnerDbg={show:show, designer:rights.designer, me:me, registered:registered, fp:fp};
+      }
+      espilOwnerChip.visible=show;
+    }
+    window.__espilInsideDesigner=function(){ return espilInsideRec?espilInteriorRights(espilInsideRec).designer:null; };
+    window.__espilOwnerChipState=function(){
+      if(!espilOwnerChip)return null;
+      var wp=new THREE.Vector3(); espilOwnerChip.getWorldPosition(wp);
+      return {visible:espilOwnerChip.visible, x:wp.x, y:wp.y, z:wp.z,
+        sx:espilOwnerChip.scale.x, sy:espilOwnerChip.scale.y,
+        inScene:(typeof mapScene!=='undefined'&&mapScene)?mapScene.children.indexOf(espilOwnerChip)>=0:null,
+        hasMap:!!(espilOwnerChip.material&&espilOwnerChip.material.map)};
+    };
     window.__espilMinimapCount=function(){ return Object.keys(__espilRemoteMarkers).length; };
     /* __espilRemoteAvatars v2 - in-world avatars for other connected
        users (Han's decision, 2026-10-24; perf revision 2026-10-24,
@@ -10109,6 +10342,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       var k=Math.min(1,dt*7);
       mapCamera.position.lerp(want,k);
       mapCamera.lookAt(p.pos.x,p.pos.y+1.7,p.pos.z);
+      if(typeof espilOwnerChipTick==='function')espilOwnerChipTick(false);
       /* Building name pill when near a building. */
       updateBuildingProximity(p.pos.x,p.pos.z,performance.now());
       /* QA #6: save position every 5s (throttled). */
@@ -12648,13 +12882,19 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     backdrop = document.createElement('div');
     backdrop.id = 'espil-entry-backdrop';
     backdrop.style.cssText = 'position:fixed;inset:0;z-index:49;display:none;background-size:cover;background-position:center;filter:blur(12px) brightness(.72) saturate(.92);transform:scale(1.07);pointer-events:none;';
-    document.body.appendChild(backdrop);
+    (document.querySelector('main.earth-frame')||document.body).appendChild(backdrop); /* inside the frame: the frame is an isolated stacking context, a body-level layer paints over the whole frame */
     return backdrop;
   }
   setInterval(function () {
     var inside = !!window.__espilInside;
     var bd = ensureBackdrop();
-    if (inside && lastSnap) {
+    /* Interior-first (Han 2026-10-26): while the player walks the 3D
+       interior the backdrop must stay hidden or the room is invisible
+       behind the blur; it returns only under an open shop surface. */
+    var shopOpen = false;
+    var su = document.getElementById('shop-ui'); if (su && su.classList.contains('open')) shopOpen = true;
+    var kb = document.getElementById('kb-screen'); if (kb && kb.classList.contains('open')) shopOpen = true;
+    if (inside && shopOpen && lastSnap) {
       if (bd.style.display === 'none') { bd.style.backgroundImage = 'url(' + lastSnap + ')'; bd.style.display = 'block'; }
     } else if (bd.style.display !== 'none') bd.style.display = 'none';
   }, 400);
