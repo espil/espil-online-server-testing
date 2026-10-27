@@ -9499,6 +9499,215 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         inScene:(typeof mapScene!=='undefined'&&mapScene)?mapScene.children.indexOf(espilOwnerChip)>=0:null,
         hasMap:!!(espilOwnerChip.material&&espilOwnerChip.material.map)};
     };
+
+    /* ============ GEORGIA STREET BUSES + PLAYER COLLISION =========
+       (Han's order, 2026-10-27, via COO.)
+       Live buses: a JSON feed derived from TransLink GTFS-realtime
+       vehicle positions (the API key lives only in the Worker proxy;
+       Architecture owns that route) lists the buses currently
+       traversing the Georgia Street corridor. Each one is drawn as a
+       flat-textured box - the same 2D vehicle idiom as the traffic
+       cars - and registered in carColliders, so the world's existing
+       support law lands players on the roof and the carry law moves
+       them with the bus. Positions between the feed's fixes are
+       extrapolated along each bus's measured velocity and eased, the
+       same treatment remote avatars get between their 1 s fixes.
+       Player collision: after the axis moves, the local player is
+       pushed out of every remote avatar's body circle - each client
+       resolves only itself, the presence relay stays stateless. */
+    var ESPIL_BUS_TOP=2.4; /* physics roof height: a double jump
+       (apex ~2.56 m) plus the support law's 0.55 m swept grace lands
+       on it; traffic cars use 1.6 m on the same law. Tunable. */
+    var ESPIL_BUS_LEN=11, ESPIL_BUS_WID=2.55;
+    var espilBuses={};      /* id -> bus record */
+    var espilBusPollAt=0;
+    var espilBusTexCache={};
+    function espilBusEndpoint(){
+      if(window.__espilBusEndpoint)return window.__espilBusEndpoint;
+      return 'https://api.espil.online/buses/georgia';
+    }
+    function espilBusXY(lat,lng){
+      var cfg=espilCityCfg(), a=espilP1Anchor();
+      return { x:(lng-a.lng)*111320*Math.cos(a.lat*Math.PI/180)+(cfg.ox||0),
+               z:(a.lat-lat)*111320+(cfg.oz||0) };
+    }
+    function espilBusSideTex(route){
+      var key='side:'+route;
+      if(espilBusTexCache[key])return espilBusTexCache[key];
+      var cv=document.createElement('canvas'); cv.width=1024; cv.height=244;
+      var c=cv.getContext('2d');
+      c.fillStyle='#f2f5f7'; c.fillRect(0,0,1024,244);
+      c.fillStyle='#20394f'; c.fillRect(0,26,1024,86);           /* window band */
+      c.fillStyle='rgba(255,255,255,.16)';
+      for(var i=0;i<9;i++)c.fillRect(18+i*86,26,3,86);          /* mullions */
+      c.fillStyle='#2b6cb0'; c.fillRect(0,148,1024,40);          /* TransLink blue swoosh */
+      c.fillStyle='#d7dee5'; c.fillRect(0,188,1024,56);          /* skirt */
+      c.fillStyle='#20394f'; c.fillRect(856,26,150,52);          /* destination box */
+      c.fillStyle='#ffb52e'; c.font='700 40px sans-serif'; c.textAlign='center'; c.textBaseline='middle';
+      c.fillText(String(route||'').slice(0,4),931,53);
+      c.fillStyle='rgba(32,57,79,.55)'; c.fillRect(856,120,64,124); /* front door */
+      c.fillStyle='#22262b';
+      c.beginPath(); c.arc(170,232,34,0,Math.PI*2); c.fill();
+      c.beginPath(); c.arc(830,232,34,0,Math.PI*2); c.fill();
+      var tex=new THREE.CanvasTexture(cv); espilBusTexCache[key]=tex; return tex;
+    }
+    function espilBusTopTex(){
+      if(espilBusTexCache.top)return espilBusTexCache.top;
+      var cv=document.createElement('canvas'); cv.width=1024; cv.height=244;
+      var c=cv.getContext('2d');
+      c.fillStyle='#e9edf1'; c.fillRect(0,0,1024,244);
+      c.fillStyle='#2b6cb0'; c.fillRect(0,0,1024,14); c.fillRect(0,230,1024,14);
+      c.fillStyle='#33566e'; c.fillRect(950,20,60,204);          /* windshield wedge (front, +x) */
+      c.fillStyle='#c3ccd4'; c.fillRect(300,52,210,140); c.fillRect(600,52,150,140); /* roof pods */
+      c.fillStyle='#aeb8c1'; c.fillRect(80,72,110,100);          /* rear vent */
+      var tex=new THREE.CanvasTexture(cv); espilBusTexCache.top=tex; return tex;
+    }
+    function espilBusFrontTex(route){
+      var key='front:'+route;
+      if(espilBusTexCache[key])return espilBusTexCache[key];
+      var cv=document.createElement('canvas'); cv.width=256; cv.height=244;
+      var c=cv.getContext('2d');
+      c.fillStyle='#f2f5f7'; c.fillRect(0,0,256,244);
+      c.fillStyle='#20394f'; c.fillRect(14,18,228,86);
+      c.fillStyle='#ffb52e'; c.font='700 44px sans-serif'; c.textAlign='center'; c.textBaseline='middle';
+      c.fillText(String(route||'').slice(0,4),128,61);
+      c.fillStyle='#2b6cb0'; c.fillRect(0,150,256,34);
+      c.fillStyle='#ffd76a';
+      c.beginPath(); c.arc(38,208,13,0,Math.PI*2); c.fill();
+      c.beginPath(); c.arc(218,208,13,0,Math.PI*2); c.fill();
+      var tex=new THREE.CanvasTexture(cv); espilBusTexCache[key]=tex; return tex;
+    }
+    function espilBusMakeMesh(route){
+      var side=new THREE.MeshBasicMaterial({map:espilBusSideTex(route),fog:true});
+      var top=new THREE.MeshBasicMaterial({map:espilBusTopTex(),fog:true});
+      var front=new THREE.MeshBasicMaterial({map:espilBusFrontTex(route),fog:true});
+      var dark=new THREE.MeshBasicMaterial({color:0x39424c,fog:true});
+      var mesh=new THREE.Mesh(new THREE.BoxGeometry(ESPIL_BUS_LEN,ESPIL_BUS_TOP,ESPIL_BUS_WID),
+        [front,front,top,dark,side,side]);
+      mesh.frustumCulled=false; mesh.renderOrder=2;
+      return mesh;
+    }
+    function espilBusRemove(id){
+      var B=espilBuses[id]; if(!B)return;
+      if(B.mesh&&B.mesh.parent)B.mesh.parent.remove(B.mesh);
+      var ci=carColliders.indexOf(B.col); if(ci>=0)carColliders.splice(ci,1);
+      delete espilBuses[id];
+    }
+    function espilBusClear(){ for(var id in espilBuses)espilBusRemove(id); }
+    function espilBusVts(v){ if(v.ts!==undefined&&v.ts!==null)return Number(v.ts); if(v.timestamp!==undefined&&v.timestamp!==null)return Number(v.timestamp); return null; }
+    function espilBusUpsert(v,now){
+      if(!v||v.lat===undefined||v.lng===undefined)return;
+      var xy=espilBusXY(v.lat,v.lng);
+      var B=espilBuses[v.id];
+      if(!B){
+        if(Object.keys(espilBuses).length>=24)return;
+        var mesh=espilBusMakeMesh(v.route);
+        mesh.userData.car={x:xy.x,px:xy.x,z:xy.z,pz:xy.z,bus:true};
+        var col={x0:xy.x-6,x1:xy.x+6,z0:xy.z-2,z1:xy.z+2,bottom:0,top:ESPIL_BUS_TOP,car:mesh};
+        mesh.userData.car.col=col; carColliders.push(col);
+        if(typeof mapScene!=='undefined'&&mapScene)mapScene.add(mesh);
+        B=espilBuses[v.id]={id:v.id,route:v.route||'',mesh:mesh,col:col,
+          cur:{x:xy.x,z:xy.z},fix:{x:xy.x,z:xy.z,at:now},vel:{x:0,z:0},heading:Math.PI/2,seen:now,lastTs:espilBusVts(v)};
+        mesh.position.set(xy.x,ESPIL_BUS_TOP/2,xy.z);
+        return;
+      }
+      if(Math.abs(xy.x-B.fix.x)<0.11&&Math.abs(xy.z-B.fix.z)<0.11){
+        B.seen=now;
+        var vts0=espilBusVts(v);
+        if(vts0!==null&&B.lastTs!==null&&B.lastTs!==undefined&&vts0>B.lastTs){ B.vel.x=0; B.vel.z=0; B.fix.at=now; } /* fresh report, same place: stopped - kill the prediction so the bus does not ghost-drive away from its stop */
+        if(vts0!==null)B.lastTs=vts0;
+        return;
+      }
+      var dtS=Math.max(1,(now-B.fix.at)/1000);
+      var nvx=(xy.x-B.fix.x)/dtS, nvz=(xy.z-B.fix.z)/dtS;
+      var nsp=Math.sqrt(nvx*nvx+nvz*nvz);
+      if(nsp<17){ B.vel.x=nvx; B.vel.z=nvz; }        /* reject GPS jumps */
+      B.fix={x:xy.x,z:xy.z,at:now}; B.seen=now;
+      var vts1=espilBusVts(v); if(vts1!==null)B.lastTs=vts1;
+      if(v.route&&v.route!==B.route){ B.route=v.route; }
+    }
+    function espilBusPoll(){
+      if(typeof fetch!=='function')return;
+      fetch(espilBusEndpoint(),{cache:'no-store'})
+        .then(function(r){ return r.ok?r.json():null; })
+        .then(function(j){
+          if(!j||!j.buses)return;
+          var now=Date.now();
+          for(var i=0;i<j.buses.length;i++)espilBusUpsert(j.buses[i],now);
+        })
+        .catch(function(){});
+    }
+    function espilBusTick(dt){
+      var on=false;
+      try{ on=cityPhaseActive&&espilCityKey()==='vancouver'&&document.body.classList.contains('in-map'); }catch(_){ }
+      if(!on){ if(Object.keys(espilBuses).length)espilBusClear(); return; }
+      var now=Date.now();
+      if(now-espilBusPollAt>15000){ espilBusPollAt=now; espilBusPoll(); }
+      for(var id in espilBuses){
+        var B=espilBuses[id];
+        if(now-B.seen>75000){ espilBusRemove(id); continue; }
+        /* extrapolate the last fix along the measured velocity,
+           capped, and ease the drawn position toward it */
+        var ext=Math.min(40,(now-B.fix.at)/1000); /* the R2 snapshot refreshes every 30 s; prediction spans the gap */
+        var tx=B.fix.x+B.vel.x*ext, tz=B.fix.z+B.vel.z*ext;
+        var dx=tx-B.cur.x, dz=tz-B.cur.z, dist=Math.sqrt(dx*dx+dz*dz);
+        if(dist>60){
+          /* snap: the prediction fell too far behind the reports (a
+             departure averaged over a stopped interval). A rider on
+             this bus moves with the snap - the carry law bridges
+             per-frame deltas only, so without this the rider is
+             dropped mid-route (QA run 6, 2026-10-27). */
+          try{
+            if(typeof walkPlayer!=='undefined'&&walkPlayer&&walkPlayer.pos){
+              var wp=walkPlayer.pos;
+              if(Math.abs(wp.y-ESPIL_BUS_TOP)<0.6&&wp.x>=B.col.x0-0.55&&wp.x<=B.col.x1+0.55&&wp.z>=B.col.z0-0.55&&wp.z<=B.col.z1+0.55){ wp.x+=dx; wp.z+=dz; B.snapRider=true; }
+            }
+          }catch(_){ }
+          B.cur.x=tx; B.cur.z=tz;
+        }
+        else { var k=Math.min(1,dt*1.8); B.cur.x+=dx*k; B.cur.z+=dz*k; }
+        var sp=Math.sqrt(B.vel.x*B.vel.x+B.vel.z*B.vel.z);
+        if(sp>0.5){
+          var want=Math.atan2(-B.vel.z,B.vel.x);
+          var dh=want-B.heading;
+          while(dh>Math.PI)dh-=Math.PI*2; while(dh<-Math.PI)dh+=Math.PI*2;
+          B.heading+=dh*Math.min(1,dt*3);
+        }
+        var cu=B.mesh.userData.car;
+        cu.px=cu.x; cu.pz=cu.z; cu.x=B.cur.x; cu.z=B.cur.z;
+        if(B.snapRider){ cu.px=cu.x; cu.pz=cu.z; B.snapRider=false; } /* fix 5: the snap already moved the rider; the carry law must not apply the same delta again */
+        B.mesh.position.set(B.cur.x,ESPIL_BUS_TOP/2,B.cur.z);
+        B.mesh.rotation.y=B.heading;
+        var ca=Math.abs(Math.cos(B.heading)), sa=Math.abs(Math.sin(B.heading));
+        var hx=(ca*ESPIL_BUS_LEN+sa*ESPIL_BUS_WID)/2, hz=(sa*ESPIL_BUS_LEN+ca*ESPIL_BUS_WID)/2;
+        B.col.x0=B.cur.x-hx; B.col.x1=B.cur.x+hx; B.col.z0=B.cur.z-hz; B.col.z1=B.cur.z+hz;
+      }
+    }
+    window.__espilBusState=function(){
+      var out=[]; for(var id in espilBuses){ var B=espilBuses[id]; out.push({id:id,route:B.route,x:B.cur.x,z:B.cur.z,heading:B.heading,top:ESPIL_BUS_TOP}); }
+      return {count:out.length, buses:out};
+    };
+    /* Player-player collision: resolve the LOCAL player out of each
+       remote avatar's body circle (two body radii). Remotes are
+       interpolated ghosts on this client; their own clients resolve
+       them in turn, so nobody is pushed twice for the same contact. */
+    function espilPlayerCollide(p){
+      if(!p||p.swimming||p._espilArrive||p._espilLanding)return;
+      if(!window.__espilRemoteList)return;
+      var list; try{ list=window.__espilRemoteList(); }catch(_){ return; }
+      var R=0.8; /* two body radii of ~0.4 m (Architecture 2026-10-27) */
+      for(var i=0;i<list.length;i++){
+        var q=list[i];
+        var dy=p.pos.y-(q.y||0.05); if(dy>1.7||dy<-1.7)continue;
+        var dx=p.pos.x-q.x, dz=p.pos.z-q.z;
+        var d2=dx*dx+dz*dz;
+        if(d2>=R*R)continue;
+        if(d2<0.0001){ p.pos.x+=R; continue; }
+        var d=Math.sqrt(d2), push=(R-d)/d;
+        p.pos.x+=dx*push; p.pos.z+=dz*push;
+      }
+    }
+
     window.__espilMinimapCount=function(){ return Object.keys(__espilRemoteMarkers).length; };
     /* __espilRemoteAvatars v2 - in-world avatars for other connected
        users (Han's decision, 2026-10-24; perf revision 2026-10-24,
@@ -9674,9 +9883,14 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         try{ pp=window.__espilPlayerPose?window.__espilPlayerPose():null; }catch(_){ pp=null; }
         for(var ii=0;ii<ids.length;ii++){
           var R=__espilRemotes[ids[ii]]; if(!R)continue;
-          var dx=R.tgt.x-R.cur.x, dy=R.tgt.y-R.cur.y, dz=R.tgt.z-R.cur.z;
+          /* Velocity prediction (Architecture 2026-10-27): between
+             fixes the target advances along the last fix's velocity
+             (capped at 2 s of travel); the next fix corrects it. */
+          var _el=Math.min(2.0,Math.max(0,(now-R.lastAt)/1000));
+          var _tx=R.tgt.x+(R.vx||0)*_el, _tz=R.tgt.z+(R.vz||0)*_el;
+          var dx=_tx-R.cur.x, dy=R.tgt.y-R.cur.y, dz=_tz-R.cur.z;
           var dist=Math.sqrt(dx*dx+dz*dz);
-          if(dist>15||Math.abs(dy)>15){ R.cur.x=R.tgt.x; R.cur.y=R.tgt.y; R.cur.z=R.tgt.z; }
+          if(dist>15||Math.abs(dy)>15){ R.cur.x=_tx; R.cur.y=R.tgt.y; R.cur.z=_tz; }
           else { var k=1-Math.exp(-dt*5); R.cur.x+=dx*k; R.cur.y+=dy*k; R.cur.z+=dz*k; }
           var goal=(now-R.lastAt>2200)?0:R.fixSpeed;
           R.speed+=(goal-R.speed)*Math.min(1,dt*5);
@@ -9713,14 +9927,14 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         }
       })();
     }
-    window.__espilAvatarSet=function(id,x,y,z,a,info){
+    window.__espilAvatarSet=function(id,x,y,z,a,info,vx,vz){
       var scene=__espilMapScene();
       if(typeof THREE==='undefined'||!scene)return;
       var now=performance.now();
       var R=__espilRemotes[id];
       if(!R){
         R=__espilBuildRemoteAvatar(info&&info.gender);
-        R.cur={x:x,y:y,z:z}; R.tgt={x:x,y:y,z:z,a:(typeof a==='number'?a:0)};
+        R.cur={x:x,y:y,z:z}; R.tgt={x:x,y:y,z:z,a:(typeof a==='number'?a:0)}; R.vx=(typeof vx==='number')?vx:0; R.vz=(typeof vz==='number')?vz:0;
         R.faceY=R.tgt.a; R.fixAt=now; R.lastAt=now;
         R.plate=__espilMakeNameplate(info&&info.name);
         if(R.plate)R.group.add(R.plate);
@@ -9737,6 +9951,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           R.fixAt=now;
         }
         R.tgt.x=x; R.tgt.y=y; R.tgt.z=z;
+        if(typeof vx==='number')R.vx=Math.max(-16,Math.min(16,vx)); if(typeof vz==='number')R.vz=Math.max(-16,Math.min(16,vz));
         if(typeof a==='number')R.tgt.a=a;
         R.lastAt=now;
       }
@@ -9775,6 +9990,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     window.__espilAvatarClear=function(){ for(var k in __espilRemotes)window.__espilAvatarRemove(k); __espilPendingBubbles={}; };
     window.__espilAvatarCount=function(){ return Object.keys(__espilRemotes).length; };
     window.__espilRemotePose=function(id){ var R=__espilRemotes[id]; return R?{x:R.cur.x,y:R.cur.y,z:R.cur.z,speed:R.speed,anim:R.curAnim,ready:R.ready,bubble:!!(R.bubble&&R.bubble.visible)}:null; };
+    window.__espilRemoteList=function(){ var out=[]; for(var id in __espilRemotes){ var R=__espilRemotes[id]; if(R&&R.cur)out.push({id:id,x:R.cur.x,y:R.cur.y,z:R.cur.z}); } return out; }; /* player-player collision enumerates interpolated poses through here (map room, 2026-10-27) */
     window.__espilAvatarStats=function(){ return {parses:__espilParses,masters:{m:__espilMasters.m.state,f:__espilMasters.f.state},remotes:Object.keys(__espilRemotes).length}; };
     /* __espilRemoteAvatars END */
     window.addEventListener('sell-bubble',function(e){
@@ -10217,6 +10433,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         var s=MAP_BOUND/distC;
         p.pos.x*=s;p.pos.z*=s;
       }
+      espilPlayerCollide(p); /* player-player collision (2026-10-27) */
       espilInsideTick(p); /* IN-PLACE INTERIOR (Han batch 5 #1): footprint clamp + door state while inside a building */
       espilTimeStoneCollide(p);
       /* 5km city: stream chunks around the player. Throttle to every ~0.25s. */
@@ -10227,6 +10444,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         p.pos.y+=(WATER_Y-p.pos.y)*Math.min(1,dt*5);
         p.velY=0;p.onGround=false;p.jumps=0;
       }
+      espilBusTick(dt); /* GEORGIA BUSES: advance the fleet before the support law reads its colliders */
       /* --- vertical: gravity + landing on tops (rooftops, planters, plaza, cars) --- */
       p.velY-=26*dt;
       var yBeforeFall=p.pos.y;
@@ -12209,6 +12427,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
   }
   function r2(n){ return Math.round((+n || 0) * 100) / 100; }
 
+  var _lastPosSent=null;
   function startPos(){
     stopPos();
     posTimer = setInterval(function(){
@@ -12216,7 +12435,10 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       var p = null;
       try { p = window.__espilPlayerPose ? window.__espilPlayerPose() : null; } catch(_){}
       if (!p) return;
-      try { ws.send(JSON.stringify({ t: 'pos', x: r2(p.x), y: r2(p.y), z: r2(p.z), a: r2(p.a) })); } catch(_){}
+      var _now=Date.now(), _vx=0, _vz=0;
+      if(_lastPosSent&&_now>_lastPosSent.at){ var _dt=(_now-_lastPosSent.at)/1000; _vx=Math.max(-16,Math.min(16,(p.x-_lastPosSent.x)/_dt)); _vz=Math.max(-16,Math.min(16,(p.z-_lastPosSent.z)/_dt)); }
+      _lastPosSent={x:p.x,z:p.z,at:_now};
+      try { ws.send(JSON.stringify({ t: 'pos', x: r2(p.x), y: r2(p.y), z: r2(p.z), a: r2(p.a), vx: r2(_vx), vz: r2(_vz) })); } catch(_){}
     }, 1000);
   }
   function stopPos(){ if (posTimer) { clearInterval(posTimer); posTimer = null; } }
@@ -12276,7 +12498,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         if (u) {
           u.pos = { x: m.x, y: m.y, z: m.z, a: m.a };
           try { if (window.__espilMinimapSet) window.__espilMinimapSet(m.id, m.x, m.z, u); } catch(_){}
-          try { if (window.__espilAvatarSet) window.__espilAvatarSet(m.id, m.x, m.y, m.z, m.a, u); } catch(_){}
+          try { if (window.__espilAvatarSet) window.__espilAvatarSet(m.id, m.x, m.y, m.z, m.a, u, m.vx, m.vz); } catch(_){}
         }
       } else if (m.t === 'chat' && m.from) {
         /* UI-room delta: drop an exact re-delivery (same sender session,
