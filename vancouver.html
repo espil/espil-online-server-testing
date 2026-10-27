@@ -9524,7 +9524,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     var espilBusTexCache={};
     function espilBusEndpoint(){
       if(window.__espilBusEndpoint)return window.__espilBusEndpoint;
-      return 'https://api.espil.online/buses/georgia';
+      return 'https://data.espil.online/transit/vancouver.json';
     }
     function espilBusXY(lat,lng){
       var cfg=espilCityCfg(), a=espilP1Anchor();
