@@ -14550,5 +14550,104 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
 })();
 
 </script>
+<script>
+/* __espilDemoBuses v1 - a standing fleet of 5 buses (Han's order,
+   2026-10-27: "just make 5 of them roam at all times, from Stanley
+   Park to the Public Library"). The real TransLink snapshot feed is
+   not published yet, so - until it is - this module answers the bus
+   module's own feed polls with a synthetic snapshot: 5 buses (route
+   19, the real Stanley Park route) circulating on West Georgia
+   between the Stanley Park entrance and the Vancouver Public
+   Library, with a short dwell at each terminus, exactly following
+   the feed contract (per-vehicle fresh ts; a dwelling bus reports
+   the same position with an advancing ts, which the bus module
+   reads as stopped). The moment the real feed returns vehicles,
+   the real data takes over untouched - the synthetic fleet only
+   fills an empty or unreachable feed. All rendering, collision and
+   roof-riding stay the bus module's own work. */
+(function () {
+  'use strict';
+
+  var WEST = { lat: 49.29220, lng: -123.13680 };  /* Georgia at the Stanley Park entrance */
+  var EAST = { lat: 49.27987, lng: -123.11448 };  /* Vancouver Public Library, 350 W Georgia */
+  var SPEED = 8;          /* m/s, a city bus pace */
+  var DWELL = 20;         /* seconds paused at each terminus */
+  var COUNT = 5;
+  var ROUTE = '19';
+
+  var LAT0 = 49.2827, LNG0 = -123.1207;
+  var M_PER_DEG_LAT = 111320;
+  var M_PER_DEG_LNG = 111320 * Math.cos(LAT0 * Math.PI / 180);
+
+  /* route length in metres (world frame) */
+  var dx = (EAST.lng - WEST.lng) * M_PER_DEG_LNG;
+  var dz = -(EAST.lat - WEST.lat) * M_PER_DEG_LAT;
+  var LEN = Math.sqrt(dx * dx + dz * dz);
+  var HX = dx / LEN, HZ = dz / LEN;          /* unit heading, west -> east */
+  var RX = -HZ, RZ = HX;                     /* right-hand side of that heading */
+  var LEG = LEN / SPEED;                     /* seconds per one-way leg */
+  var CYCLE = 2 * (LEG + DWELL);
+
+  /* distance along the route (0..LEN) + direction for a phase time */
+  function along(u) {
+    if (u < LEG) return { d: SPEED * u, dir: 1 };
+    if (u < LEG + DWELL) return { d: LEN, dir: 1 };
+    if (u < 2 * LEG + DWELL) return { d: LEN - SPEED * (u - LEG - DWELL), dir: -1 };
+    return { d: 0, dir: -1 };
+  }
+  function busFix(i, nowMs) {
+    var nowS = nowMs / 1000;
+    var u = ((nowS + i * (CYCLE / COUNT)) % CYCLE + CYCLE) % CYCLE;
+    var a = along(u);
+    var f = a.d / LEN;
+    var lat = WEST.lat + (EAST.lat - WEST.lat) * f;
+    var lng = WEST.lng + (EAST.lng - WEST.lng) * f;
+    var lane = 1.9 * a.dir;                  /* keep to the right-hand lane */
+    lng += (RX * lane) / M_PER_DEG_LNG;
+    lat += -(RZ * lane) / M_PER_DEG_LAT;
+    return { id: 'espil-demo-' + (i + 1), lat: lat, lng: lng, route: ROUTE, ts: Math.floor(nowS) };
+  }
+  function syntheticSnapshot(nowMs) {
+    var buses = [];
+    for (var i = 0; i < COUNT; i++) buses.push(busFix(i, nowMs));
+    return { buses: buses, generated_at: new Date(nowMs).toISOString(), synthetic: true };
+  }
+
+  var lastSyntheticAt = 0;
+  var realFetch = window.fetch ? window.fetch.bind(window) : null;
+  if (!realFetch || window.__espilDemoBusesWrapped) return;
+  window.__espilDemoBusesWrapped = true;
+
+  window.fetch = function (input, init) {
+    var url = '';
+    try { url = typeof input === 'string' ? input : (input && input.url) || ''; } catch (e) {}
+    var isBusFeed = url.indexOf('data.espil.online/transit/') >= 0 && !window.__espilBusEndpoint;
+    if (!isBusFeed) return realFetch(input, init);
+    function synthetic() {
+      lastSyntheticAt = Date.now();
+      return new Response(JSON.stringify(syntheticSnapshot(Date.now())), {
+        status: 200, headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    return realFetch(input, init).then(function (r) {
+      if (!r || !r.ok) return synthetic();
+      return r.clone().json().then(function (j) {
+        if (j && j.buses && j.buses.length) return r;   /* real data wins */
+        return synthetic();
+      }).catch(function () { return r; });
+    }).catch(function () { return synthetic(); });
+  };
+
+  window.__espilDemoBusState = function () {
+    return {
+      wrapped: true,
+      lastSyntheticAt: lastSyntheticAt,
+      route: { west: WEST, east: EAST, lengthM: Math.round(LEN), cycleS: Math.round(CYCLE) },
+      sample: syntheticSnapshot(Date.now()).buses
+    };
+  };
+})();
+
+</script>
 </body>
 </html>
