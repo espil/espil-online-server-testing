@@ -13948,8 +13948,10 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
   var STR = {
     en: {
       landingNav: 'Look around the cities - use the arrow keys',
+      lookShort: 'Look around',
       landingEnter: 'Press Enter to dive into the city',
       move: 'Move with the arrow keys',
+      moveShort: 'Move',
       jump: 'Jump - press Shift',
       nav: 'Follow the green path to Konbiniya on Robson Street',
       enter: 'Press Space, then press Enter to go inside',
@@ -13961,8 +13963,10 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
     },
     ko: {
       landingNav: '방향키로 도시들을 둘러보세요',
+      lookShort: '둘러보기',
       landingEnter: 'Enter를 눌러 도시로 들어가세요',
       move: '방향키로 움직여 보세요',
+      moveShort: '이동하기',
       jump: 'Shift를 눌러 점프해 보세요',
       nav: '초록 길을 따라 랍슨 거리의 콘비니야로 이동하세요',
       enter: 'Space를 누르고 Enter 키를 눌러 가게 안으로 들어가세요',
@@ -13974,8 +13978,10 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
     },
     fr: {
       landingNav: 'Regardez les villes - touches fléchées',
+      lookShort: 'Regarder autour',
       landingEnter: 'Entrée pour plonger dans la ville',
       move: 'Déplacez-vous avec les flèches',
+      moveShort: 'Se déplacer',
       jump: 'Sautez - touche Maj',
       nav: 'Suivez le chemin vert jusqu\'à Konbiniya, rue Robson',
       enter: 'Espace, puis Entrée pour aller à l’intérieur',
@@ -13987,8 +13993,10 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
     },
     zh: {
       landingNav: '用方向键浏览城市',
+      lookShort: '环顾四周',
       landingEnter: '按回车进入城市',
       move: '用方向键移动',
+      moveShort: '移动',
       jump: '按 Shift 跳跃',
       nav: '沿着绿道前往 Robson 街的 Konbiniya',
       enter: '按空格，再按 Enter 进入店内',
@@ -14006,6 +14014,8 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
   }
   function t(k) { return (STR[lang()] || STR.en)[k] || STR.en[k] || k; }
 
+  /* The four arrow keys as key-cap graphics (Han 2026-10-28). */
+  var KEYCAPS = '<span class="kb">&#8592;</span><span class="kb">&#8593;</span><span class="kb">&#8595;</span><span class="kb">&#8594;</span>';
   var STEPS = ['landingNav', 'landingEnter', 'move', 'jump', 'nav', 'enter', 'buy', 'stall', 'map'];
   var FIRST_GAME_STEP = 2; /* STEPS index of the first in-map step */
   function onLanding() { return !window.__ESPIL_GAME_PAGE; }
@@ -14039,13 +14049,15 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
       'background:rgba(10,24,28,.88);border:1px solid rgba(142,247,232,.55);color:#eafffd;' +
       'font:700 .92rem/1.35 Manrope,sans-serif;letter-spacing:.02em;pointer-events:none;' +
       'box-shadow:0 6px 24px rgba(0,0,0,.35);text-align:center}' +
-      '#espil-tut .n{flex:none;font-size:.72rem;font-weight:800;color:#0b2422;background:#8ef7e8;' +
-      'border-radius:999px;padding:3px 9px;letter-spacing:.06em}' +
+      '#espil-tut .tx{display:inline-flex;align-items:center}' +
+      '#espil-tut .kb{display:inline-flex;align-items:center;justify-content:center;min-width:23px;height:23px;' +
+      'padding:0 4px;margin-right:4px;border-radius:6px;background:linear-gradient(180deg,#2b3f47,#16242a);' +
+      'border:1px solid rgba(234,255,253,.5);border-bottom-width:3px;color:#eafffd;font-size:.8rem;font-weight:800}' +
       '#espil-tut.done{border-color:rgba(255,217,122,.7)}';
     document.head.appendChild(st);
     chip = document.createElement('div');
     chip.id = 'espil-tut';
-    chip.innerHTML = '<span class="n"></span><span class="tx"></span>';
+    chip.innerHTML = '<span class="tx"></span>';
     document.body.appendChild(chip);
     return chip;
   }
@@ -14053,15 +14065,21 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
     ensureChip();
     if (step < 0 || step >= STEPS.length) { hide(); return; }
     if (onLanding() && step >= FIRST_GAME_STEP) { hide(); return; } /* in-game steps wait for the game page */
-    chip.querySelector('.n').textContent = (step + 1) + ' / ' + STEPS.length;
-    chip.querySelector('.tx').textContent = t(STEPS[step]);
+    /* No step counter (Han 2026-10-28) - the hint is just the hint.
+       The arrow keys are drawn as key-cap graphics, not words. */
+    var tx = chip.querySelector('.tx');
+    var key = STEPS[step];
+    if (key === 'landingNav' || key === 'move') {
+      tx.innerHTML = KEYCAPS + '<span>' + t(key === 'move' ? 'moveShort' : 'lookShort') + '</span>';
+    } else {
+      tx.textContent = t(key);
+    }
     chip.classList.remove('done');
     chip.style.display = 'flex';
   }
   function hide() { if (chip) chip.style.display = 'none'; }
   function showDone() {
     ensureChip();
-    chip.querySelector('.n').textContent = '✓';
     chip.querySelector('.tx').textContent = t('done');
     chip.classList.add('done');
     chip.style.display = 'flex';
