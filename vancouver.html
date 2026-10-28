@@ -3057,7 +3057,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(note&&TEST_BYPASS)note.innerHTML='TESTING BYPASS &mdash; entering as <b>'+g.charAt(0).toUpperCase()+g.slice(1)+'</b>&hellip;';
     }
     function confirmCharacter(gender){
-      try{window.localStorage.setItem('espil_character',JSON.stringify({gender:gender,ts:Date.now()}));}catch(e){}
+      try{var __rec={gender:gender,ts:Date.now()}; try{var __lk=window.__espilPendingLook?window.__espilPendingLook():null; if(__lk)__rec.look=__lk;}catch(_){} window.localStorage.setItem('espil_character',JSON.stringify(__rec));}catch(e){} /* customizer look rides the character record (Han 2026-10-28) */
       espilApplyAvatarGender(gender); /* the preload may have built the other gender's avatar before this first-time pick */
       var panel=document.getElementById('char-custom');
       var note=document.getElementById('char-bypass');
@@ -3072,7 +3072,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       announce:[
         'Espil Online is currently open to everyone with guest entry. The account system (Google login) is in preparation.',
         'Open cities: Vancouver and Auckland. Tokyo is built and awaiting its opening, and New York is in production.',
-        'You can choose a male or female character. Character customization is in preparation.'
+        'You can choose a male or female character, and customize your look: skin tone, hair style and colour, and outfit colour.'
       ],
       updates:[
         {d:'2026-10-18',t:'Launch configuration: Espil Online opened with guest-only entry, and Vancouver opened as the first city.'},
@@ -5500,6 +5500,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        from the one the current avatar was built with (the preload
        builds the avatar BEFORE a first-time player picks a gender,
        so the confirm path re-applies it). No-op when already right. */
+    window.__espilApplyAvatarGender=function(g){espilApplyAvatarGender(g);}; /* customizer edit mode re-applies a changed gender in place (Han 2026-10-28) */
     function espilApplyAvatarGender(gender){
       if(!walkPlayer||!walkPlayer.av||!mapScene)return;
       if(walkPlayer.av.__gender===gender)return;
@@ -9129,6 +9130,21 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       function onReady(){
         var e=document.getElementById('bldg-enter'), c=document.getElementById('bldg-cancel'), x=document.getElementById('bldg-close');
         if(e)e.addEventListener('click',espilEnterBuilding);
+        /* Building entry by keyboard (Han 2026-10-28): while the
+           building panel is open, Enter enters. Capture phase on
+           document so it wins over the world keydown's
+           Enter-opens-chat; the typing guard leaves chat and text
+           fields on their own Enter. */
+        document.addEventListener('keydown',function(ev){
+          if(ev.key!=='Enter'||ev.repeat)return;
+          var ae=document.activeElement,at=(ae&&ae.tagName)||'';
+          if(/INPUT|TEXTAREA|SELECT/.test(at))return;
+          var bp=document.getElementById('bldg-panel');
+          if(bp&&bp.getAttribute('aria-hidden')==='false'&&espilBldgPanelRec){
+            ev.preventDefault(); ev.stopPropagation();
+            espilEnterBuilding();
+          }
+        },true);
         if(c)c.addEventListener('click',closeBuildingPanel);
         if(x)x.addEventListener('click',closeBuildingPanel);
         var sc=document.getElementById('shop-close'), sle=document.getElementById('shop-leave'), st1=document.getElementById('shop-tab-shop'), st2=document.getElementById('shop-tab-contact');
@@ -9501,7 +9517,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       f:{state:0,scene:null,clips:null,groundY:0,waiters:[]}
     };
     function __espilMapScene(){ try{ return (typeof mapScene!=='undefined'&&mapScene)?mapScene:null; }catch(_){ return null; } }
-    function __espilMakeNameplate(name){
+    function __espilMakeNameplate(name,accent){
       try{
         var cv=document.createElement('canvas'); cv.width=256; cv.height=64;
         var cx=cv.getContext('2d');
@@ -9509,6 +9525,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         var nm=String(name||'Guest').slice(0,16);
         cx.lineWidth=6; cx.strokeStyle='rgba(0,0,0,.85)';
         cx.strokeText(nm,128,34); cx.fillStyle='#fff'; cx.fillText(nm,128,34);
+        if(accent){ try{ cx.fillStyle=accent; var __bw=Math.max(38,Math.min(190,cx.measureText(nm).width)); cx.fillRect(128-__bw/2,54,__bw,5); }catch(_){} }
         var tex=new THREE.CanvasTexture(cv);
         var sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthWrite:false}));
         sp.renderOrder=50;
@@ -9708,7 +9725,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         R=__espilBuildRemoteAvatar(info&&info.gender);
         R.cur={x:x,y:y,z:z}; R.tgt={x:x,y:y,z:z,a:(typeof a==='number'?a:0)}; R.vx=(typeof vx==='number')?vx:0; R.vz=(typeof vz==='number')?vz:0;
         R.faceY=R.tgt.a; R.fixAt=now; R.lastAt=now;
-        R.plate=__espilMakeNameplate(info&&info.name);
+        R.plate=__espilMakeNameplate(info&&info.name,(info&&info.look&&window.__espilOutfitHex)?window.__espilOutfitHex(info.look.outfit):null); /* nameplate accent = the peer's outfit colour (Han 2026-10-28) */
         if(R.plate)R.group.add(R.plate);
         R.group.position.set(x,y,z);
         scene.add(R.group); scene.add(R.shadow);
@@ -12167,6 +12184,13 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     if (sel && sel.getAttribute('data-gender')) return sel.getAttribute('data-gender') === 'female' ? 'f' : 'm';
     return 'm';
   }
+  function myLook(){
+    /* The saved customizer look rides the join frame (Han 2026-10-28);
+       the Worker sanitizes and relays it on the roster, so peers see
+       the same portrait and nameplate accent. */
+    try { var rec = JSON.parse(localStorage.getItem('espil_character') || 'null'); if (rec && rec.look) return rec.look; } catch(_){}
+    return null;
+  }
   function line(who, text, sys){
     try { window.dispatchEvent(new CustomEvent('espil-chat-recv', { detail: { who: who, text: text, sys: !!sys } })); } catch(_){}
   }
@@ -12247,7 +12271,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         var inp = $('char-name');
         if (inp && inp.value.trim()) localStorage.setItem('espil_username', nm);
       } catch(_){}
-      try { ws.send(JSON.stringify({ t: 'join', name: nm, gender: myGender() })); } catch(_){}
+      try { ws.send(JSON.stringify({ t: 'join', name: nm, gender: myGender(), look: myLook() })); } catch(_){}
     };
     ws.onmessage = function(ev){
       var m; try { m = JSON.parse(ev.data); } catch(_){ return; }
@@ -12295,7 +12319,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         else if (m.code === 'rate_limited') { sysLine('Slow down a little.'); }
         else if (m.code === 'dm_target_gone') { onDmTargetGone(m); }
         else if (m.code === 'not_joined' && ws) {
-          try { ws.send(JSON.stringify({ t: 'join', name: myName(), gender: myGender() })); } catch(_){}
+          try { ws.send(JSON.stringify({ t: 'join', name: myName(), gender: myGender(), look: myLook() })); } catch(_){}
         }
       }
     };
@@ -12766,9 +12790,10 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     var leo = 1000; try { var v = parseInt(localStorage.getItem('espil_leo_balance'), 10); if (!isNaN(v)) leo = v; } catch (e) {}
     var city = null;
     try { var st = window.__espilChatState && window.__espilChatState(); if (st && st.room) city = st.room.charAt(0).toUpperCase() + st.room.slice(1); } catch (e) {}
-    return { name: name, gender: gender, leo: leo, city: city };
+    var look = null; try { var rec2 = JSON.parse(localStorage.getItem('espil_character') || 'null'); if (rec2 && rec2.look) look = rec2.look; } catch (e) {}
+    return { name: name, gender: gender, leo: leo, city: city, look: look };
   }
-  function paintAvatar(cv, gender) {
+  function paintAvatar(cv, gender, look) {
     var c = cv.getContext('2d'); if (!c) return;
     var src = document.getElementById('guide-face'), painted = false;
     if (src) { try { var px = src.getContext('2d').getImageData(6, 6, 1, 1).data; painted = px[3] > 0; } catch (e) {} }
@@ -12776,15 +12801,37 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     c.save(); c.beginPath(); c.arc(56, 56, 54, 0, Math.PI * 2); c.clip();
     if (painted) { c.drawImage(src, 0, 0, 112, 112); }
     else {
+      /* Customizer look (Han 2026-10-28): skin tone, hair style and
+         colour, outfit colour - the defaults reproduce the old face. */
+      var SK = ['#ffe3c2', '#f2c49b', '#dca26b', '#a8703c', '#6f4525'];
+      var HC = ['#3a2a1c', '#7a4a2b', '#b3764a', '#e3c188', '#ececec', '#23262b', '#c94f4f', '#4a6ac9', '#5da873'];
+      var OF = ['#3f7fbf', '#c94f4f', '#57a773', '#e0a83c', '#7a5fc0', '#e77fc0', '#37b8a5', '#e8e4da'];
+      var lk = look || {};
+      var skin = SK[typeof lk.skin === 'number' ? lk.skin : 1] || SK[1];
+      var hairCol = HC[typeof lk.hairColor === 'number' ? lk.hairColor : (gender === 'f' ? 1 : 0)] || HC[0];
+      var outfit = OF[typeof lk.outfit === 'number' ? lk.outfit : 0] || OF[0];
+      var hs = typeof lk.hair === 'number' ? lk.hair : 0;
       var grd = c.createLinearGradient(0, 0, 0, 112); grd.addColorStop(0, '#1d4256'); grd.addColorStop(1, '#12242f');
       c.fillStyle = grd; c.fillRect(0, 0, 112, 112);
-      c.fillStyle = '#f2c49b'; c.beginPath(); c.arc(56, 60, 26, 0, Math.PI * 2); c.fill();
-      c.fillStyle = gender === 'f' ? '#7a4a2b' : '#3a2a1c';
-      c.beginPath(); c.arc(56, 42, 27, Math.PI, Math.PI * 2); c.fill();
-      if (gender === 'f') { c.fillRect(29, 42, 10, 34); c.fillRect(73, 42, 10, 34); }
+      c.fillStyle = outfit; c.beginPath(); c.moveTo(22, 112); c.quadraticCurveTo(56, 82, 90, 112); c.closePath(); c.fill();
+      c.fillStyle = skin; c.fillRect(50, 74, 12, 16);
+      c.beginPath(); c.arc(56, 58, 26, 0, Math.PI * 2); c.fill();
+      c.fillStyle = hairCol;
+      if (gender === 'f') {
+        if (hs === 3) { c.beginPath(); c.arc(56, 28, 9, 0, Math.PI * 2); c.fill(); }
+        c.beginPath(); c.arc(56, 40, 27, Math.PI, Math.PI * 2); c.fill();
+        if (hs === 0) { c.fillRect(27, 40, 11, 42); c.fillRect(74, 40, 11, 42); }
+        else if (hs === 1) { c.fillRect(28, 40, 10, 25); c.fillRect(74, 40, 10, 25); }
+        else if (hs === 2) { c.fillRect(77, 38, 9, 36); }
+      } else {
+        if (hs === 1) { c.beginPath(); c.moveTo(31, 42); c.lineTo(37, 25); c.lineTo(45, 36); c.lineTo(53, 23); c.lineTo(61, 36); c.lineTo(69, 25); c.lineTo(77, 38); c.lineTo(83, 43); c.lineTo(31, 43); c.closePath(); c.fill(); }
+        else if (hs === 2) { c.beginPath(); c.arc(56, 47, 25, Math.PI, Math.PI * 2); c.fill(); }
+        else if (hs === 3) { c.beginPath(); c.arc(52, 40, 27, Math.PI, Math.PI * 2); c.fill(); c.fillRect(66, 36, 12, 13); }
+        else { c.beginPath(); c.arc(56, 40, 27, Math.PI, Math.PI * 2); c.fill(); }
+      }
       c.fillStyle = '#22303a';
-      c.beginPath(); c.arc(47, 60, 3, 0, Math.PI * 2); c.arc(65, 60, 3, 0, Math.PI * 2); c.fill();
-      c.strokeStyle = '#b3764a'; c.lineWidth = 2; c.beginPath(); c.arc(56, 66, 8, 0.15 * Math.PI, 0.85 * Math.PI); c.stroke();
+      c.beginPath(); c.arc(47, 58, 3, 0, Math.PI * 2); c.arc(65, 58, 3, 0, Math.PI * 2); c.fill();
+      c.strokeStyle = '#b3764a'; c.lineWidth = 2; c.beginPath(); c.arc(56, 64, 8, 0.15 * Math.PI, 0.85 * Math.PI); c.stroke();
     }
     c.restore();
   }
@@ -12798,7 +12845,8 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     left.style.cssText = 'text-align:center;flex:none;';
     left.innerHTML = '<canvas id="espil-profile-face" width="112" height="112" style="width:96px;height:96px;border-radius:50%;border:2px solid rgba(142,247,232,.5);background:#17303a;"></canvas>' +
       '<div style="margin-top:8px;color:#ffd97a;font-weight:700">' + esc(info.name) + '</div>' +
-      '<div style="font-size:12px;opacity:.8">' + (info.gender === 'f' ? 'Female' : 'Male') + '</div>';
+      '<div style="font-size:12px;opacity:.8">' + (info.gender === 'f' ? 'Female' : 'Male') + '</div>' +
+      '<button id="espil-profile-custom" type="button" style="margin-top:10px;padding:6px 16px;border-radius:999px;border:1px solid rgba(201,168,106,.85);background:rgba(201,168,106,.16);color:#ffd97a;font:700 12px Manrope,sans-serif;letter-spacing:.06em;cursor:pointer">Customize</button>';
     var right = document.createElement('div');
     right.style.cssText = 'flex:1;min-width:220px;';
     var slots = SLOT_DEFS.map(function (sd) {
@@ -12812,7 +12860,9 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     wrap.appendChild(left); wrap.appendChild(right);
     g.appendChild(wrap);
     var cv = document.getElementById('espil-profile-face');
-    if (cv) paintAvatar(cv, info.gender);
+    if (cv) paintAvatar(cv, info.gender, info.look);
+    var cb = document.getElementById('espil-profile-custom');
+    if (cb) cb.addEventListener('click', function () { toggleProfile(false); if (window.__espilOpenCustomizer) window.__espilOpenCustomizer(); });
     Array.prototype.forEach.call(right.querySelectorAll('[data-slot]'), function (el) {
       el.addEventListener('click', function () { var s = el.getAttribute('data-slot'); if (equippedMap()[s]) unequip(s); });
     });
@@ -13001,6 +13051,10 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     try { var rec = JSON.parse(localStorage.getItem('espil_character') || 'null'); if (rec && rec.gender) return rec.gender === 'female' ? 'f' : 'm'; } catch (_) {}
     var id = myId(), u = id ? userById(id) : null; return u && u.gender === 'f' ? 'f' : 'm';
   }
+  function myLook() {
+    try { var rec = JSON.parse(localStorage.getItem('espil_character') || 'null'); if (rec && rec.look) return rec.look; } catch (_) {}
+    var id = myId(), u = id ? userById(id) : null; return (u && u.look) || null;
+  }
 
   /* ---------------- party state -------------------------------- */
   var party = null;              // {id, members:[{id,name,gender}]}
@@ -13120,7 +13174,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
   /* The profile portrait (Han 2026-10-28): the character's current
      look, painted with the same recipe the world's own profile panel
      uses (the guide-face borrow, else the gendered face). */
-  function paintFace(cv, gender) {
+  function paintFace(cv, gender, look) {
     if (!cv) return;
     var c = cv.getContext('2d'); if (!c) return;
     var src = document.getElementById('guide-face'), painted = false;
@@ -13129,15 +13183,37 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     c.save(); c.beginPath(); c.arc(56, 56, 54, 0, Math.PI * 2); c.clip();
     if (painted) { c.drawImage(src, 0, 0, 112, 112); }
     else {
+      /* Customizer look (Han 2026-10-28): skin tone, hair style and
+         colour, outfit colour - the defaults reproduce the old face. */
+      var SK = ['#ffe3c2', '#f2c49b', '#dca26b', '#a8703c', '#6f4525'];
+      var HC = ['#3a2a1c', '#7a4a2b', '#b3764a', '#e3c188', '#ececec', '#23262b', '#c94f4f', '#4a6ac9', '#5da873'];
+      var OF = ['#3f7fbf', '#c94f4f', '#57a773', '#e0a83c', '#7a5fc0', '#e77fc0', '#37b8a5', '#e8e4da'];
+      var lk = look || {};
+      var skin = SK[typeof lk.skin === 'number' ? lk.skin : 1] || SK[1];
+      var hairCol = HC[typeof lk.hairColor === 'number' ? lk.hairColor : (gender === 'f' ? 1 : 0)] || HC[0];
+      var outfit = OF[typeof lk.outfit === 'number' ? lk.outfit : 0] || OF[0];
+      var hs = typeof lk.hair === 'number' ? lk.hair : 0;
       var grd = c.createLinearGradient(0, 0, 0, 112); grd.addColorStop(0, '#1d4256'); grd.addColorStop(1, '#12242f');
       c.fillStyle = grd; c.fillRect(0, 0, 112, 112);
-      c.fillStyle = '#f2c49b'; c.beginPath(); c.arc(56, 60, 26, 0, Math.PI * 2); c.fill();
-      c.fillStyle = gender === 'f' ? '#7a4a2b' : '#3a2a1c';
-      c.beginPath(); c.arc(56, 42, 27, Math.PI, Math.PI * 2); c.fill();
-      if (gender === 'f') { c.fillRect(29, 42, 10, 34); c.fillRect(73, 42, 10, 34); }
+      c.fillStyle = outfit; c.beginPath(); c.moveTo(22, 112); c.quadraticCurveTo(56, 82, 90, 112); c.closePath(); c.fill();
+      c.fillStyle = skin; c.fillRect(50, 74, 12, 16);
+      c.beginPath(); c.arc(56, 58, 26, 0, Math.PI * 2); c.fill();
+      c.fillStyle = hairCol;
+      if (gender === 'f') {
+        if (hs === 3) { c.beginPath(); c.arc(56, 28, 9, 0, Math.PI * 2); c.fill(); }
+        c.beginPath(); c.arc(56, 40, 27, Math.PI, Math.PI * 2); c.fill();
+        if (hs === 0) { c.fillRect(27, 40, 11, 42); c.fillRect(74, 40, 11, 42); }
+        else if (hs === 1) { c.fillRect(28, 40, 10, 25); c.fillRect(74, 40, 10, 25); }
+        else if (hs === 2) { c.fillRect(77, 38, 9, 36); }
+      } else {
+        if (hs === 1) { c.beginPath(); c.moveTo(31, 42); c.lineTo(37, 25); c.lineTo(45, 36); c.lineTo(53, 23); c.lineTo(61, 36); c.lineTo(69, 25); c.lineTo(77, 38); c.lineTo(83, 43); c.lineTo(31, 43); c.closePath(); c.fill(); }
+        else if (hs === 2) { c.beginPath(); c.arc(56, 47, 25, Math.PI, Math.PI * 2); c.fill(); }
+        else if (hs === 3) { c.beginPath(); c.arc(52, 40, 27, Math.PI, Math.PI * 2); c.fill(); c.fillRect(66, 36, 12, 13); }
+        else { c.beginPath(); c.arc(56, 40, 27, Math.PI, Math.PI * 2); c.fill(); }
+      }
       c.fillStyle = '#22303a';
-      c.beginPath(); c.arc(47, 60, 3, 0, Math.PI * 2); c.arc(65, 60, 3, 0, Math.PI * 2); c.fill();
-      c.strokeStyle = '#b3764a'; c.lineWidth = 2; c.beginPath(); c.arc(56, 66, 8, 0.15 * Math.PI, 0.85 * Math.PI); c.stroke();
+      c.beginPath(); c.arc(47, 58, 3, 0, Math.PI * 2); c.arc(65, 58, 3, 0, Math.PI * 2); c.fill();
+      c.strokeStyle = '#b3764a'; c.lineWidth = 2; c.beginPath(); c.arc(56, 64, 8, 0.15 * Math.PI, 0.85 * Math.PI); c.stroke();
     }
     c.restore();
   }
@@ -13157,7 +13233,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     if (typeof peer.dist === 'number') lines += '<p><b>' + escT(t('distLabel')) + '</b> ' + peer.dist.toFixed(1) + ' m</p>';
     if (party && !peer.self && inPartyWith(peer.id)) lines += '<p><b>' + escT(t('partyNow')) + '</b> ' + party.members.length + ' ' + escT(t('membersWord')) + '</p>';
     body.innerHTML = lines;
-    paintFace(cardEl.querySelector('.espil-card-face'), peer.gender);
+    paintFace(cardEl.querySelector('.espil-card-face'), peer.gender, peer.look);
     cardEl.style.display = 'block';
   }
 
@@ -13177,12 +13253,12 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     var cands = [];
     var me = null;
     try { me = window.__espilPlayerPose ? window.__espilPlayerPose() : null; } catch (_) {}
-    if (me) cands.push({ id: myId() || 'me', name: myDisplayName(), gender: myGender(), self: true, x: me.x, y: me.y, z: me.z });
+    if (me) cands.push({ id: myId() || 'me', name: myDisplayName(), gender: myGender(), look: myLook(), self: true, x: me.x, y: me.y, z: me.z });
     var remotes = [];
     try { remotes = window.__espilRemoteList ? window.__espilRemoteList() : []; } catch (_) {}
     remotes.forEach(function (r) {
       var u = userById(r.id) || {};
-      cands.push({ id: r.id, name: u.name || 'Guest', gender: u.gender === 'f' ? 'f' : 'm', self: false, x: r.x, y: r.y, z: r.z });
+      cands.push({ id: r.id, name: u.name || 'Guest', gender: u.gender === 'f' ? 'f' : 'm', look: u.look || null, self: false, x: r.x, y: r.y, z: r.z });
     });
     var best = null, bestScore = 1e9;
     cands.forEach(function (c) {
@@ -13905,7 +13981,7 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
       move: 'Move with the arrow keys',
       jump: 'Jump - press Shift',
       nav: 'Follow the green path to Konbiniya on Robson Street',
-      enter: 'Press Space, then use the Enter button to go inside',
+      enter: 'Press Space, then press Enter to go inside',
       buy: 'Buy the onigiri (Triangle Kimbap) inside',
       stall: 'Open your stall - press Y',
       map: 'Open the map - press M',
@@ -13918,7 +13994,7 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
       move: '방향키로 움직여 보세요',
       jump: 'Shift를 눌러 점프해 보세요',
       nav: '초록 길을 따라 랍슨 거리의 콘비니야로 이동하세요',
-      enter: 'Space를 누르고 Enter 버튼으로 가게 안으로 들어가세요',
+      enter: 'Space를 누르고 Enter 키를 눌러 가게 안으로 들어가세요',
       buy: '가게 안에서 오니기리(삼각김밥)를 구매하세요',
       stall: 'Y를 눌러 좌판을 열어 보세요',
       map: 'M을 눌러 맵을 열어 보세요',
@@ -13931,7 +14007,7 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
       move: 'Déplacez-vous avec les flèches',
       jump: 'Sautez - touche Maj',
       nav: 'Suivez le chemin vert jusqu\'à Konbiniya, rue Robson',
-      enter: 'Espace pour entrer',
+      enter: 'Espace, puis Entrée pour aller à l’intérieur',
       buy: 'Achetez l\'onigiri (Triangle Kimbap) à l\'intérieur',
       stall: 'Ouvrez votre étal - touche Y',
       map: 'Ouvrez la carte - touche M',
@@ -13944,7 +14020,7 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
       move: '用方向键移动',
       jump: '按 Shift 跳跃',
       nav: '沿着绿道前往 Robson 街的 Konbiniya',
-      enter: '按空格进入店内',
+      enter: '按空格，再按 Enter 进入店内',
       buy: '在店里买一个饭团 (Triangle Kimbap)',
       stall: '按 Y 打开你的摊位',
       map: '按 M 打开地图',
@@ -14846,6 +14922,292 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
     '@media (max-width:640px){.skill-tree .st-card{padding:13px 14px;border-radius:14px}.skill-tree .st-grid{gap:6px}}';
   document.head.appendChild(st);
 })();
+
+</script>
+<script>
+/* __espilCustomizer v1 - the character customizer, completed
+   (Han 2026-10-28, espil.online room).
+
+   The entry gate offered only male/female; this module turns the
+   #char-custom panel into a real customizer:
+   • skin tone (5), hair style (4 per gender), hair colour (9) and
+     outfit colour (8), with a live painted preview - the same
+     portrait recipe the profile panel and the social card use.
+   • The pick is the "look" {skin, hair, hairColor, outfit}. At the
+     gate, the world's confirmCharacter merges it into the
+     espil_character record via window.__espilPendingLook(). In game,
+     the profile window's Customize button reopens the panel in edit
+     mode (window.__espilOpenCustomizer): saving rewrites the record
+     and re-applies a changed gender in place - no re-entry.
+   • The look rides the presence join frame; the Worker sanitizes and
+     relays it, so other players' portraits and nameplate accents show
+     the same choices. The 3D body is one textured GLB per gender, so
+     the look lives on the portrait + nameplate, not the mesh.
+   __espilCustomizer END */
+(function () {
+  'use strict';
+  if (window.__espilCustomizer) return;
+  window.__espilCustomizer = true;
+
+  var SK = ['#ffe3c2', '#f2c49b', '#dca26b', '#a8703c', '#6f4525'];
+  var HC = ['#3a2a1c', '#7a4a2b', '#b3764a', '#e3c188', '#ececec', '#23262b', '#c94f4f', '#4a6ac9', '#5da873'];
+  var OF = ['#3f7fbf', '#c94f4f', '#57a773', '#e0a83c', '#7a5fc0', '#e77fc0', '#37b8a5', '#e8e4da'];
+  var STYLES = {
+    male: {
+      en: ['Short', 'Spiky', 'Buzz', 'Swept'], ko: ['짧게', '스파이키', '버즈', '넘김'],
+      fr: ['Court', 'Pics', 'Rasé', 'Balayé'], zh: ['短发', '刺头', '圆寸', '侧分']
+    },
+    female: {
+      en: ['Long', 'Bob', 'Ponytail', 'Bun'], ko: ['긴 머리', '단발', '포니테일', '올림머리'],
+      fr: ['Longs', 'Carré', 'Queue de cheval', 'Chignon'], zh: ['长发', '波波头', '马尾', '发髻']
+    }
+  };
+  var T = {
+    en: { skin: 'SKIN', hair: 'HAIR', hairColor: 'HAIR COLOUR', outfit: 'OUTFIT', save: 'SAVE', saved: 'Look saved' },
+    ko: { skin: '피부', hair: '머리', hairColor: '머리 색', outfit: '옷 색', save: '저장', saved: '모습이 저장되었습니다' },
+    fr: { skin: 'PEAU', hair: 'CHEVEUX', hairColor: 'COULEUR', outfit: 'TENUE', save: 'ENREGISTRER', saved: 'Apparence enregistrée' },
+    zh: { skin: '肤色', hair: '发型', hairColor: '发色', outfit: '服装色', save: '保存', saved: '外观已保存' }
+  };
+  function lang() { try { return window.__espilLang ? window.__espilLang() : 'en'; } catch (_) { return 'en'; } }
+  function t(k) { var L = T[lang()] || T.en; return L[k] || T.en[k] || k; }
+  function $(id) { return document.getElementById(id); }
+
+  function clampIdx(v, max, dflt) { return (typeof v === 'number' && isFinite(v) && v >= 0 && v <= max) ? Math.floor(v) : dflt; }
+  function sanitize(lk, gender) {
+    lk = lk || {};
+    return {
+      skin: clampIdx(lk.skin, 4, 1),
+      hair: clampIdx(lk.hair, 3, 0),
+      hairColor: clampIdx(lk.hairColor, 8, gender === 'female' ? 1 : 0),
+      outfit: clampIdx(lk.outfit, 7, 0)
+    };
+  }
+  function readRecord() { try { return JSON.parse(localStorage.getItem('espil_character') || 'null'); } catch (_) { return null; } }
+
+  /* ---- the portrait painter (112-space; same recipe as the profile
+     panel and the social card) ---- */
+  function paintInto(c, gender, look) {
+    var lk = look || {};
+    var skin = SK[typeof lk.skin === 'number' ? lk.skin : 1] || SK[1];
+    var hairCol = HC[typeof lk.hairColor === 'number' ? lk.hairColor : (gender === 'f' ? 1 : 0)] || HC[0];
+    var outfit = OF[typeof lk.outfit === 'number' ? lk.outfit : 0] || OF[0];
+    var hs = typeof lk.hair === 'number' ? lk.hair : 0;
+    var f = (gender === 'f' || gender === 'female');
+    c.clearRect(0, 0, 112, 112);
+    c.save(); c.beginPath(); c.arc(56, 56, 54, 0, Math.PI * 2); c.clip();
+    var grd = c.createLinearGradient(0, 0, 0, 112); grd.addColorStop(0, '#1d4256'); grd.addColorStop(1, '#12242f');
+    c.fillStyle = grd; c.fillRect(0, 0, 112, 112);
+    c.fillStyle = outfit; c.beginPath(); c.moveTo(22, 112); c.quadraticCurveTo(56, 82, 90, 112); c.closePath(); c.fill();
+    c.fillStyle = skin; c.fillRect(50, 74, 12, 16);
+    c.beginPath(); c.arc(56, 58, 26, 0, Math.PI * 2); c.fill();
+    c.fillStyle = hairCol;
+    if (f) {
+      if (hs === 3) { c.beginPath(); c.arc(56, 28, 9, 0, Math.PI * 2); c.fill(); }
+      c.beginPath(); c.arc(56, 40, 27, Math.PI, Math.PI * 2); c.fill();
+      if (hs === 0) { c.fillRect(27, 40, 11, 42); c.fillRect(74, 40, 11, 42); }
+      else if (hs === 1) { c.fillRect(28, 40, 10, 25); c.fillRect(74, 40, 10, 25); }
+      else if (hs === 2) { c.fillRect(77, 38, 9, 36); }
+    } else {
+      if (hs === 1) { c.beginPath(); c.moveTo(31, 42); c.lineTo(37, 25); c.lineTo(45, 36); c.lineTo(53, 23); c.lineTo(61, 36); c.lineTo(69, 25); c.lineTo(77, 38); c.lineTo(83, 43); c.lineTo(31, 43); c.closePath(); c.fill(); }
+      else if (hs === 2) { c.beginPath(); c.arc(56, 47, 25, Math.PI, Math.PI * 2); c.fill(); }
+      else if (hs === 3) { c.beginPath(); c.arc(52, 40, 27, Math.PI, Math.PI * 2); c.fill(); c.fillRect(66, 36, 12, 13); }
+      else { c.beginPath(); c.arc(56, 40, 27, Math.PI, Math.PI * 2); c.fill(); }
+    }
+    c.fillStyle = '#22303a';
+    c.beginPath(); c.arc(47, 58, 3, 0, Math.PI * 2); c.arc(65, 58, 3, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = '#b3764a'; c.lineWidth = 2; c.beginPath(); c.arc(56, 64, 8, 0.15 * Math.PI, 0.85 * Math.PI); c.stroke();
+    c.restore();
+  }
+
+  /* ---- state ---- */
+  var pending = { gender: 'male', look: sanitize(null, 'male') };
+  var hairColorTouched = false;
+  var editMode = false;
+  var built = false;
+  var box = null, previewCv = null;
+
+  function selectedCardGender() {
+    var sel = document.querySelector('.char-card.is-selected');
+    return (sel && sel.getAttribute('data-gender') === 'female') ? 'female' : 'male';
+  }
+  function loadFromRecordOrCards() {
+    var rec = readRecord();
+    if (rec && (rec.gender === 'female' || rec.gender === 'male')) {
+      pending.gender = rec.gender;
+      pending.look = sanitize(rec.look, rec.gender);
+      hairColorTouched = !!(rec.look && typeof rec.look.hairColor === 'number');
+    } else {
+      pending.gender = selectedCardGender();
+      pending.look = sanitize(null, pending.gender);
+      hairColorTouched = false;
+    }
+  }
+
+  /* ---- UI ---- */
+  var CSS = [
+    '#espil-cust-box{display:flex;gap:16px;align-items:center;margin-top:16px;text-align:left}',
+    '#espil-cust-box .ecb-preview{flex:none}',
+    '#espil-cust-preview{width:118px;height:118px;border-radius:50%;border:2px solid rgba(134,238,228,.4);background:#12242f;display:block}',
+    '#espil-cust-box .ecb-rows{flex:1;display:flex;flex-direction:column;gap:9px;min-width:0}',
+    '.ecb-row{display:flex;align-items:center;gap:10px}',
+    '.ecb-label{flex:none;width:74px;color:rgba(181,255,248,.65);font:700 .6rem/1.3 "Manrope",sans-serif;letter-spacing:.12em}',
+    '.ecb-opts{display:flex;gap:6px;flex-wrap:wrap}',
+    '.ecb-sw{appearance:none;width:24px;height:24px;border-radius:50%;border:2px solid rgba(255,255,255,.18);cursor:pointer;padding:0}',
+    '.ecb-sw.on{border-color:#ffd97a;box-shadow:0 0 0 2px rgba(255,217,122,.35);transform:scale(1.12)}',
+    '.ecb-chip{appearance:none;padding:5px 10px;border-radius:999px;border:1px solid rgba(134,238,228,.3);background:rgba(14,32,38,.6);color:#ddfffc;font:700 .62rem/1 "Manrope",sans-serif;letter-spacing:.05em;cursor:pointer}',
+    '.ecb-chip.on{border-color:#ffd97a;color:#ffd97a;background:rgba(255,217,122,.12)}',
+    '@media (max-width:560px){#espil-cust-box{flex-direction:column}#espil-cust-box .ecb-rows{width:100%}}'
+  ].join('\n');
+
+  function swatchRow(rowEl, colors, key) {
+    rowEl.innerHTML = '';
+    colors.forEach(function (col, i) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'ecb-sw'; b.style.background = col;
+      b.setAttribute('data-k', key); b.setAttribute('data-i', String(i));
+      b.setAttribute('aria-label', key + ' ' + (i + 1));
+      rowEl.appendChild(b);
+    });
+  }
+  function buildUI() {
+    if (built) return;
+    var panel = $('char-custom'); if (!panel) return;
+    var wrap = panel.querySelector('.char-card-wrap'); if (!wrap) return;
+    var st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
+    box = document.createElement('div'); box.id = 'espil-cust-box';
+    box.innerHTML =
+      '<div class="ecb-preview"><canvas id="espil-cust-preview" width="264" height="264"></canvas></div>' +
+      '<div class="ecb-rows">' +
+      '<div class="ecb-row"><span class="ecb-label" data-lab="skin"></span><div class="ecb-opts" data-row="skin"></div></div>' +
+      '<div class="ecb-row"><span class="ecb-label" data-lab="hair"></span><div class="ecb-opts" data-row="hair"></div></div>' +
+      '<div class="ecb-row"><span class="ecb-label" data-lab="hairColor"></span><div class="ecb-opts" data-row="hairColor"></div></div>' +
+      '<div class="ecb-row"><span class="ecb-label" data-lab="outfit"></span><div class="ecb-opts" data-row="outfit"></div></div>' +
+      '</div>';
+    var nameInp = $('char-name');
+    if (nameInp && nameInp.parentElement === wrap) wrap.insertBefore(box, nameInp.nextSibling);
+    else wrap.appendChild(box);
+    previewCv = $('espil-cust-preview');
+    swatchRow(box.querySelector('[data-row="skin"]'), SK, 'skin');
+    swatchRow(box.querySelector('[data-row="hairColor"]'), HC, 'hairColor');
+    swatchRow(box.querySelector('[data-row="outfit"]'), OF, 'outfit');
+    box.addEventListener('click', function (e) {
+      var b = e.target && e.target.closest ? e.target.closest('[data-k]') : null;
+      if (!b) return;
+      var k = b.getAttribute('data-k'), i = parseInt(b.getAttribute('data-i'), 10);
+      if (isNaN(i)) return;
+      if (k === 'hairColor') hairColorTouched = true;
+      pending.look[k] = i;
+      refresh();
+    });
+    ['char-male', 'char-female'].forEach(function (id) {
+      var card = $(id);
+      if (card) card.addEventListener('click', function () {
+        var g = card.getAttribute('data-gender') === 'female' ? 'female' : 'male';
+        if (g !== pending.gender) {
+          pending.gender = g;
+          if (!hairColorTouched) pending.look.hairColor = g === 'female' ? 1 : 0;
+        }
+        refresh();
+      });
+    });
+    /* Edit mode intercepts confirm/back before the world's own
+       handlers (capture phase on the panel, stopPropagation). */
+    panel.addEventListener('click', function (e) {
+      if (!editMode) return;
+      var tg = e.target;
+      if (tg && tg.closest && tg.closest('#char-confirm')) { e.preventDefault(); e.stopPropagation(); saveEdit(); }
+      else if (tg && tg.closest && tg.closest('#char-back')) { e.preventDefault(); e.stopPropagation(); closeEdit(); }
+    }, true);
+    built = true;
+  }
+
+  function refresh() {
+    if (!built) buildUI();
+    if (!box) return;
+    var L = lang();
+    box.querySelectorAll('.ecb-label').forEach(function (el) { el.textContent = t(el.getAttribute('data-lab')); });
+    /* hair style chips follow the gender */
+    var hairRow = box.querySelector('[data-row="hair"]');
+    var names = (STYLES[pending.gender] || STYLES.male)[L] || STYLES[pending.gender].en;
+    var cur = Array.prototype.map.call(hairRow.children, function (ch) { return ch.textContent; }).join('|');
+    if (cur !== names.join('|')) {
+      hairRow.innerHTML = '';
+      names.forEach(function (nm, i) {
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'ecb-chip'; b.textContent = nm;
+        b.setAttribute('data-k', 'hair'); b.setAttribute('data-i', String(i));
+        hairRow.appendChild(b);
+      });
+    }
+    box.querySelectorAll('[data-k]').forEach(function (b) {
+      var k = b.getAttribute('data-k');
+      b.classList.toggle('on', pending.look[k] === parseInt(b.getAttribute('data-i'), 10));
+    });
+    if (previewCv) {
+      var c = previewCv.getContext('2d');
+      if (c) { var s = 264 / 112; c.setTransform(s, 0, 0, s, 0, 0); paintInto(c, pending.gender, pending.look); c.setTransform(1, 0, 0, 1, 0, 0); }
+    }
+    if (editMode) { var cf = $('char-confirm'); if (cf) cf.textContent = t('save'); }
+  }
+
+  /* ---- edit mode (in-game re-customization) ---- */
+  function closeEdit() {
+    var panel = $('char-custom');
+    if (panel) panel.setAttribute('aria-hidden', 'true');
+    var ni = $('char-name'); if (ni) ni.style.display = '';
+    editMode = false;
+    /* resync the world's confirm label for the gate flow */
+    var card = $(pending.gender === 'female' ? 'char-female' : 'char-male');
+    if (card) card.click();
+  }
+  function saveEdit() {
+    var rec = readRecord() || {};
+    rec.gender = pending.gender;
+    rec.look = sanitize(pending.look, pending.gender);
+    rec.ts = Date.now();
+    try { localStorage.setItem('espil_character', JSON.stringify(rec)); } catch (_) {}
+    try { if (window.__espilApplyAvatarGender) window.__espilApplyAvatarGender(pending.gender); } catch (_) {}
+    closeEdit();
+    try { if (window.__espilToast) window.__espilToast(t('saved')); } catch (_) {}
+  }
+  window.__espilOpenCustomizer = function () {
+    buildUI();
+    loadFromRecordOrCards();
+    editMode = true;
+    var ni = $('char-name'); if (ni) ni.style.display = 'none';
+    var panel = $('char-custom');
+    refresh();
+    if (panel) panel.setAttribute('aria-hidden', 'false');
+  };
+
+  /* ---- gate flow wiring ---- */
+  window.__espilPendingLook = function () { return sanitize(pending.look, pending.gender); };
+  window.__espilOutfitHex = function (i) { return OF[clampIdx(i, 7, 0)]; };
+  window.__espilPaintLook = function (cv, gender, look) {
+    if (!cv) return;
+    var c = cv.getContext('2d'); if (!c) return;
+    paintInto(c, gender, look);
+  };
+  window.__espilCustomizerState = function () {
+    return { built: built, editMode: editMode, gender: pending.gender, look: sanitize(pending.look, pending.gender) };
+  };
+
+  function watchPanel() {
+    var panel = $('char-custom');
+    if (!panel) { setTimeout(watchPanel, 600); return; }
+    buildUI();
+    loadFromRecordOrCards();
+    refresh();
+    new MutationObserver(function () {
+      var open = panel.getAttribute('aria-hidden') === 'false';
+      if (open && !editMode) { loadFromRecordOrCards(); refresh(); }
+      if (!open && editMode) { var ni = $('char-name'); if (ni) ni.style.display = ''; editMode = false; }
+    }).observe(panel, { attributes: true, attributeFilter: ['aria-hidden'] });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watchPanel);
+  else watchPanel();
+})();
+/* __espilCustomizer END */
 
 </script>
 </body>
