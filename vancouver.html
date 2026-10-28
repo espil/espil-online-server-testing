@@ -3035,7 +3035,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     function gateCharacter(){
       var saved=null;
       try{saved=window.localStorage.getItem('espil_character');}catch(e){}
-      if(saved){ espilApplyAvatarGender(espilSavedGender()); enterWalkMap(); return; } /* already has a character: skip customization */
+      if(saved){ espilApplyAvatarGender(espilSavedGender()); if(window.__espilEntryLocationGate){ window.__espilEntryLocationGate(function(){ enterWalkMap(); }); return; } enterWalkMap(); return; } /* already has a character: skip customization (the location pick still applies) */
       var panel=document.getElementById('char-custom');
       var note=document.getElementById('char-bypass');
       var csub=panel?panel.querySelector('.char-sub'):null;
@@ -3063,7 +3063,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       var note=document.getElementById('char-bypass');
       if(note)note.hidden=true;
       if(panel)panel.setAttribute('aria-hidden','true');
-      enterWalkMap();
+      if(window.__espilEntryLocationGate){ window.__espilEntryLocationGate(function(){ enterWalkMap(); }); } else { enterWalkMap(); } /* Han 2026-10-28: the location pick sits between gender and the loading sequence */
     }
     /* Notice panel content (Han 2026-10-19, from the git record,
        wording by the COO): to update the notice, edit these arrays
@@ -3173,7 +3173,6 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     var WATER_Z=-100, WATER_Y=.25; /* swim boundary (QA #17) */
     var trafficCars=[],carTextures=[],carColliders=[]; /* hoisted from buildWalkMapOnce (2026-10-08): used by collideCircleAxis/updateWalkMap */
     var updateTrafficCars=function(dt){}; /* replaced by buildWalkMapOnce */
-    var updateTransitBuses=function(){}; /* replaced by buildWalkMapOnce */
     /* 5km city (Han 2026-10-07): water bodies at scale.
        - Downtown harbor + Burrard Inlet: z < -100 (entire north)
        - English Bay: x < -2500 (west side)
@@ -4216,12 +4215,24 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         setTimeout(w,250);
       })();
     }
+    function espilEntryFullyLoaded(){
+      /* Han 2026-10-28: the final glass loading sequence loads as
+         much as possible before the dive - city settled (district
+         data + meshes), the Mapbox layer live, AND the player's own
+         avatar fully in - so play starts with the least lag. */
+      try{
+        if(!espilCitySettled()||!espilP1EntryLive())return false;
+        if(walkPlayer&&walkPlayer.av&&!walkPlayer.av.ready)return false;
+        return true;
+      }catch(e){ return true; }
+    }
     function espilEntryStart(){
       var p=walkPlayer; if(!p)return;
       var cfg=espilCityCfg();
       var last=null; try{ last=loadLastPos(); }catch(e){}
       var target=null;
-      if(last){
+      var locPick=null; try{ locPick=window.__espilSpawnPick||null; window.__espilSpawnPick=null; }catch(e){}
+      if(last&&!locPick){
         /* Returning player INSIDE the downtown boundary: resume at the
            saved spot, no descent (unchanged). The loader still covers
            the tile loading interval and closes on settle. */
@@ -4236,7 +4247,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           var rtries=0;
           (function resumeDiveWhenReady(){
             if(!walkPlayer)return;
-            if(espilCitySettled()&&espilP1EntryLive()){ espilHideMapLoader(); espilBeginDiveArrival(last.x,last.z); return; }
+            if(espilEntryFullyLoaded()){ espilHideMapLoader(); espilBeginDiveArrival(last.x,last.z); return; }
             if(++rtries>125){ espilHideMapLoader(); espilBeginDiveArrival(last.x,last.z); return; }
             setTimeout(resumeDiveWhenReady,200);
           })();
@@ -4248,7 +4259,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
            (geolocation pre-prompt included) over it. */
         target=espilResolveSpawn({x:last.x,z:last.z});
       } else {
-        target=cfg.core?{x:p.pos.x,z:p.pos.z}:{x:cfg.spawn.x,z:cfg.spawn.z};
+        target=locPick?{x:locPick.x,z:locPick.z}:(cfg.core?{x:p.pos.x,z:p.pos.z}:{x:cfg.spawn.x,z:cfg.spawn.z}); /* Han 2026-10-28: an explicit arrival pick beats the default spawn */
       }
       /* Han 2026-10-15: on a cold first load the descent scene was
          over before the world had finished loading (the character and
@@ -4267,7 +4278,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
            city is ready (avatar in, OSM city built, spawn chunk
            present) - the loader closes on this same tick, so the
            fall is the first thing seen. */
-        if(espilCitySettled()&&espilP1EntryLive()){ espilHideMapLoader(); espilBeginDiveArrival(target.x,target.z); return; }
+        if(espilEntryFullyLoaded()){ espilHideMapLoader(); espilBeginDiveArrival(target.x,target.z); return; }
         if(++tries>125){ espilHideMapLoader(); espilBeginDiveArrival(target.x,target.z); return; } /* 25 s failsafe */
         setTimeout(beginWhenReady,200);
       })();
@@ -6274,99 +6285,6 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       initCarTextures();initCarTopTextures();syncTrafficCars();
       loadCarSprites();
       buildTrafficLightVisuals();
-      /* Real TransLink buses — Han 2026-10-08: GTFS-RT vehicle positions via the
-         local poller (tools/translink_poller.py -> assets/transit/buses.json).
-         Buses within BUS_RADIUS of the player appear as camera-facing billboards
-         with their route number. Positions dead-reckon between 30s polls using
-         bearing+speed. No poller running = no buses, everything else unaffected. */
-      var transitBuses={},busTexCache={},busFeed={buses:[],fetched_at:0},busTimer=null;
-      var BUS_RADIUS=150,BUS_W=12,BUS_H=3;
-      function latLngToMap(lat,lng){
-        return {x:(lng-MAP_LNG0)*111320*Math.cos(MAP_LAT0*Math.PI/180),
-                z:-(lat-MAP_LAT0)*111320};
-      }
-      function busTexture(route){
-        if(busTexCache[route])return busTexCache[route];
-        var c=document.createElement('canvas');c.width=144;c.height=40;
-        var g=c.getContext('2d');g.clearRect(0,0,144,40);
-        g.fillStyle='rgba(0,0,0,.25)';g.beginPath();g.ellipse(72,36,60,4,0,0,7);g.fill();
-        g.fillStyle='#e8e8e8';g.beginPath();g.roundRect(6,8,132,24,5);g.fill();
-        g.fillStyle='#0d5aa7';g.fillRect(6,8,132,7);
-        g.fillStyle='#bcd6f5';g.beginPath();g.roundRect(14,17,100,10,3);g.fill();
-        g.fillStyle='#1c1e22';
-        g.beginPath();g.arc(32,32,7,0,7);g.fill();
-        g.beginPath();g.arc(112,32,7,0,7);g.fill();
-        g.fillStyle='#8a8f98';
-        g.beginPath();g.arc(32,32,3,0,7);g.fill();
-        g.beginPath();g.arc(112,32,3,0,7);g.fill();
-        g.fillStyle='#111';g.font='bold 13px sans-serif';g.textAlign='center';
-        g.fillText(String(route||''),72,30);
-        var t=new THREE.CanvasTexture(c);t.anisotropy=4;
-        busTexCache[route]=t;return t;
-      }
-      function fetchBusFeed(){
-        fetch('assets/transit/buses.json?'+Date.now()).then(function(r){return r.json();}).then(function(d){
-          if(d&&d.buses)busFeed=d;
-        }).catch(function(){});
-      }
-      updateTransitBuses=function(){
-        if(!walkPlayer||!walkPlayer.pos)return;
-        if(!busTimer){busTimer=setInterval(fetchBusFeed,30000);fetchBusFeed();}
-        /* Reusable temporaries */
-        if(!updateTransitBuses._cr)updateTransitBuses._cr=new THREE.Vector3();
-        if(!updateTransitBuses._cu)updateTransitBuses._cu=new THREE.Vector3();
-        if(!updateTransitBuses._qz)updateTransitBuses._qz=new THREE.Quaternion();
-        if(!updateTransitBuses._zAxis)updateTransitBuses._zAxis=new THREE.Vector3(0,0,1);
-        var camRight=updateTransitBuses._cr.set(1,0,0).applyQuaternion(mapCamera.quaternion);
-        var camUp=updateTransitBuses._cu.set(0,1,0).applyQuaternion(mapCamera.quaternion);
-        var nowS=Date.now()/1000,px=walkPlayer.pos.x,pz=walkPlayer.pos.z;
-        var seen={};
-        for(var i=0;i<busFeed.buses.length;i++){
-          var b=busFeed.buses[i];
-          var age=Math.min(120,Math.max(0,nowS-(busFeed.fetched_at||nowS)));
-          var d=(b.speed||0)*age,br=(b.bearing||0)*Math.PI/180;
-          var lat=b.lat+d*Math.cos(br)/111320;
-          var lng=b.lng+d*Math.sin(br)/(111320*Math.cos(MAP_LAT0*Math.PI/180));
-          var m=latLngToMap(lat,lng);
-          var dist=Math.hypot(m.x-px,m.z-pz);
-          if(dist>BUS_RADIUS)continue;
-          seen[b.id]=1;
-          var rec=transitBuses[b.id]||{};
-          var mesh=rec.mesh;
-          if(!mesh){
-            mesh=new THREE.Mesh(new THREE.PlaneGeometry(BUS_W,BUS_H),
-              new THREE.MeshBasicMaterial({map:busTexture(b.route),transparent:true,
-                side:THREE.DoubleSide,fog:true,depthWrite:false}));
-            mesh.renderOrder=2;mesh.frustumCulled=false;
-            mapScene.add(mesh);rec.mesh=mesh;transitBuses[b.id]=rec;
-          }else if(mesh.material.map!==busTexCache[b.route]){
-            mesh.material.map=busTexture(b.route);mesh.material.needsUpdate=true;
-          }
-          mesh.position.set(m.x,BUS_H/2,m.z);
-          mesh.quaternion.copy(mapCamera.quaternion);
-          /* Han 2026-10-09: nose points along screen-space travel direction
-             (same as cars). Bearing 0=north(-z), 90=east(+x). */
-          var bdx=Math.sin(br),bdz=-Math.cos(br);
-          var bScreenX=bdx*camRight.x+bdz*camRight.z;
-          var bScreenY=bdx*camUp.x+bdz*camUp.z;
-          var bSpd=Math.sqrt(bScreenX*bScreenX+bScreenY*bScreenY);
-          if(bSpd>0.01){
-            var bAng=Math.atan2(bScreenY,bScreenX),bRot;
-            if(bAng>Math.PI/2){mesh.scale.x=-1;bRot=bAng-Math.PI;}
-            else if(bAng<-Math.PI/2){mesh.scale.x=-1;bRot=bAng+Math.PI;}
-            else{mesh.scale.x=1;bRot=bAng;}
-            updateTransitBuses._qz.setFromAxisAngle(updateTransitBuses._zAxis,bRot);
-            mesh.quaternion.multiply(updateTransitBuses._qz);
-          }
-          rec.seen=2;
-        }
-        for(var id in transitBuses){
-          var r2=transitBuses[id];
-          if(!seen[id]){r2.seen=(r2.seen||2)-1;
-            if(r2.seen<=0&&r2.mesh){mapScene.remove(r2.mesh);
-              r2.mesh.material.dispose();delete transitBuses[id];}}
-        }
-      }
       /* Grass + cobblestone ground tiles (Han 2026-10-05). */
       function groundTexture(file,rx,ry){
         var gt=new THREE.TextureLoader().load('assets/props/ground/'+file);
@@ -9537,178 +9455,6 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        Player collision: after the axis moves, the local player is
        pushed out of every remote avatar's body circle - each client
        resolves only itself, the presence relay stays stateless. */
-    var ESPIL_BUS_TOP=2.4; /* physics roof height: a double jump
-       (apex ~2.56 m) plus the support law's 0.55 m swept grace lands
-       on it; traffic cars use 1.6 m on the same law. Tunable. */
-    var ESPIL_BUS_LEN=11, ESPIL_BUS_WID=2.55;
-    var espilBuses={};      /* id -> bus record */
-    var espilBusPollAt=0;
-    var espilBusTexCache={};
-    function espilBusEndpoint(){
-      if(window.__espilBusEndpoint)return window.__espilBusEndpoint;
-      return 'https://data.espil.online/transit/vancouver.json';
-    }
-    function espilBusXY(lat,lng){
-      var cfg=espilCityCfg(), a=espilP1Anchor();
-      return { x:(lng-a.lng)*111320*Math.cos(a.lat*Math.PI/180)+(cfg.ox||0),
-               z:(a.lat-lat)*111320+(cfg.oz||0) };
-    }
-    function espilBusSideTex(route){
-      var key='side:'+route;
-      if(espilBusTexCache[key])return espilBusTexCache[key];
-      var cv=document.createElement('canvas'); cv.width=1024; cv.height=244;
-      var c=cv.getContext('2d');
-      c.fillStyle='#f2f5f7'; c.fillRect(0,0,1024,244);
-      c.fillStyle='#20394f'; c.fillRect(0,26,1024,86);           /* window band */
-      c.fillStyle='rgba(255,255,255,.16)';
-      for(var i=0;i<9;i++)c.fillRect(18+i*86,26,3,86);          /* mullions */
-      c.fillStyle='#2b6cb0'; c.fillRect(0,148,1024,40);          /* TransLink blue swoosh */
-      c.fillStyle='#d7dee5'; c.fillRect(0,188,1024,56);          /* skirt */
-      c.fillStyle='#20394f'; c.fillRect(856,26,150,52);          /* destination box */
-      c.fillStyle='#ffb52e'; c.font='700 40px sans-serif'; c.textAlign='center'; c.textBaseline='middle';
-      c.fillText(String(route||'').slice(0,4),931,53);
-      c.fillStyle='rgba(32,57,79,.55)'; c.fillRect(856,120,64,124); /* front door */
-      c.fillStyle='#22262b';
-      c.beginPath(); c.arc(170,232,34,0,Math.PI*2); c.fill();
-      c.beginPath(); c.arc(830,232,34,0,Math.PI*2); c.fill();
-      var tex=new THREE.CanvasTexture(cv); espilBusTexCache[key]=tex; return tex;
-    }
-    function espilBusTopTex(){
-      if(espilBusTexCache.top)return espilBusTexCache.top;
-      var cv=document.createElement('canvas'); cv.width=1024; cv.height=244;
-      var c=cv.getContext('2d');
-      c.fillStyle='#e9edf1'; c.fillRect(0,0,1024,244);
-      c.fillStyle='#2b6cb0'; c.fillRect(0,0,1024,14); c.fillRect(0,230,1024,14);
-      c.fillStyle='#33566e'; c.fillRect(950,20,60,204);          /* windshield wedge (front, +x) */
-      c.fillStyle='#c3ccd4'; c.fillRect(300,52,210,140); c.fillRect(600,52,150,140); /* roof pods */
-      c.fillStyle='#aeb8c1'; c.fillRect(80,72,110,100);          /* rear vent */
-      var tex=new THREE.CanvasTexture(cv); espilBusTexCache.top=tex; return tex;
-    }
-    function espilBusFrontTex(route){
-      var key='front:'+route;
-      if(espilBusTexCache[key])return espilBusTexCache[key];
-      var cv=document.createElement('canvas'); cv.width=256; cv.height=244;
-      var c=cv.getContext('2d');
-      c.fillStyle='#f2f5f7'; c.fillRect(0,0,256,244);
-      c.fillStyle='#20394f'; c.fillRect(14,18,228,86);
-      c.fillStyle='#ffb52e'; c.font='700 44px sans-serif'; c.textAlign='center'; c.textBaseline='middle';
-      c.fillText(String(route||'').slice(0,4),128,61);
-      c.fillStyle='#2b6cb0'; c.fillRect(0,150,256,34);
-      c.fillStyle='#ffd76a';
-      c.beginPath(); c.arc(38,208,13,0,Math.PI*2); c.fill();
-      c.beginPath(); c.arc(218,208,13,0,Math.PI*2); c.fill();
-      var tex=new THREE.CanvasTexture(cv); espilBusTexCache[key]=tex; return tex;
-    }
-    function espilBusMakeMesh(route){
-      var side=new THREE.MeshBasicMaterial({map:espilBusSideTex(route),fog:true});
-      var top=new THREE.MeshBasicMaterial({map:espilBusTopTex(),fog:true});
-      var front=new THREE.MeshBasicMaterial({map:espilBusFrontTex(route),fog:true});
-      var dark=new THREE.MeshBasicMaterial({color:0x39424c,fog:true});
-      var mesh=new THREE.Mesh(new THREE.BoxGeometry(ESPIL_BUS_LEN,ESPIL_BUS_TOP,ESPIL_BUS_WID),
-        [front,front,top,dark,side,side]);
-      mesh.frustumCulled=false; mesh.renderOrder=2;
-      return mesh;
-    }
-    function espilBusRemove(id){
-      var B=espilBuses[id]; if(!B)return;
-      if(B.mesh&&B.mesh.parent)B.mesh.parent.remove(B.mesh);
-      var ci=carColliders.indexOf(B.col); if(ci>=0)carColliders.splice(ci,1);
-      delete espilBuses[id];
-    }
-    function espilBusClear(){ for(var id in espilBuses)espilBusRemove(id); }
-    function espilBusVts(v){ if(v.ts!==undefined&&v.ts!==null)return Number(v.ts); if(v.timestamp!==undefined&&v.timestamp!==null)return Number(v.timestamp); return null; }
-    function espilBusUpsert(v,now){
-      if(!v||v.lat===undefined||v.lng===undefined)return;
-      var xy=espilBusXY(v.lat,v.lng);
-      var B=espilBuses[v.id];
-      if(!B){
-        if(Object.keys(espilBuses).length>=24)return;
-        var mesh=espilBusMakeMesh(v.route);
-        mesh.userData.car={x:xy.x,px:xy.x,z:xy.z,pz:xy.z,bus:true};
-        var col={x0:xy.x-6,x1:xy.x+6,z0:xy.z-2,z1:xy.z+2,bottom:0,top:ESPIL_BUS_TOP,car:mesh};
-        mesh.userData.car.col=col; carColliders.push(col);
-        if(typeof mapScene!=='undefined'&&mapScene)mapScene.add(mesh);
-        B=espilBuses[v.id]={id:v.id,route:v.route||'',mesh:mesh,col:col,
-          cur:{x:xy.x,z:xy.z},fix:{x:xy.x,z:xy.z,at:now},vel:{x:0,z:0},heading:Math.PI/2,seen:now,lastTs:espilBusVts(v)};
-        mesh.position.set(xy.x,ESPIL_BUS_TOP/2,xy.z);
-        return;
-      }
-      if(Math.abs(xy.x-B.fix.x)<0.11&&Math.abs(xy.z-B.fix.z)<0.11){
-        B.seen=now;
-        var vts0=espilBusVts(v);
-        if(vts0!==null&&B.lastTs!==null&&B.lastTs!==undefined&&vts0>B.lastTs){ B.vel.x=0; B.vel.z=0; B.fix.at=now; } /* fresh report, same place: stopped - kill the prediction so the bus does not ghost-drive away from its stop */
-        if(vts0!==null)B.lastTs=vts0;
-        return;
-      }
-      var dtS=Math.max(1,(now-B.fix.at)/1000);
-      var nvx=(xy.x-B.fix.x)/dtS, nvz=(xy.z-B.fix.z)/dtS;
-      var nsp=Math.sqrt(nvx*nvx+nvz*nvz);
-      if(nsp<17){ B.vel.x=nvx; B.vel.z=nvz; }        /* reject GPS jumps */
-      B.fix={x:xy.x,z:xy.z,at:now}; B.seen=now;
-      var vts1=espilBusVts(v); if(vts1!==null)B.lastTs=vts1;
-      if(v.route&&v.route!==B.route){ B.route=v.route; }
-    }
-    function espilBusPoll(){
-      if(typeof fetch!=='function')return;
-      fetch(espilBusEndpoint(),{cache:'no-store'})
-        .then(function(r){ return r.ok?r.json():null; })
-        .then(function(j){
-          if(!j||!j.buses)return;
-          var now=Date.now();
-          for(var i=0;i<j.buses.length;i++)espilBusUpsert(j.buses[i],now);
-        })
-        .catch(function(){});
-    }
-    function espilBusTick(dt){
-      var on=false;
-      try{ on=cityPhaseActive&&espilCityKey()==='vancouver'&&document.body.classList.contains('in-map'); }catch(_){ }
-      if(!on){ if(Object.keys(espilBuses).length)espilBusClear(); return; }
-      var now=Date.now();
-      if(now-espilBusPollAt>15000){ espilBusPollAt=now; espilBusPoll(); }
-      for(var id in espilBuses){
-        var B=espilBuses[id];
-        if(now-B.seen>75000){ espilBusRemove(id); continue; }
-        /* extrapolate the last fix along the measured velocity,
-           capped, and ease the drawn position toward it */
-        var ext=Math.min(40,(now-B.fix.at)/1000); /* the R2 snapshot refreshes every 30 s; prediction spans the gap */
-        var tx=B.fix.x+B.vel.x*ext, tz=B.fix.z+B.vel.z*ext;
-        var dx=tx-B.cur.x, dz=tz-B.cur.z, dist=Math.sqrt(dx*dx+dz*dz);
-        if(dist>60){
-          /* snap: the prediction fell too far behind the reports (a
-             departure averaged over a stopped interval). A rider on
-             this bus moves with the snap - the carry law bridges
-             per-frame deltas only, so without this the rider is
-             dropped mid-route (QA run 6, 2026-10-27). */
-          try{
-            if(typeof walkPlayer!=='undefined'&&walkPlayer&&walkPlayer.pos){
-              var wp=walkPlayer.pos;
-              if(Math.abs(wp.y-ESPIL_BUS_TOP)<0.6&&wp.x>=B.col.x0-0.55&&wp.x<=B.col.x1+0.55&&wp.z>=B.col.z0-0.55&&wp.z<=B.col.z1+0.55){ wp.x+=dx; wp.z+=dz; B.snapRider=true; }
-            }
-          }catch(_){ }
-          B.cur.x=tx; B.cur.z=tz;
-        }
-        else { var k=Math.min(1,dt*1.8); B.cur.x+=dx*k; B.cur.z+=dz*k; }
-        var sp=Math.sqrt(B.vel.x*B.vel.x+B.vel.z*B.vel.z);
-        if(sp>0.5){
-          var want=Math.atan2(-B.vel.z,B.vel.x);
-          var dh=want-B.heading;
-          while(dh>Math.PI)dh-=Math.PI*2; while(dh<-Math.PI)dh+=Math.PI*2;
-          B.heading+=dh*Math.min(1,dt*3);
-        }
-        var cu=B.mesh.userData.car;
-        cu.px=cu.x; cu.pz=cu.z; cu.x=B.cur.x; cu.z=B.cur.z;
-        if(B.snapRider){ cu.px=cu.x; cu.pz=cu.z; B.snapRider=false; } /* fix 5: the snap already moved the rider; the carry law must not apply the same delta again */
-        B.mesh.position.set(B.cur.x,ESPIL_BUS_TOP/2,B.cur.z);
-        B.mesh.rotation.y=B.heading;
-        var ca=Math.abs(Math.cos(B.heading)), sa=Math.abs(Math.sin(B.heading));
-        var hx=(ca*ESPIL_BUS_LEN+sa*ESPIL_BUS_WID)/2, hz=(sa*ESPIL_BUS_LEN+ca*ESPIL_BUS_WID)/2;
-        B.col.x0=B.cur.x-hx; B.col.x1=B.cur.x+hx; B.col.z0=B.cur.z-hz; B.col.z1=B.cur.z+hz;
-      }
-    }
-    window.__espilBusState=function(){
-      var out=[]; for(var id in espilBuses){ var B=espilBuses[id]; out.push({id:id,route:B.route,x:B.cur.x,z:B.cur.z,heading:B.heading,top:ESPIL_BUS_TOP}); }
-      return {count:out.length, buses:out};
-    };
     /* Player-player collision: resolve the LOCAL player out of each
        remote avatar's body circle (two body radii). Remotes are
        interpolated ghosts on this client; their own clients resolve
@@ -10453,7 +10199,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         try{p.av.playAnim('swim');}catch(e){}
       }
       var _ms=moveSpeeds();
-      var SPEED=p.swimming?_ms.swim:(p.running?_ms.run:_ms.walk);
+      var SPEED=p.swimming?_ms.swim:((p.running?_ms.run:_ms.walk)*(window.__espilSpeedBoost||1)); /* fast track (Han 2026-10-28): street tiles x2 */
       p._dx=mx*SPEED*dt;p._dz=mz*SPEED*dt;
       p.moving=il>.12;
       p.pos.x+=p._dx;collideCircleAxis(p,'x');
@@ -10476,7 +10222,6 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         p.pos.y+=(WATER_Y-p.pos.y)*Math.min(1,dt*5);
         p.velY=0;p.onGround=false;p.jumps=0;
       }
-      espilBusTick(dt); /* GEORGIA BUSES: advance the fleet before the support law reads its colliders */
       /* --- vertical: gravity + landing on tops (rooftops, planters, plaza, cars) --- */
       p.velY-=26*dt;
       var yBeforeFall=p.pos.y;
@@ -11051,7 +10796,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       var ldB=document.getElementById('loader');
       if(ldB&&ldB.classList.contains('seg-a')){ ldB.classList.remove('show'); ldB.classList.remove('seg-a'); ldB.classList.add('done'); }
       if(window.__espilSuspendMapLoader)window.__espilSuspendMapLoader();
-      loginGateNext=prod? function(){ entrySubShown=true; finishCityEntry(); } : function(){ startCityPreload(); };
+      loginGateNext=function(){ entrySubShown=true; finishCityEntry(); }; /* Han 2026-10-28: no mid-flow loading bar on any host - gender follows sign-in directly; the single glass loading sequence runs at the end, after the location pick */
       /* The entry overlay (z 26) sits above the modal (z 20) and would
          swallow every click - hide it while the login gate is up. */
       if(entryEl)entryEl.setAttribute('aria-hidden','true');
@@ -11227,15 +10972,10 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       }
       window.__espilCityKey=newCityKey;
       if(window.__espilPreloadCityEntry)window.__espilPreloadCityEntry(); /* Han PC verdict 2026-10-19 #2: all city loading starts NOW, at the Dive click, in parallel with the entry gate - no dead time after the last gate step */
-      /* Immediate feedback (Han 2026-10-19, flow ruling #2): the glass
-         is on screen from the Dive click itself, over the glide and
-         the entry overlay, until the login gate opens. It takes no
-         clicks in this segment (class seg-a) so the overlay's own
-         click/key advance keeps working underneath it. */
-      var ldA=document.getElementById('loader');
-      if(ldA){ ldA.classList.remove('done'); ldA.classList.add('show'); ldA.classList.add('seg-a'); }
-      if(window.__espilStartMapLoader)window.__espilStartMapLoader();
-      if(window.__espilStartLoaderPhysics)window.__espilStartLoaderPhysics();
+      /* Han 2026-10-28 (entry order ruling): NO glass over the Dive
+         segment - the order is Dive, sign in/up, gender, location,
+         and only then the glass loading sequence. The preload above
+         still starts here and runs silently in parallel. */
       entryActive=true;entryTypedDone=false;entrySubShown=false;entryStartedAt=performance.now();
       clearZoomStages();
       if(window.EspilAudio&&window.EspilAudio.pop)window.EspilAudio.pop();
@@ -11511,7 +11251,6 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         updateProps();
         updateTraffic(dt);
         updateTrafficCars(dt);
-        updateTransitBuses();
         if(typeof updateTrafficLightVisuals==='function')updateTrafficLightVisuals();
         updateLeafletMap();
         if(espilP1.layerLive&&espilP1.map&&!espilP1.failed){ /* CUSTOM LAYER: mapScene is drawn inside the map's render pass this frame - the game's own context stays idle (CarInMap conversion, 2026-10-17) */ }
@@ -13286,15 +13025,17 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       '#espil-ctx button{display:flex;align-items:center;width:100%;margin:5px 0;padding:9px 10px;border-radius:9px;border:1px solid rgba(255,217,122,.35);background:rgba(255,255,255,.06);color:#fff;font:600 13.5px Manrope,sans-serif;cursor:pointer;text-align:left}',
       '#espil-ctx button:disabled{opacity:.45;cursor:default}',
       '#espil-ctx .soon{margin-left:auto;font-size:.56rem;font-weight:800;letter-spacing:.12em;color:#0b1518;background:#ffd97a;border-radius:999px;padding:3px 7px}',
-      '#espil-social-card{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:81;display:none;width:min(340px,90vw);border:2px solid #6b4a2f;border-radius:20px;background:linear-gradient(160deg,rgba(20,35,20,.97),rgba(10,20,12,.97));color:#f3e9d2;padding:18px;box-shadow:0 18px 40px rgba(0,0,0,.6)}',
-      '#espil-social-card h4{margin:0 0 8px;color:#ffd97a;font-size:16px;letter-spacing:.04em}',
+      '#espil-social-card{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:81;display:none;width:min(340px,90vw);max-height:94vh;overflow:hidden;border:2px solid rgba(201,168,106,.78);border-radius:18px;background:linear-gradient(168deg,rgba(23,48,31,.98),rgba(13,25,16,.98));color:#f3e9d2;padding:18px;box-shadow:0 24px 60px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,217,122,.28)}',
+      '.espil-card-head{display:flex;align-items:center;gap:14px;margin:0 0 10px;padding-bottom:10px;border-bottom:1px solid rgba(201,168,106,.38)}',
+      '.espil-card-face{flex:none;width:76px;height:76px;border-radius:50%;border:2px solid rgba(245,197,66,.75);background:#17303a;box-shadow:0 4px 14px rgba(0,0,0,.4)}',
+      '#espil-social-card h4{margin:0;color:#ffd97a;font-size:16px;letter-spacing:.04em;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
       '#espil-social-card p{margin:5px 0;font-size:13.5px;line-height:1.55}',
       '#espil-social-card p b{color:#8ef7e8;font-weight:700}',
       '.espil-social-x{float:right;border:none;background:rgba(255,255,255,.1);color:#fff;width:26px;height:26px;border-radius:8px;cursor:pointer;font-size:14px}',
       '#espil-invite-bar{position:fixed;left:50%;transform:translateX(-50%);top:calc(70px + env(safe-area-inset-top,0px));z-index:82;display:none;align-items:center;gap:10px;max-width:min(480px,92vw);border:2px solid #6b4a2f;border-radius:999px;background:linear-gradient(160deg,rgba(20,35,20,.97),rgba(10,20,12,.97));color:#f3e9d2;padding:9px 12px 9px 18px;box-shadow:0 14px 34px rgba(0,0,0,.55);font:600 13.5px Manrope,sans-serif}',
       '#espil-invite-bar button{border-radius:999px;padding:7px 14px;border:1px solid rgba(255,217,122,.5);background:rgba(255,217,122,.16);color:#ffd97a;font:700 13px Manrope,sans-serif;cursor:pointer}',
       '#espil-invite-bar button.no{background:transparent;color:#dfe9d8;border-color:rgba(255,255,255,.3)}',
-      '.espil-social-row{display:flex;align-items:center;gap:8px;border:1px solid rgba(134,238,228,.25);border-radius:8px;padding:9px 10px;margin:0 0 8px;background:rgba(20,60,60,.3);color:#ddfffc;font-size:13.5px}',
+      '.espil-social-row{display:flex;align-items:center;gap:8px;border:1px solid rgba(134,238,228,.25);border-radius:8px;padding:6px 9px;margin:0 0 6px;background:rgba(20,60,60,.3);color:#ddfffc;font-size:13.5px}',
       '.espil-social-row .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
       '.espil-social-row .st{font-size:11.5px;opacity:.75}',
       '.espil-tab-btn{padding:8px 16px;border-radius:999px;border:1px solid rgba(134,238,228,.35);background:transparent;color:#b9d8d4;font:800 12.5px Manrope,sans-serif;letter-spacing:.06em;cursor:pointer}',
@@ -13326,7 +13067,9 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     b.appendChild(ctxEl);
 
     cardEl = document.createElement('div'); cardEl.id = 'espil-social-card';
-    cardEl.innerHTML = '<button type="button" class="espil-social-x" aria-label="Close">×</button><h4></h4><div class="espil-social-body"></div>';
+    cardEl.innerHTML = '<button type="button" class="espil-social-x" aria-label="Close">×</button>' +
+      '<div class="espil-card-head"><canvas class="espil-card-face" width="112" height="112"></canvas><h4></h4></div>' +
+      '<div class="espil-social-body"></div>';
     cardEl.querySelector('.espil-social-x').addEventListener('click', function () { cardEl.style.display = 'none'; });
     b.appendChild(cardEl);
 
@@ -13374,6 +13117,31 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
   function hideInvite() { pendingInvite = null; clearTimeout(inviteTimer); if (inviteEl) inviteEl.style.display = 'none'; }
 
   /* ---------------- profile card -------------------------------- */
+  /* The profile portrait (Han 2026-10-28): the character's current
+     look, painted with the same recipe the world's own profile panel
+     uses (the guide-face borrow, else the gendered face). */
+  function paintFace(cv, gender) {
+    if (!cv) return;
+    var c = cv.getContext('2d'); if (!c) return;
+    var src = document.getElementById('guide-face'), painted = false;
+    if (src) { try { var px = src.getContext('2d').getImageData(6, 6, 1, 1).data; painted = px[3] > 0; } catch (e) {} }
+    c.clearRect(0, 0, 112, 112);
+    c.save(); c.beginPath(); c.arc(56, 56, 54, 0, Math.PI * 2); c.clip();
+    if (painted) { c.drawImage(src, 0, 0, 112, 112); }
+    else {
+      var grd = c.createLinearGradient(0, 0, 0, 112); grd.addColorStop(0, '#1d4256'); grd.addColorStop(1, '#12242f');
+      c.fillStyle = grd; c.fillRect(0, 0, 112, 112);
+      c.fillStyle = '#f2c49b'; c.beginPath(); c.arc(56, 60, 26, 0, Math.PI * 2); c.fill();
+      c.fillStyle = gender === 'f' ? '#7a4a2b' : '#3a2a1c';
+      c.beginPath(); c.arc(56, 42, 27, Math.PI, Math.PI * 2); c.fill();
+      if (gender === 'f') { c.fillRect(29, 42, 10, 34); c.fillRect(73, 42, 10, 34); }
+      c.fillStyle = '#22303a';
+      c.beginPath(); c.arc(47, 60, 3, 0, Math.PI * 2); c.arc(65, 60, 3, 0, Math.PI * 2); c.fill();
+      c.strokeStyle = '#b3764a'; c.lineWidth = 2; c.beginPath(); c.arc(56, 66, 8, 0.15 * Math.PI, 0.85 * Math.PI); c.stroke();
+    }
+    c.restore();
+  }
+
   function showProfile(peer) {
     if (peer.self) {
       if (window.__espilOpenSelfProfile) { window.__espilOpenSelfProfile(); return; }
@@ -13389,6 +13157,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     if (typeof peer.dist === 'number') lines += '<p><b>' + escT(t('distLabel')) + '</b> ' + peer.dist.toFixed(1) + ' m</p>';
     if (party && !peer.self && inPartyWith(peer.id)) lines += '<p><b>' + escT(t('partyNow')) + '</b> ' + party.members.length + ' ' + escT(t('membersWord')) + '</p>';
     body.innerHTML = lines;
+    paintFace(cardEl.querySelector('.espil-card-face'), peer.gender);
     cardEl.style.display = 'block';
   }
 
@@ -14131,6 +13900,8 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
 
   var STR = {
     en: {
+      landingNav: 'Look around the cities - use the arrow keys',
+      landingEnter: 'Press Enter to dive into the city',
       move: 'Move with the arrow keys',
       jump: 'Jump - press Shift',
       nav: 'Follow the green path to Konbiniya on Robson Street',
@@ -14142,6 +13913,8 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
       replay: 'Tutorial - play it again'
     },
     ko: {
+      landingNav: '방향키로 도시들을 둘러보세요',
+      landingEnter: 'Enter를 눌러 도시로 들어가세요',
       move: '방향키로 움직여 보세요',
       jump: 'Shift를 눌러 점프해 보세요',
       nav: '초록 길을 따라 랍슨 거리의 콘비니야로 이동하세요',
@@ -14153,6 +13926,8 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
       replay: '튜토리얼 - 다시 하기'
     },
     fr: {
+      landingNav: 'Regardez les villes - touches fléchées',
+      landingEnter: 'Entrée pour plonger dans la ville',
       move: 'Déplacez-vous avec les flèches',
       jump: 'Sautez - touche Maj',
       nav: 'Suivez le chemin vert jusqu\'à Konbiniya, rue Robson',
@@ -14164,6 +13939,8 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
       replay: 'Tutoriel - rejouer'
     },
     zh: {
+      landingNav: '用方向键浏览城市',
+      landingEnter: '按回车进入城市',
       move: '用方向键移动',
       jump: '按 Shift 跳跃',
       nav: '沿着绿道前往 Robson 街的 Konbiniya',
@@ -14182,7 +13959,9 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
   }
   function t(k) { return (STR[lang()] || STR.en)[k] || STR.en[k] || k; }
 
-  var STEPS = ['move', 'jump', 'nav', 'enter', 'buy', 'stall', 'map'];
+  var STEPS = ['landingNav', 'landingEnter', 'move', 'jump', 'nav', 'enter', 'buy', 'stall', 'map'];
+  var FIRST_GAME_STEP = 2; /* STEPS index of the first in-map step */
+  function onLanding() { return !window.__ESPIL_GAME_PAGE; }
   var step = -1;               /* -1 = not running */
   var chip = null;
   var stepStartPose = null;
@@ -14226,6 +14005,7 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
   function show() {
     ensureChip();
     if (step < 0 || step >= STEPS.length) { hide(); return; }
+    if (onLanding() && step >= FIRST_GAME_STEP) { hide(); return; } /* in-game steps wait for the game page */
     chip.querySelector('.n').textContent = (step + 1) + ' / ' + STEPS.length;
     chip.querySelector('.tx').textContent = t(STEPS[step]);
     chip.classList.remove('done');
@@ -14264,6 +14044,7 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
     if (started && step >= 0) return;
     started = true;
     step = (typeof fromStep === 'number' && fromStep >= 0 && fromStep < STEPS.length) ? fromStep : 0;
+    if (!onLanding() && step < FIRST_GAME_STEP) step = FIRST_GAME_STEP; /* landing steps belong to the landing page */
     saveStep();
     stepStartPose = pose();
     if (STEPS[step] === 'nav') {
@@ -14272,7 +14053,7 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
     show();
   }
   function restart() {
-    try { localStorage.removeItem(DONE_KEY); } catch (e) {}
+    try { localStorage.removeItem(DONE_KEY); localStorage.removeItem(STEP_KEY); } catch (e) {}
     step = -1;
     started = false; /* the boot watcher restarts it on the next tick */
   }
@@ -14285,8 +14066,14 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
   }
   function tick() {
     if (step < 0) return;
-    if (!inMap()) return;
     var key = STEPS[step];
+    if (key === 'landingNav' || key === 'landingEnter') {
+      /* landing steps progress through the key/dive listeners below;
+         anywhere else they are definitionally behind us */
+      if (!onLanding()) advance();
+      return;
+    }
+    if (!inMap()) { if (onLanding()) hide(); return; }
     if (key === 'move') {
       var p = pose();
       if (p && stepStartPose) {
@@ -14334,16 +14121,36 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
     }
   });
 
+  /* ---- landing steps: arrows browse the cities, Enter dives ------ */
+  document.addEventListener('keydown', function (e) {
+    if (step < 0 || !onLanding()) return;
+    if (/INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || '')) return;
+    if (window.__espilNoticeOpen) return;
+    if (STEPS[step] === 'landingNav' && /^Arrow/.test(e.key || '')) { advance(); return; }
+    if (STEPS[step] === 'landingEnter' && (e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter')) {
+      var info = document.getElementById('city-info');
+      var btn = document.getElementById('city-info-enter');
+      if (info && info.getAttribute('aria-hidden') === 'false' && btn) {
+        e.preventDefault();
+        btn.click(); /* fires the world's own dive; espil-dive-start completes the step */
+      }
+    }
+  });
+  window.addEventListener('espil-dive-start', function () {
+    if (step >= 0 && STEPS[step] === 'landingEnter') advance();
+  });
+
   /* ---- boot: fresh players only, Vancouver (the Konbiniya city).
      The watcher stays alive so the Settings replay can restart the
      flow at any time; it starts the tutorial once the player has
      landed, and resumes a saved step after a reload. --- */
   setInterval(function () {
     if (done() || step >= 0) return;
-    if (!inMap() || !landed()) return;
-    if (!window.__espilKonbiniyaPos) return; /* not the tutorial city */
     var saved = 0;
     try { saved = Number(localStorage.getItem(STEP_KEY) || '0') || 0; } catch (e) {}
+    if (onLanding()) { if (saved < FIRST_GAME_STEP) start(saved); return; }
+    if (!inMap() || !landed()) return;
+    if (!window.__espilKonbiniyaPos) return; /* not the tutorial city */
     start(saved);
   }, 700);
 
@@ -14551,101 +14358,493 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
 
 </script>
 <script>
-/* __espilDemoBuses v1 - a standing fleet of 5 buses (Han's order,
-   2026-10-27: "just make 5 of them roam at all times, from Stanley
-   Park to the Public Library"). The real TransLink snapshot feed is
-   not published yet, so - until it is - this module answers the bus
-   module's own feed polls with a synthetic snapshot: 5 buses (route
-   19, the real Stanley Park route) circulating on West Georgia
-   between the Stanley Park entrance and the Vancouver Public
-   Library, with a short dwell at each terminus, exactly following
-   the feed contract (per-vehicle fresh ts; a dwelling bus reports
-   the same position with an advancing ts, which the bus module
-   reads as stopped). The moment the real feed returns vehicles,
-   the real data takes over untouched - the synthetic fleet only
-   fills an empty or unreachable feed. All rendering, collision and
-   roof-riding stay the bus module's own work. */
+/* __espilFastTrack v1 - Han's order (2026-10-28): the buses are gone;
+   instead the roadways of Georgia, Burrard, Robson, Denman and Davie
+   carry FAST TRACK tiles - stepping on one doubles the player's land
+   speed (the walk code multiplies by window.__espilSpeedBoost).
+   Vancouver only. The strips are flat ribbons laid on the road
+   surface along street centrelines surveyed in world coordinates
+   against the game's own collision grid (perpendicular walkable-run
+   centres, rig probe_fit3, 2026-10-28); the boost test is a
+   point-to-segment distance check on the player's position. */
+(function(){
+  'use strict';
+  if (window.__espilFastTrack) return;
+  var STREETS = [
+    { id: 'georgia', pts: [[-1156,-1074],[-1098,-1004],[-1036,-941],[-967,-884],[-895,-833],[-824,-779],[-755,-724],[-684,-671],[-617,-613],[-555,-549],[-485,-493],[-405,-452],[-330,-403],[-267,-341],[-198,-288],[-120,-247],[-38,-214],[44,-180],[128,-150],[217,-133],[298,-97],[360,-35],[401,39],[420,129],[429,223],[470,295],[543,327],[627,336],[714,347],[799,377],[887,388],[978,376],[1065,391],[1150,415],[1238,428],[1324,444],[1411,459],[1500,460]] },
+    { id: 'burrard', pts: [[-69,-698],[-94,-614],[-114,-528],[-135,-442],[-173,-361],[-200,-278],[-198,-188],[-193,-99],[-201,-14],[-213,71],[-237,154],[-263,236],[-266,323],[-273,410],[-286,495],[-294,581],[-308,666],[-324,750],[-329,835],[-334,923],[-357,1014],[-361,1103],[-334,1191],[-315,1279],[-309,1368],[-303,1457],[-283,1544],[-235,1631]] },
+    { id: 'robson',  pts: [[-906,-827],[-850,-750],[-781,-687],[-712,-623],[-647,-554],[-584,-484],[-516,-420],[-446,-358],[-380,-292],[-314,-226],[-248,-160],[-175,-100],[-90,-47],[-22,18],[24,93],[79,163],[146,231],[212,300],[276,371],[340,442],[403,513],[467,583]] },
+    { id: 'denman',  pts: [[-1152,-1061],[-1151,-977],[-1149,-893],[-1133,-812],[-1101,-734],[-1086,-654],[-1104,-567],[-1113,-476],[-1107,-387],[-1119,-298],[-1140,-211],[-1142,-122],[-1145,-33],[-1166,54],[-1185,141],[-1200,229],[-1217,316],[-1221,406],[-1230,495],[-1252,581],[-1272,672],[-1302,769],[-1343,868]] },
+    { id: 'davie',   pts: [[-1260,670],[-1173,683],[-1086,695],[-998,693],[-910,685],[-822,678],[-735,686],[-648,706],[-560,702],[-472,696],[-385,706],[-297,711],[-211,724],[-124,748],[-36,755],[50,768],[129,813],[211,847],[299,861],[382,888],[465,914],[551,927],[637,937],[723,948],[806,972],[888,998],[972,1018],[1056,1038],[1140,1058]] }
+  ];
+  var SEGS = [];
+  STREETS.forEach(function(st){
+    for (var i = 0; i + 1 < st.pts.length; i++){
+      SEGS.push({ id: st.id, ax: st.pts[i][0], az: st.pts[i][1], bx: st.pts[i + 1][0], bz: st.pts[i + 1][1] });
+    }
+  });
+  var WIDTH = 3.4, REACH = 1.9, Y = 0.07;
+  var builtScene = null, mat = null, onStreet = null, hinted = false;
+  var HINT = { en: 'Fast track - speed x2', ko: '패스트 트랙 - 속도 2배', fr: 'Voie rapide - vitesse x2', zh: '快速车道 - 速度 x2' };
+  function lang(){ try { return (window.__espilLang && window.__espilLang()) || 'en'; } catch(e){ return 'en'; } }
+  function makeTexture(){
+    var c = document.createElement('canvas'); c.width = 128; c.height = 128;
+    var g = c.getContext('2d');
+    g.fillStyle = 'rgba(7,34,38,0.80)'; g.fillRect(0, 0, 128, 128);
+    g.fillStyle = 'rgba(245,197,66,0.95)';
+    g.fillRect(0, 0, 128, 5); g.fillRect(0, 123, 128, 5);
+    g.strokeStyle = 'rgba(245,197,66,0.95)'; g.lineWidth = 11; g.lineJoin = 'round';
+    g.beginPath(); g.moveTo(38, 30); g.lineTo(82, 64); g.lineTo(38, 98); g.stroke();
+    g.globalAlpha = 0.55;
+    g.beginPath(); g.moveTo(66, 30); g.lineTo(110, 64); g.lineTo(66, 98); g.stroke();
+    var t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4;
+    return t;
+  }
+  function build(scene){
+    mat = new THREE.MeshBasicMaterial({ map: makeTexture(), transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide, fog: true });
+    SEGS.forEach(function(s){
+      var dx = s.bx - s.ax, dz = s.bz - s.az;
+      var len = Math.hypot(dx, dz); if (len < 1) return;
+      var ux = dx / len, uz = dz / len, px = -uz, pz = ux, hw = WIDTH / 2;
+      var y = Y;
+      var v = new Float32Array([
+        s.ax + px * hw, y, s.az + pz * hw,   s.ax - px * hw, y, s.az - pz * hw,
+        s.bx - px * hw, y, s.bz - pz * hw,   s.bx + px * hw, y, s.bz + pz * hw ]);
+      var uv = new Float32Array([0, 0, 0, 1, len / 7, 1, len / 7, 0]);
+      var geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(v, 3));
+      geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+      geo.setIndex([0, 1, 2, 0, 2, 3]);
+      var mesh = new THREE.Mesh(geo, mat);
+      mesh.renderOrder = 1; mesh.frustumCulled = false;
+      scene.add(mesh);
+    });
+    builtScene = scene;
+  }
+  function segDist2(px, pz, s){
+    var dx = s.bx - s.ax, dz = s.bz - s.az;
+    var L2 = dx * dx + dz * dz || 1;
+    var t = ((px - s.ax) * dx + (pz - s.az) * dz) / L2;
+    t = Math.max(0, Math.min(1, t));
+    var cx = s.ax + dx * t, cz = s.az + dz * t;
+    var ex = px - cx, ez = pz - cz;
+    return ex * ex + ez * ez;
+  }
+  function mapScene(){
+    try { if (typeof window.__espilMapScene === 'function') return window.__espilMapScene(); } catch(e){}
+    try {
+      var dm = window.__espilDistrictMeshes;
+      if (dm && dm.length && dm[0] && dm[0].parent) {
+        var n = dm[0];
+        while (n.parent) n = n.parent;
+        return n;
+      }
+    } catch(e){}
+    return null;
+  }
+  function inMap(){
+    try { return document.body.classList.contains('in-map'); } catch(e){ return false; }
+  }
+  setInterval(function(){
+    try {
+      if (!inMap()) { window.__espilSpeedBoost = 1; onStreet = null; return; }
+      var key = window.__espilCityKey;
+      if (typeof key === 'function') { try { key = key(); } catch(e){ key = ''; } }
+      key = String(key || '').toLowerCase();
+      if (key && key.indexOf('vancouver') < 0) { window.__espilSpeedBoost = 1; onStreet = null; return; }
+      var scene = mapScene();
+      if (scene && scene !== builtScene && typeof THREE !== 'undefined') build(scene);
+      var pose = window.__espilPlayerPose && window.__espilPlayerPose();
+      if (!pose) return;
+      var hit = null, best = REACH * REACH;
+      for (var i = 0; i < SEGS.length; i++){
+        var d2 = segDist2(pose.x, pose.z, SEGS[i]);
+        if (d2 < best) { best = d2; hit = SEGS[i].id; }
+      }
+      onStreet = hit;
+      window.__espilSpeedBoost = hit ? 2 : 1;
+      if (mat) mat.opacity = hit ? 1 : 0.85;
+      if (hit && !hinted) {
+        hinted = true;
+        if (typeof window.__espilToast === 'function') window.__espilToast(HINT[lang()] || HINT.en);
+      }
+    } catch(e) { /* the world may still be booting */ }
+  }, 120);
+  window.__espilFastTrackState = function(){
+    return { on: !!onStreet, street: onStreet, boost: window.__espilSpeedBoost || 1, segments: SEGS.length, built: !!builtScene };
+  };
+  window.__espilFastTrack = true;
+})();
+
+</script>
+<script>
+/* __espilEntryFlow v1 - Han's entry order (2026-10-28): Dive, then
+   sign in / sign up, then gender, then the LOCATION pick, then the
+   glass loading sequence. This module owns two pieces:
+   (1) the sign-in modal's account zone, rebuilt as tabs - Sign up
+       (ID first, then name, email, password) and Sign in (ID,
+       password) - on the same on-device account store the social
+       module uses (espil_accounts_v1, salted SHA-256), so accounts
+       made in either form keep working; server accounts remain
+       Han's pending D1 + Google OAuth step. Guests are numbered in
+       entry order: the Worker assigns "Guest N" at join and this
+       module adopts that name from the roster (with a client-side
+       count as fallback until the Worker update deploys).
+   (2) window.__espilEntryLocationGate - the arrival picker the
+       character gate now detours through (Vancouver list: current
+       location, Art Gallery, Robson Square, Holt Renfrew,
+       Waterfront, Stanley Park, English Bay). The pick is snapped
+       to walkable ground and handed to espilEntryStart as
+       window.__espilSpawnPick; other cities enter directly. */
 (function () {
   'use strict';
+  if (window.__espilEntryFlow) return;
+  window.__espilEntryFlow = true;
 
-  var WEST = { lat: 49.29220, lng: -123.13680 };  /* Georgia at the Stanley Park entrance */
-  var EAST = { lat: 49.27987, lng: -123.11448 };  /* Vancouver Public Library, 350 W Georgia */
-  var SPEED = 8;          /* m/s, a city bus pace */
-  var DWELL = 20;         /* seconds paused at each terminus */
-  var COUNT = 5;
-  var ROUTE = '19';
-
-  var LAT0 = 49.2827, LNG0 = -123.1207;
-  var M_PER_DEG_LAT = 111320;
-  var M_PER_DEG_LNG = 111320 * Math.cos(LAT0 * Math.PI / 180);
-
-  /* route length in metres (world frame) */
-  var dx = (EAST.lng - WEST.lng) * M_PER_DEG_LNG;
-  var dz = -(EAST.lat - WEST.lat) * M_PER_DEG_LAT;
-  var LEN = Math.sqrt(dx * dx + dz * dz);
-  var HX = dx / LEN, HZ = dz / LEN;          /* unit heading, west -> east */
-  var RX = -HZ, RZ = HX;                     /* right-hand side of that heading */
-  var LEG = LEN / SPEED;                     /* seconds per one-way leg */
-  var CYCLE = 2 * (LEG + DWELL);
-
-  /* distance along the route (0..LEN) + direction for a phase time */
-  function along(u) {
-    if (u < LEG) return { d: SPEED * u, dir: 1 };
-    if (u < LEG + DWELL) return { d: LEN, dir: 1 };
-    if (u < 2 * LEG + DWELL) return { d: LEN - SPEED * (u - LEG - DWELL), dir: -1 };
-    return { d: 0, dir: -1 };
+  var T = {
+    signUp: { en: 'Sign up', ko: '회원가입', fr: "S'inscrire", zh: '注册' },
+    signIn: { en: 'Sign in', ko: '로그인', fr: 'Se connecter', zh: '登录' },
+    idPh: { en: 'ID (shown above your character)', ko: '아이디 (캐릭터 위에 표시됩니다)', fr: 'ID (affiché au-dessus du personnage)', zh: 'ID（显示在角色上方）' },
+    namePh: { en: 'Name', ko: '이름', fr: 'Nom', zh: '姓名' },
+    emailPh: { en: 'Email', ko: '이메일', fr: 'E-mail', zh: '邮箱' },
+    pwPh: { en: 'Password', ko: '비밀번호', fr: 'Mot de passe', zh: '密码' },
+    create: { en: 'Create account and enter', ko: '가입하고 입장', fr: 'Créer le compte et entrer', zh: '注册并进入' },
+    enter: { en: 'Sign in and enter', ko: '로그인하고 입장', fr: 'Se connecter et entrer', zh: '登录并进入' },
+    idRule: { en: 'ID: 3-16 letters, numbers or underscore.', ko: '아이디는 3-16자, 영문/숫자/밑줄만 됩니다.', fr: 'ID : 3-16 lettres, chiffres ou _ .', zh: 'ID：3-16 个字母、数字或下划线。' },
+    nameRule: { en: 'Please enter your name.', ko: '이름을 입력해 주세요.', fr: 'Entrez votre nom.', zh: '请输入姓名。' },
+    emailRule: { en: 'Please enter a valid email.', ko: '올바른 이메일을 입력해 주세요.', fr: 'Entrez un e-mail valide.', zh: '请输入有效的邮箱。' },
+    pwRule: { en: 'Password: 6 characters or more.', ko: '비밀번호는 6자 이상이어야 합니다.', fr: 'Mot de passe : 6 caractères ou plus.', zh: '密码至少 6 个字符。' },
+    taken: { en: 'That ID is already taken. Sign in instead.', ko: '이미 있는 아이디입니다. 로그인해 주세요.', fr: 'Cet ID est déjà pris. Connectez-vous.', zh: '该 ID 已被注册，请直接登录。' },
+    created: { en: 'Account created. Welcome, {id}.', ko: '가입이 완료되었습니다. 환영합니다, {id}님.', fr: 'Compte créé. Bienvenue, {id}.', zh: '注册成功，欢迎 {id}。' },
+    noAcct: { en: 'No account with that ID yet. Sign up first.', ko: '아직 없는 아이디입니다. 먼저 가입해 주세요.', fr: "Aucun compte avec cet ID. Inscrivez-vous d'abord.", zh: '该 ID 尚无账户，请先注册。' },
+    wrongPw: { en: 'Wrong password.', ko: '비밀번호가 틀렸습니다.', fr: 'Mot de passe incorrect.', zh: '密码不正确。' },
+    welcomeBack: { en: 'Welcome back, {id}.', ko: '다시 오신 것을 환영합니다, {id}님.', fr: 'Bon retour, {id}.', zh: '欢迎回来，{id}。' },
+    locTitle: { en: 'Where will you arrive?', ko: '어디에 도착하시겠습니까?', fr: 'Où arriverez-vous ?', zh: '您想在哪里抵达？' },
+    locSub: { en: 'Pick your arrival spot in {city}.', ko: '{city}에서 도착할 장소를 골라 주세요.', fr: "Choisissez votre lieu d'arrivée à {city}.", zh: '选择您在{city}的抵达地点。' },
+    curLoc: { en: 'My current location', ko: '현재 본인 위치', fr: 'Ma position actuelle', zh: '我当前的位置' },
+    gallery: { en: 'Vancouver Art Gallery', ko: '밴쿠버 아트갤러리', fr: "Vancouver Art Gallery", zh: '温哥华美术馆' },
+    robsonSq: { en: 'Robson Square', ko: '랍슨 스퀘어', fr: 'Robson Square', zh: '罗布森广场' },
+    holt: { en: 'Holt Renfrew', ko: '홀트 렌프류', fr: 'Holt Renfrew', zh: 'Holt Renfrew' },
+    waterfront: { en: 'Waterfront', ko: '워터프론트', fr: 'Waterfront', zh: '海滨站' },
+    stanley: { en: 'Stanley Park', ko: '스탠리 파크', fr: 'Stanley Park', zh: '斯坦利公园' },
+    englishBay: { en: 'English Bay', ko: '잉글리시 베이', fr: 'English Bay', zh: '英吉利湾' },
+    locating: { en: 'Finding your location...', ko: '위치를 확인하는 중입니다...', fr: 'Localisation en cours...', zh: '正在定位...' },
+    outside: { en: 'That is outside the playable area - arriving at the Art Gallery instead.', ko: '플레이 가능 지역 밖이라 아트갤러리 앞에 도착합니다.', fr: "Hors de la zone jouable - arrivée devant la galerie d'art.", zh: '超出可游玩区域，将在美术馆前抵达。' },
+    noGeo: { en: 'Location is unavailable - pick a place instead.', ko: '위치를 확인할 수 없습니다. 장소를 골라 주세요.', fr: 'Position indisponible - choisissez un lieu.', zh: '无法定位，请选择一个地点。' }
+  };
+  function lang() { try { return window.__espilLang() || 'en'; } catch (e) { return 'en'; } }
+  function t(k, vars) {
+    var s = (T[k] && (T[k][lang()] || T[k].en)) || k;
+    if (vars) for (var key in vars) s = s.split('{' + key + '}').join(vars[key]);
+    return s;
   }
-  function busFix(i, nowMs) {
-    var nowS = nowMs / 1000;
-    var u = ((nowS + i * (CYCLE / COUNT)) % CYCLE + CYCLE) % CYCLE;
-    var a = along(u);
-    var f = a.d / LEN;
-    var lat = WEST.lat + (EAST.lat - WEST.lat) * f;
-    var lng = WEST.lng + (EAST.lng - WEST.lng) * f;
-    var lane = 1.9 * a.dir;                  /* keep to the right-hand lane */
-    lng += (RX * lane) / M_PER_DEG_LNG;
-    lat += -(RZ * lane) / M_PER_DEG_LAT;
-    return { id: 'espil-demo-' + (i + 1), lat: lat, lng: lng, route: ROUTE, ts: Math.floor(nowS) };
-  }
-  function syntheticSnapshot(nowMs) {
-    var buses = [];
-    for (var i = 0; i < COUNT; i++) buses.push(busFix(i, nowMs));
-    return { buses: buses, generated_at: new Date(nowMs).toISOString(), synthetic: true };
-  }
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 
-  var lastSyntheticAt = 0;
-  var realFetch = window.fetch ? window.fetch.bind(window) : null;
-  if (!realFetch || window.__espilDemoBusesWrapped) return;
-  window.__espilDemoBusesWrapped = true;
+  var css = document.createElement('style');
+  css.textContent =
+    '.eauth-tabs{display:flex;gap:8px;margin:0 0 12px}' +
+    '.eauth-tab{flex:1;padding:9px 0;border-radius:10px;border:1px solid rgba(140,240,225,.35);background:rgba(10,30,34,.35);color:#cfe8e2;font:700 .8rem/1 "Manrope",sans-serif;letter-spacing:.06em;cursor:pointer}' +
+    '.eauth-tab.on{background:linear-gradient(135deg,#1a7f78,#0e4f4c);color:#eafffd;border-color:rgba(140,240,225,.7)}' +
+    '.eauth-label{display:block;font:700 .66rem/1.4 "Manrope",sans-serif;letter-spacing:.14em;color:#8fb8b3;margin:8px 0 5px}' +
+    '.eauth-pane input{display:block;width:100%;box-sizing:border-box;background:rgba(6,12,18,.85);border:1px solid rgba(134,238,228,.45);border-radius:9px;padding:10px 11px;font-size:14px;color:#fff;outline:none}' +
+    '.eauth-pane .espil-auth-btn{display:block;width:100%;appearance:none;border:1px solid rgba(134,238,228,.55);border-radius:12px;padding:12px;margin-top:12px;background:rgba(18,44,50,.8);color:#eafffd;font:800 .78rem/1 "Manrope",sans-serif;letter-spacing:.08em;cursor:pointer}' +
+    '#auth-msg{min-height:1.2em;margin:9px 0 0;font-size:.76rem;line-height:1.5;color:#ffd97a}' +
+    '#auth-session{margin:4px 0 0;font-size:.76rem;line-height:1.5;color:#8ef7e8}' +
+    '#espil-locpick{position:fixed;inset:0;z-index:61;display:none;align-items:center;justify-content:center;background:rgba(4,12,14,.8);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}' +
+    '#espil-locpick[aria-hidden="false"]{display:flex}' +
+    '.locpick-card{width:min(430px,92vw);border-radius:18px;padding:22px 22px 16px;background:linear-gradient(160deg,rgba(16,42,46,.96),rgba(8,22,26,.97));border:1px solid rgba(120,230,210,.28);box-shadow:0 24px 60px rgba(0,0,0,.5);color:#eafffd;font-family:"Manrope",sans-serif}' +
+    '.locpick-card h3{margin:0 0 4px;font-size:1.05rem;letter-spacing:.02em}' +
+    '.locpick-card p{margin:0 0 14px;font-size:.8rem;opacity:.75}' +
+    '.locpick-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}' +
+    '.locpick-btn{padding:13px 10px;border-radius:12px;border:1px solid rgba(140,240,225,.3);background:rgba(14,44,48,.6);color:#eafffd;font:700 .82rem/1.25 "Manrope",sans-serif;cursor:pointer;text-align:center}' +
+    '.locpick-btn:hover,.locpick-btn:focus-visible{border-color:rgba(245,197,66,.8);background:rgba(24,64,60,.75);outline:none}' +
+    '.locpick-btn.wide{grid-column:1/-1;border-color:rgba(245,197,66,.55)}' +
+    '.locpick-msg{min-height:18px;margin:10px 0 0;font-size:.78rem;color:#ffd97a;text-align:center}';
+  document.head.appendChild(css);
 
-  window.fetch = function (input, init) {
-    var url = '';
-    try { url = typeof input === 'string' ? input : (input && input.url) || ''; } catch (e) {}
-    var isBusFeed = url.indexOf('data.espil.online/transit/') >= 0 && !window.__espilBusEndpoint;
-    if (!isBusFeed) return realFetch(input, init);
-    function synthetic() {
-      lastSyntheticAt = Date.now();
-      return new Response(JSON.stringify(syntheticSnapshot(Date.now())), {
-        status: 200, headers: { 'Content-Type': 'application/json' }
+  /* ---------------- accounts (same store as the social module) --- */
+  var LS_ACCOUNTS = 'espil_accounts_v1', LS_SESSION = 'espil_session_v1';
+  function accounts() { try { var o = JSON.parse(localStorage.getItem(LS_ACCOUNTS) || '{}'); return o && typeof o === 'object' ? o : {}; } catch (_) { return {}; } }
+  function saveAccounts(o) { try { localStorage.setItem(LS_ACCOUNTS, JSON.stringify(o)); } catch (_) {} }
+  function session() { try { var s = JSON.parse(localStorage.getItem(LS_SESSION) || 'null'); return s && s.id ? s : null; } catch (_) { return null; } }
+  function sha256hex(str) {
+    if (window.crypto && crypto.subtle && crypto.subtle.digest) {
+      return crypto.subtle.digest('SHA-256', new TextEncoder().encode(str)).then(function (buf) {
+        return Array.prototype.map.call(new Uint8Array(buf), function (x) { return ('0' + x.toString(16)).slice(-2); }).join('');
       });
     }
-    return realFetch(input, init).then(function (r) {
-      if (!r || !r.ok) return synthetic();
-      return r.clone().json().then(function (j) {
-        if (j && j.buses && j.buses.length) return r;   /* real data wins */
-        return synthetic();
-      }).catch(function () { return r; });
-    }).catch(function () { return synthetic(); });
+    var h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+    for (var i = 0; i < str.length; i++) { var ch = str.charCodeAt(i); h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677); }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return Promise.resolve('fnv:' + (h2 >>> 0).toString(16) + (h1 >>> 0).toString(16));
+  }
+  function authMsg(msg, ok) { var el = $('auth-msg'); if (el) { el.textContent = msg || ''; el.style.color = ok ? '#8ef7e8' : '#ffd97a'; } }
+  function completeGate() {
+    try { if (window.__espilLoginGatePending && window.__espilLoginGatePending()) { window.__espilLoginGateDone(); return; } } catch (_) {}
+    try { if (window.__espilLoginBypass && window.__espilLoginBypass()) return; } catch (_) {}
+    var m = $('signin-modal'); if (m) m.setAttribute('aria-hidden', 'true');
+  }
+  function startSession(rec, msg) {
+    try { localStorage.setItem(LS_SESSION, JSON.stringify({ id: rec.name, at: Date.now() })); } catch (_) {}
+    try { localStorage.setItem('espil_username', rec.name); } catch (_) {}
+    authMsg(msg, true);
+    setTimeout(completeGate, 350);
+  }
+  function doSignup() {
+    var id = ($('eauth-su-id') || {}).value || '', nm = ($('eauth-su-name') || {}).value || '',
+        em = ($('eauth-su-email') || {}).value || '', pw = ($('eauth-su-pw') || {}).value || '';
+    id = id.trim(); nm = nm.trim(); em = em.trim();
+    if (!/^[A-Za-z0-9_]{3,16}$/.test(id)) { authMsg(t('idRule')); return; }
+    if (!nm || nm.length > 24) { authMsg(t('nameRule')); return; }
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) { authMsg(t('emailRule')); return; }
+    if (!pw || pw.length < 6) { authMsg(t('pwRule')); return; }
+    var all = accounts(), key = id.toLowerCase();
+    if (all[key]) { authMsg(t('taken')); return; }
+    var salt = ('00000000' + Math.floor(Math.random() * 0xffffffff).toString(16)).slice(-8) +
+               ('00000000' + Math.floor(Math.random() * 0xffffffff).toString(16)).slice(-8);
+    sha256hex(salt + '::' + pw).then(function (hash) {
+      all[key] = { name: id, display: nm, email: em, salt: salt, hash: hash, at: Date.now() };
+      saveAccounts(all);
+      startSession(all[key], t('created', { id: id }));
+    });
+  }
+  function doSignin() {
+    var id = (($('eauth-si-id') || {}).value || '').trim(), pw = ($('eauth-si-pw') || {}).value || '';
+    var rec = accounts()[id.toLowerCase()];
+    if (!rec) { authMsg(t('noAcct')); return; }
+    sha256hex(rec.salt + '::' + pw).then(function (hash) {
+      if (hash !== rec.hash) { authMsg(t('wrongPw')); return; }
+      startSession(rec, t('welcomeBack', { id: rec.name }));
+    });
+  }
+  function buildAuthZone() {
+    var zone = $('auth-box');
+    if (!zone || zone.getAttribute('data-entryflow') === '1') return;
+    zone.setAttribute('data-entryflow', '1');
+    var hasAccounts = Object.keys(accounts()).length > 0;
+    zone.innerHTML =
+      '<div class="eauth-tabs" role="tablist">' +
+        '<button type="button" class="eauth-tab' + (hasAccounts ? '' : ' on') + '" id="eauth-tab-su">' + esc(t('signUp')) + '</button>' +
+        '<button type="button" class="eauth-tab' + (hasAccounts ? ' on' : '') + '" id="eauth-tab-si">' + esc(t('signIn')) + '</button>' +
+      '</div>' +
+      '<div class="eauth-pane" id="eauth-pane-su"' + (hasAccounts ? ' hidden' : '') + '>' +
+        '<label class="eauth-label" for="eauth-su-id">ID</label>' +
+        '<input id="eauth-su-id" type="text" autocomplete="username" maxlength="16" placeholder="' + esc(t('idPh')) + '">' +
+        '<label class="eauth-label" for="eauth-su-name">NAME</label>' +
+        '<input id="eauth-su-name" type="text" autocomplete="name" maxlength="24" placeholder="' + esc(t('namePh')) + '">' +
+        '<label class="eauth-label" for="eauth-su-email">EMAIL</label>' +
+        '<input id="eauth-su-email" type="email" autocomplete="email" maxlength="64" placeholder="' + esc(t('emailPh')) + '">' +
+        '<label class="eauth-label" for="eauth-su-pw">PASSWORD</label>' +
+        '<input id="eauth-su-pw" type="password" autocomplete="new-password" maxlength="64" placeholder="' + esc(t('pwPh')) + '">' +
+        '<button type="button" class="espil-auth-btn" id="eauth-do-su">' + esc(t('create')) + '</button>' +
+      '</div>' +
+      '<div class="eauth-pane" id="eauth-pane-si"' + (hasAccounts ? '' : ' hidden') + '>' +
+        '<label class="eauth-label" for="eauth-si-id">ID</label>' +
+        '<input id="eauth-si-id" type="text" autocomplete="username" maxlength="16" placeholder="' + esc(t('idPh')) + '">' +
+        '<label class="eauth-label" for="eauth-si-pw">PASSWORD</label>' +
+        '<input id="eauth-si-pw" type="password" autocomplete="current-password" maxlength="64" placeholder="' + esc(t('pwPh')) + '">' +
+        '<button type="button" class="espil-auth-btn" id="eauth-do-si">' + esc(t('enter')) + '</button>' +
+      '</div>' +
+      '<p id="auth-msg" role="status"></p>' +
+      '<p id="auth-session" hidden></p>';
+    function tab(which) {
+      $('eauth-tab-su').classList.toggle('on', which === 'su');
+      $('eauth-tab-si').classList.toggle('on', which === 'si');
+      $('eauth-pane-su').hidden = which !== 'su';
+      $('eauth-pane-si').hidden = which !== 'si';
+    }
+    $('eauth-tab-su').addEventListener('click', function () { tab('su'); });
+    $('eauth-tab-si').addEventListener('click', function () { tab('si'); });
+    $('eauth-do-su').addEventListener('click', doSignup);
+    $('eauth-do-si').addEventListener('click', doSignin);
+    zone.querySelectorAll('input').forEach(function (inp) {
+      inp.addEventListener('keydown', function (e) {
+        e.stopPropagation();
+        if (e.key === 'Enter') { e.preventDefault(); if (inp.id.indexOf('su') >= 0) doSignup(); else doSignin(); }
+      });
+      inp.addEventListener('keyup', function (e) { e.stopPropagation(); });
+    });
+  }
+
+  /* ---------------- guests: adopt the server's Guest N ----------- */
+  var guestIntent = false, guestNumbered = false;
+  document.addEventListener('click', function (e) {
+    if (e.target && e.target.id === 'guest-enter') guestIntent = true;
+  }, true);
+  setInterval(function () {
+    if (guestNumbered || session()) return;
+    var st = null;
+    try { st = window.__espilChatState && window.__espilChatState(); } catch (_) {}
+    if (!st || !st.joined || !st.myId) return;
+    var me = null;
+    for (var i = 0; i < st.users.length; i++) if (st.users[i].id === st.myId) { me = st.users[i]; break; }
+    if (!me) return;
+    if (/^Guest \d+$/.test(me.name)) {
+      // the Worker numbered this guest at join - adopt it locally
+      try { localStorage.setItem('espil_username', me.name); } catch (_) {}
+      guestNumbered = true;
+      return;
+    }
+    if (guestIntent && me.name === 'Guest') {
+      // fallback until the Worker update deploys: count the room
+      var max = 0;
+      st.users.forEach(function (u) { var m = /^Guest (\d+)$/.exec(u.name || ''); if (m) max = Math.max(max, parseInt(m[1], 10)); });
+      try { localStorage.setItem('espil_username', 'Guest ' + (max + 1)); } catch (_) {}
+      guestNumbered = true;
+    }
+  }, 1000);
+
+  /* ---------------- location picker ------------------------------ */
+  var COS = Math.cos(49.2827 * Math.PI / 180);
+  function xy(lat, lng) { return { x: Math.round((lng + 123.1207) * 111320 * COS), z: Math.round(-(lat - 49.2827) * 111320) }; }
+  var VAN_BOUNDS = { x0: -1799, z0: -2028, x1: 2027, z1: 1956 }; // cfg.bounds for Vancouver
+  var SPOTS = [
+    { id: 'current', label: 'curLoc', wide: true },
+    { id: 'gallery', label: 'gallery', x: 3, z: 33 }, // the Art Gallery plaza (the first-summon spot)
+    { id: 'robsonsq', label: 'robsonSq', lat: 49.282000, lng: -123.121000 },
+    { id: 'holt', label: 'holt', lat: 49.284078, lng: -123.116606 },
+    { id: 'waterfront', label: 'waterfront', lat: 49.285692, lng: -123.111674 },
+    { id: 'stanley', label: 'stanley', lat: 49.292200, lng: -123.136800 },
+    { id: 'englishbay', label: 'englishBay', lat: 49.277000, lng: -123.140200 }
+  ];
+  SPOTS.forEach(function (s) { if (s.lat !== undefined) { var p = xy(s.lat, s.lng); s.x = p.x; s.z = p.z; } });
+  function snapWalkable(x, z) {
+    var probe = window.__espilCollisionProbe;
+    if (typeof probe !== 'function') return { x: x, z: z };
+    function ok(px, pz) {
+      try { var r = probe(px, pz); return r && r.cls && r.cls !== 'building' && r.cls !== 'water'; } catch (_) { return false; }
+    }
+    if (ok(x, z)) return { x: x, z: z };
+    for (var r = 6; r <= 84; r += 6) {
+      for (var a = 0; a < 16; a++) {
+        var px = Math.round(x + r * Math.cos(a * Math.PI / 8)), pz = Math.round(z + r * Math.sin(a * Math.PI / 8));
+        if (ok(px, pz)) return { x: px, z: pz };
+      }
+    }
+    return { x: x, z: z };
+  }
+  var locEl = null;
+  function buildLocPick() {
+    locEl = document.createElement('div');
+    locEl.id = 'espil-locpick';
+    locEl.setAttribute('aria-hidden', 'true');
+    locEl.setAttribute('role', 'dialog');
+    var city = 'Vancouver';
+    var btns = SPOTS.map(function (s) {
+      return '<button type="button" class="locpick-btn' + (s.wide ? ' wide' : '') + '" data-spot="' + s.id + '">' + esc(t(s.label)) + '</button>';
+    }).join('');
+    locEl.innerHTML = '<div class="locpick-card"><h3>' + esc(t('locTitle')) + '</h3><p>' +
+      esc(t('locSub', { city: city })) + '</p><div class="locpick-grid">' + btns +
+      '</div><p class="locpick-msg" id="locpick-msg"></p></div>';
+    document.body.appendChild(locEl);
+    locEl.querySelectorAll('.locpick-btn').forEach(function (b) {
+      b.addEventListener('click', function () { chooseSpot(b.getAttribute('data-spot')); });
+    });
+  }
+  function locMsg(m) { var el = $('locpick-msg'); if (el) el.textContent = m || ''; }
+  function chooseSpot(id) {
+    if (id === 'current') {
+      if (!navigator.geolocation) { locMsg(t('noGeo')); return; }
+      locMsg(t('locating'));
+      navigator.geolocation.getCurrentPosition(function (pos) {
+        var p = xy(pos.coords.latitude, pos.coords.longitude);
+        if (p.x < VAN_BOUNDS.x0 || p.x > VAN_BOUNDS.x1 || p.z < VAN_BOUNDS.z0 || p.z > VAN_BOUNDS.z1) {
+          if (typeof window.__espilToast === 'function') window.__espilToast(t('outside'));
+          finishPick(snapWalkable(3, 33));
+          return;
+        }
+        finishPick(snapWalkable(p.x, p.z));
+      }, function () { locMsg(t('noGeo')); }, { timeout: 8000, maximumAge: 60000 });
+      return;
+    }
+    var s = null;
+    SPOTS.forEach(function (o) { if (o.id === id) s = o; });
+    if (s) finishPick(snapWalkable(s.x, s.z));
+  }
+  var pendingNext = null;
+  function finishPick(p) {
+    window.__espilSpawnPick = { x: p.x, z: p.z };
+    if (locEl) locEl.setAttribute('aria-hidden', 'true');
+    var n = pendingNext; pendingNext = null;
+    if (typeof n === 'function') n(); /* the world's own continuation enters the map */
+  }
+  window.__espilEntryLocationGate = function (next) {
+    var key = '';
+    try { var k = window.__espilCityKey; key = String(typeof k === 'function' ? k() : (k || '')).toLowerCase(); } catch (_) {}
+    if (key && key.indexOf('vancouver') < 0) { if (typeof next === 'function') next(); return; }
+    pendingNext = typeof next === 'function' ? next : null;
+    if (!locEl) buildLocPick();
+    locMsg('');
+    locEl.setAttribute('aria-hidden', 'false');
   };
 
-  window.__espilDemoBusState = function () {
-    return {
-      wrapped: true,
-      lastSyntheticAt: lastSyntheticAt,
-      route: { west: WEST, east: EAST, lengthM: Math.round(LEN), cycleS: Math.round(CYCLE) },
-      sample: syntheticSnapshot(Date.now()).buses
-    };
-  };
+  /* claim the auth zone now, and re-claim it whenever the modal opens */
+  function init() {
+    buildAuthZone();
+    var m = $('signin-modal');
+    if (m && !m.__espilEntryObs) {
+      m.__espilEntryObs = true;
+      new MutationObserver(function () { if (m.getAttribute('aria-hidden') === 'false') buildAuthZone(); })
+        .observe(m, { attributes: true, attributeFilter: ['aria-hidden'] });
+    }
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+
+</script>
+<script>
+/* __espilGameUI v1 - the Espil game UI template (Han's order,
+   2026-10-28): the profile, inventory, stall and friend/party
+   windows share ONE game-style template - a deep green game frame
+   with a gold rim, an inset hairline and small-caps gold headers -
+   drawn in pure CSS so it loads instantly and matches the world.
+   Han's layout law: NO scrolling anywhere except the inventory
+   grid; every window must resolve inside a single screen, so the
+   cards are flex columns capped at 94vh with compact rows. */
+(function () {
+  'use strict';
+  if (window.__espilGameUI) return;
+  window.__espilGameUI = true;
+  var st = document.createElement('style');
+  st.id = 'espil-game-ui';
+  st.textContent =
+    /* ---- the shared game frame (all .skill-tree windows) -------- */
+    '.skill-tree .st-card{border:2px solid rgba(201,168,106,.78);border-radius:18px;' +
+      'background:linear-gradient(168deg,#17301f 0%,#101f14 55%,#0a140c 100%);' +
+      'box-shadow:0 24px 60px rgba(0,0,0,.55),0 0 0 1px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,217,122,.28),inset 0 0 34px rgba(90,61,38,.18);' +
+      'max-height:94vh;overflow:hidden;display:flex;flex-direction:column;padding:18px 20px}' +
+    '.skill-tree .st-head{flex:none;padding-bottom:10px;margin-bottom:12px;border-bottom:1px solid rgba(201,168,106,.38)}' +
+    '.skill-tree .st-head h2{color:#ffd97a;text-shadow:0 0 12px rgba(255,217,122,.35)}' +
+    '.skill-tree .st-close{border:2px solid rgba(201,168,106,.85);background:radial-gradient(circle,#3a2c17,#1d1509);color:#ffd97a}' +
+    '.skill-tree .st-close:hover{border-color:#ffd97a;box-shadow:0 0 12px rgba(255,217,122,.45)}' +
+    '.skill-tree .st-grid{flex:1 1 auto;min-height:0;overflow:hidden}' +
+    '.skill-tree .pill-btn{border:1px solid rgba(201,168,106,.55);background:linear-gradient(180deg,rgba(46,74,47,.9),rgba(26,46,28,.9));color:#f3e9d2;box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}' +
+    '.skill-tree .pill-btn:hover{border-color:#ffd97a}' +
+    /* ---- inventory: the ONE window allowed to scroll ------------ */
+    '#inventory-panel .st-grid{overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(201,168,106,.6) transparent;padding-right:2px}' +
+    /* ---- character / profile ------------------------------------ */
+    '#character-panel .st-card{width:min(600px,calc(100% - 24px))}' +
+    /* ---- stall: one screen, compact form + board ----------------- */
+    '#stall-panel .st-card{width:min(680px,calc(100% - 24px))}' +
+    '#stall-panel .st-grid{display:block}' +
+    '#stall-panel .st-grid>div{margin:5px 0!important}' +
+    '#stall-panel #stall-board{gap:6px!important;margin-top:4px!important}' +
+    '#stall-panel #stall-board>*{min-height:52px}' +
+    '#stall-panel .st-foot{margin:8px 0 0;font-size:.6rem;line-height:1.5}' +
+    '#stall-panel input,#stall-panel select{padding:6px 8px!important}' +
+    /* ---- friends / party ----------------------------------------- */
+    '#friends-panel .st-card{width:min(560px,calc(100% - 24px))}' +
+    '#friends-panel #espil-social-body{overflow:hidden;min-height:0}' +
+    '#friends-panel .espil-list{overflow:hidden}' +
+    '#friends-panel .espil-row{padding:5px 9px;margin:0 0 5px}' +
+    '#friends-panel input{padding:7px 9px!important}' +
+    /* ---- small screens -------------------------------------------- */
+    '@media (max-width:640px){.skill-tree .st-card{padding:13px 14px;border-radius:14px}.skill-tree .st-grid{gap:6px}}';
+  document.head.appendChild(st);
 })();
 
 </script>
