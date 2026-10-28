@@ -1817,7 +1817,6 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         </div>
       </div>
     </div>
-    <div class="intro-continue" id="intro-continue" data-i18n="introContinue">TAP OR PRESS ANY KEY TO CONTINUE</div>
   </div>
   <main class="earth-frame" id="earth-frame">
     <canvas id="globe-canvas" role="application" tabindex="0" aria-label="Interactive fixed Earth with selectable city landmarks. Drag to orbit the camera, scroll to zoom, or choose a city for a tilted navigation view."></canvas>
@@ -11335,9 +11334,11 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
   }());
   </script>
   <script>
-  /* ESPIL Online intro: starfield canvas, ESPIL ONLINE typed letter-by-letter over its
-     black shadow (3.6s). When typing completes and Earth is ready: tap or press any key
-     to continue -> the logo zooms through, the camera pulls back to Earth, BGM starts. */
+  /* ESPIL Online intro = the Earth loading sequence (Han 2026-10-28): starfield
+     canvas, ESPIL ONLINE typed letter-by-letter over its black shadow while the
+     globe loads behind it. When typing completes and Earth is ready, the scene
+     advances on its own - no key press, no tap, no prompt: the logo zooms
+     through, the camera pulls back to Earth, BGM starts. */
   (function(){
     "use strict";
     var intro=document.getElementById('intro');
@@ -11408,10 +11409,15 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       typed.insertBefore(caret,spans[0]||null);
     }
     function maybeShowContinue(){
+      /* The typewriter IS the Earth loading sequence (Han 2026-10-28):
+         it plays while the globe loads behind it, and once typing and
+         Earth are both ready the scene moves on by itself - the player
+         never has to press anything. A short beat lets the finished
+         neon sign land before the zoom-through. */
       if(typedDone&&earthReady&&!done){
         done=true;
         if(logo)logo.classList.add('done');
-        if(cont)cont.classList.add('show');
+        setTimeout(contFn,900);
       }
     }
     function typeStep(){
