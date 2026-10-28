@@ -2087,7 +2087,6 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
           <button class="pill-btn" id="set-return" type="button" data-i18n="setReturn">Return to Earth</button>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;">
-          <button class="pill-btn" id="set-guide" type="button" data-i18n="setGuide">Guide - learn the world with Espil</button>
         </div>
         <label style="margin-top:16px;" data-i18n="buttonSettings">BUTTON SETTINGS</label>
         <div style="display:flex;flex-direction:column;gap:6px;">
@@ -2236,27 +2235,6 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
             </div>
           </div>
           <p class="st-foot" style="margin-top:12px;" data-i18n="stallFoot">The stall window is a grid, the way the classic merchant stalls did it: every post takes one slot with its price tag. No fees, ever - trading here runs on trust. Real item trading and Leo settlement arrive when the server opens.</p>
-        </div>
-      </div>
-    </div>
-    <!-- Espil guide (Han 2026-10-20 #6): Espil himself appears in
-         game and teaches the world in five stops - movement, shop
-         decorating, chat, stalls, city travel. -->
-    <div class="skill-tree" id="guide-panel" aria-hidden="true" role="dialog" aria-label="Guide">
-      <div class="st-card" style="max-width:560px;width:92vw;">
-        <button class="x" id="guide-close" type="button" aria-label="Close guide">&times;</button>
-        <div style="display:flex;gap:14px;align-items:flex-start;">
-          <canvas id="guide-face" width="112" height="112" style="flex:none;width:84px;height:84px;border-radius:50%;border:2px solid rgba(142,247,232,.5);background:#17303a;"></canvas>
-          <div style="flex:1;min-width:0;">
-            <h2 style="margin:0;">Espil</h2>
-            <p class="st-sub" id="guide-title">Welcome</p>
-            <p id="guide-body" style="margin-top:10px;line-height:1.65;font-size:.95rem;"></p>
-          </div>
-        </div>
-        <div style="display:flex;gap:8px;align-items:center;margin-top:16px;">
-          <button class="pill-btn" id="guide-prev" type="button" data-i18n="guideBack">Back</button>
-          <span id="guide-dots" style="flex:1;text-align:center;letter-spacing:.3em;opacity:.8;"></span>
-          <button class="pill-btn" id="guide-next" type="button" data-i18n="guideNext">Next</button>
         </div>
       </div>
     </div>
@@ -8791,90 +8769,15 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(!document.body.classList.contains('in-map')){if(stallGroup)stallRemoveVisual();return;}
       stallEnsureVisual();
     },1200);
-    /* ============ ESPIL GUIDE (Han 2026-10-20 #6) ================
-       Espil himself appears in-game and teaches the world in five
-       stops - movement, shop decorating, chat, stalls, city
-       travel - after a short welcome. The tour offers itself
-       once, on a player's first entry (remembered on this
-       device), and the settings menu can call him back any
-       time. The portrait is an original canvas drawing. */
-    var ESPIL_GUIDE=[
-      {t:'Welcome to Espil Online',b:'Hi, I am Espil - I made this world, and I will walk you through it. Everything here stands on the real map: real streets, real buildings, real shops. Five short stops: moving, decorating a shop, chatting, stalls, and travelling between cities.'},
-      {t:'Moving',b:'Walk with the arrow keys, or the stick on touch screens. Your Jump key (Shift by default) jumps - press it again in mid-air for a double jump. Jump into a tall wall while pressing toward it and you will climb it. Space is your hand: it interacts with buildings, doors and stalls near you.'},
-      {t:'Your shop',b:'Step up to a building, press Space, then Enter, and you are inside. Buy from the counter with Leo, open Contact to see the real place behind it - and make the place yours with Design: set the shop sign, and pick the colours of the walls, rug and counter. Your design is saved for that building.'},
-      {t:'Chatting',b:'Press Enter to chat. Your words appear in the chat window on the left, under the name of the city. This world runs on trust, and so does its chat - be kind out there.'},
-      {t:'Stalls',b:'Press your Stall key (Y by default) to open a stall where you stand - one per city. Fill its grid: every slot is a Selling or Buying post with a Leo price, or leave the price blank for Negotiable. There are no fees here. A trade is a promise between two people - that is the law of this world.'},
-      {t:'Travelling',b:'The gear at the top right opens Settings, and CITY SELECT there takes you to another city. Auckland stands open beside Vancouver - there a Time Stone waits, with Lunaris watching over it. Touch the stone, and the web journey ends: Zealandia itself opens in the Espil Online app.'}
-    ];
-    var espilGuideStep=0, espilGuideFaceDrawn=false, espilGuideOffered=false;
-    function espilDrawGuideFace(){
-      var cv=document.getElementById('guide-face'); if(!cv)return;
-      var c=cv.getContext('2d');
-      var grd=c.createLinearGradient(0,0,0,112); grd.addColorStop(0,'#1d4256'); grd.addColorStop(1,'#12242f');
-      c.fillStyle=grd; c.fillRect(0,0,112,112);
-      c.fillStyle='#8ef7e8'; c.beginPath(); c.arc(56,120,36,Math.PI,0); c.fill();
-      c.fillStyle='#f2c79b'; c.beginPath(); c.arc(56,58,30,0,Math.PI*2); c.fill();
-      c.fillStyle='#2b2f38'; c.beginPath(); c.arc(56,52,31,Math.PI*1.02,Math.PI*1.98); c.fill();
-      c.fillRect(25,50,7,20); c.fillRect(80,50,7,20);
-      c.fillStyle='#ffd98a';
-      c.save(); c.translate(79,33); c.rotate(0.3);
-      c.beginPath();
-      for(var i=0;i<5;i++){ var a=-Math.PI/2+i*Math.PI*2/5; c.lineTo(Math.cos(a)*6,Math.sin(a)*6); var a2=a+Math.PI/5; c.lineTo(Math.cos(a2)*2.6,Math.sin(a2)*2.6); }
-      c.closePath(); c.fill(); c.restore();
-      c.fillStyle='#26303a';
-      c.beginPath(); c.ellipse(45,60,3.4,4.6,0,0,Math.PI*2); c.fill();
-      c.beginPath(); c.ellipse(67,60,3.4,4.6,0,0,Math.PI*2); c.fill();
-      c.fillStyle='#ffffff';
-      c.beginPath(); c.arc(46.2,58.2,1.3,0,Math.PI*2); c.fill();
-      c.beginPath(); c.arc(68.2,58.2,1.3,0,Math.PI*2); c.fill();
-      c.strokeStyle='#26303a'; c.lineWidth=2.4; c.lineCap='round';
-      c.beginPath(); c.arc(56,68,9,Math.PI*0.15,Math.PI*0.85); c.stroke();
-      c.fillStyle='rgba(242,140,140,.45)';
-      c.beginPath(); c.ellipse(36,70,5,3,0,0,Math.PI*2); c.fill();
-      c.beginPath(); c.ellipse(76,70,5,3,0,0,Math.PI*2); c.fill();
-    }
-    function espilGuidePaint(){
-      var s=ESPIL_GUIDE[espilGuideStep]; if(!s)return;
-      var t=document.getElementById('guide-title'), b=document.getElementById('guide-body');
-      if(t)t.textContent=s.t; if(b)b.textContent=s.b;
-      var d=document.getElementById('guide-dots');
-      if(d){ var out=''; for(var i=0;i<ESPIL_GUIDE.length;i++)out+=(i===espilGuideStep?'●':'○'); d.textContent=out; }
-      var pv=document.getElementById('guide-prev'), nx=document.getElementById('guide-next');
-      if(pv)pv.style.visibility=espilGuideStep===0?'hidden':'visible';
-      if(nx)nx.textContent=espilGuideStep===ESPIL_GUIDE.length-1?'Done':'Next';
-    }
-    function espilOpenGuide(step){
-      espilGuideStep=(typeof step==='number')?Math.max(0,Math.min(ESPIL_GUIDE.length-1,step)):0;
-      var o=document.getElementById('guide-panel'); if(!o)return;
-      if(!espilGuideFaceDrawn){ espilGuideFaceDrawn=true; espilDrawGuideFace(); }
-      espilGuidePaint();
-      o.classList.add('open'); o.setAttribute('aria-hidden','false');
-      window.__espilGuideStep=espilGuideStep;
-    }
-    function espilCloseGuide(){
-      var o=document.getElementById('guide-panel'); if(!o)return;
-      o.classList.remove('open'); o.setAttribute('aria-hidden','true');
-    }
+    /* Espil Guide tutorial REMOVED (Han's standing order - first given
+       2026-10-23 and executed on production 2026-10-24; the working and
+       testing lineages had forked from a pre-removal base and kept
+       re-shipping it, so it is removed here too, 2026-10-27). No-op
+       stubs stay so existing callers never throw. */
+    function espilOpenGuide(){}
+    function espilCloseGuide(){}
     window.__espilOpenGuide=espilOpenGuide;
     window.__espilCloseGuide=espilCloseGuide;
-    (function guideWire(){
-      function onReady(){
-        var nx=document.getElementById('guide-next'), pv=document.getElementById('guide-prev'), cl=document.getElementById('guide-close');
-        if(nx)nx.addEventListener('click',function(){ if(espilGuideStep>=ESPIL_GUIDE.length-1){ espilCloseGuide(); return; } espilGuideStep++; window.__espilGuideStep=espilGuideStep; espilGuidePaint(); });
-        if(pv)pv.addEventListener('click',function(){ if(espilGuideStep>0){ espilGuideStep--; window.__espilGuideStep=espilGuideStep; espilGuidePaint(); } });
-        if(cl)cl.addEventListener('click',espilCloseGuide);
-        var sg=document.getElementById('set-guide');
-        if(sg)sg.addEventListener('click',function(){ toggleSettingsPanel(false); espilOpenGuide(0); });
-      }
-      if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',onReady); else onReady();
-    })();
-    setInterval(function(){
-      if(espilGuideOffered)return;
-      if(!document.body.classList.contains('in-map'))return;
-      espilGuideOffered=true;
-      try{ if(localStorage.getItem('espil_guide_seen'))return; localStorage.setItem('espil_guide_seen','1'); }catch(e){ return; }
-      setTimeout(function(){ espilOpenGuide(0); },900);
-    },1500);
     /* ============ BUILDING PANEL + INTERIOR (Han 2026-10-20 #5) ====
        Space at a building opens the selection window with the
        building's name (Cauldron-style). Enter resolves like this:
