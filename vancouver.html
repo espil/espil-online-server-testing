@@ -14109,5 +14109,270 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
   })();
 })();
 </script>
+<script>
+/* __espilTutorial v1 - the hands-on tutorial (Han's spec, 2026-10-27).
+   NOT a card deck: per Han's binding principle for onboarding (first
+   set 2026-10-21), a hint never waits for a click to close - it
+   disappears the moment the player performs the action it teaches.
+   Flow (Vancouver): move with the arrow keys -> jump -> follow the
+   green navigation path to Konbiniya on Robson Street -> go inside ->
+   buy the onigiri (the shop sells it as Triangle Kimbap) -> open a
+   stall -> open the map. Progress persists per device; a Settings
+   button replays it. The chip is pointer-events:none - it can never
+   block play. */
+(function () {
+  'use strict';
+
+  var DONE_KEY = 'espil_tut_done_v1';
+  var STEP_KEY = 'espil_tut_step_v1';
+
+  var STR = {
+    en: {
+      move: 'Move with the arrow keys',
+      jump: 'Jump - press Shift',
+      nav: 'Follow the green path to Konbiniya on Robson Street',
+      enter: 'Press Space, then use the Enter button to go inside',
+      buy: 'Buy the onigiri (Triangle Kimbap) inside',
+      stall: 'Open your stall - press Y',
+      map: 'Open the map - press M',
+      done: 'Tutorial complete. Welcome to Espil Online.',
+      replay: 'Tutorial - play it again'
+    },
+    ko: {
+      move: '방향키로 움직여 보세요',
+      jump: 'Shift를 눌러 점프해 보세요',
+      nav: '초록 길을 따라 랍슨 거리의 콘비니야로 이동하세요',
+      enter: 'Space를 누르고 Enter 버튼으로 가게 안으로 들어가세요',
+      buy: '가게 안에서 오니기리(삼각김밥)를 구매하세요',
+      stall: 'Y를 눌러 좌판을 열어 보세요',
+      map: 'M을 눌러 맵을 열어 보세요',
+      done: '튜토리얼 완료. Espil Online에 오신 것을 환영합니다.',
+      replay: '튜토리얼 - 다시 하기'
+    },
+    fr: {
+      move: 'Déplacez-vous avec les flèches',
+      jump: 'Sautez - touche Maj',
+      nav: 'Suivez le chemin vert jusqu\'à Konbiniya, rue Robson',
+      enter: 'Espace pour entrer',
+      buy: 'Achetez l\'onigiri (Triangle Kimbap) à l\'intérieur',
+      stall: 'Ouvrez votre étal - touche Y',
+      map: 'Ouvrez la carte - touche M',
+      done: 'Tutoriel terminé. Bienvenue sur Espil Online.',
+      replay: 'Tutoriel - rejouer'
+    },
+    zh: {
+      move: '用方向键移动',
+      jump: '按 Shift 跳跃',
+      nav: '沿着绿道前往 Robson 街的 Konbiniya',
+      enter: '按空格进入店内',
+      buy: '在店里买一个饭团 (Triangle Kimbap)',
+      stall: '按 Y 打开你的摊位',
+      map: '按 M 打开地图',
+      done: '教程完成。欢迎来到 Espil Online。',
+      replay: '教程 - 再玩一次'
+    }
+  };
+  function lang() {
+    var l = 'en';
+    try { l = localStorage.getItem('espil_lang') || 'en'; } catch (e) {}
+    return STR[l] ? l : 'en';
+  }
+  function t(k) { return (STR[lang()] || STR.en)[k] || STR.en[k] || k; }
+
+  var STEPS = ['move', 'jump', 'nav', 'enter', 'buy', 'stall', 'map'];
+  var step = -1;               /* -1 = not running */
+  var chip = null;
+  var stepStartPose = null;
+  var groundY = null;
+  var started = false;
+
+  function done() {
+    try { return localStorage.getItem(DONE_KEY) === '1'; } catch (e) { return false; }
+  }
+  function setDone() {
+    try { localStorage.setItem(DONE_KEY, '1'); localStorage.removeItem(STEP_KEY); } catch (e) {}
+  }
+  function inMap() { return document.body && document.body.classList.contains('in-map'); }
+  function pose() {
+    try { return window.__espilPlayerPose ? window.__espilPlayerPose() : null; } catch (e) { return null; }
+  }
+  function landed() {
+    var p = pose();
+    return !!(p && typeof p.y === 'number' && p.y < 1.5);
+  }
+
+  function ensureChip() {
+    if (chip) return chip;
+    var st = document.createElement('style');
+    st.textContent =
+      '#espil-tut{position:fixed;top:86px;left:50%;transform:translateX(-50%);z-index:60;' +
+      'display:none;align-items:center;gap:10px;max-width:92vw;padding:10px 18px;border-radius:999px;' +
+      'background:rgba(10,24,28,.88);border:1px solid rgba(142,247,232,.55);color:#eafffd;' +
+      'font:700 .92rem/1.35 Manrope,sans-serif;letter-spacing:.02em;pointer-events:none;' +
+      'box-shadow:0 6px 24px rgba(0,0,0,.35);text-align:center}' +
+      '#espil-tut .n{flex:none;font-size:.72rem;font-weight:800;color:#0b2422;background:#8ef7e8;' +
+      'border-radius:999px;padding:3px 9px;letter-spacing:.06em}' +
+      '#espil-tut.done{border-color:rgba(255,217,122,.7)}';
+    document.head.appendChild(st);
+    chip = document.createElement('div');
+    chip.id = 'espil-tut';
+    chip.innerHTML = '<span class="n"></span><span class="tx"></span>';
+    document.body.appendChild(chip);
+    return chip;
+  }
+  function show() {
+    ensureChip();
+    if (step < 0 || step >= STEPS.length) { hide(); return; }
+    chip.querySelector('.n').textContent = (step + 1) + ' / ' + STEPS.length;
+    chip.querySelector('.tx').textContent = t(STEPS[step]);
+    chip.classList.remove('done');
+    chip.style.display = 'flex';
+  }
+  function hide() { if (chip) chip.style.display = 'none'; }
+  function showDone() {
+    ensureChip();
+    chip.querySelector('.n').textContent = '✓';
+    chip.querySelector('.tx').textContent = t('done');
+    chip.classList.add('done');
+    chip.style.display = 'flex';
+    setTimeout(hide, 4200);
+  }
+
+  function saveStep() {
+    try { localStorage.setItem(STEP_KEY, String(step)); } catch (e) {}
+  }
+  function advance() {
+    step++;
+    if (step >= STEPS.length) {
+      step = -1;
+      setDone();
+      try { if (window.__espilNavHide) window.__espilNavHide(); } catch (e) {}
+      showDone();
+      return;
+    }
+    saveStep();
+    stepStartPose = pose();
+    if (STEPS[step] === 'nav') {
+      try { if (window.__espilNavToKonbiniya) window.__espilNavToKonbiniya(); } catch (e) {}
+    }
+    show();
+  }
+  function start(fromStep) {
+    if (started && step >= 0) return;
+    started = true;
+    step = (typeof fromStep === 'number' && fromStep >= 0 && fromStep < STEPS.length) ? fromStep : 0;
+    saveStep();
+    stepStartPose = pose();
+    if (STEPS[step] === 'nav') {
+      try { if (window.__espilNavToKonbiniya) window.__espilNavToKonbiniya(); } catch (e) {}
+    }
+    show();
+  }
+  function restart() {
+    try { localStorage.removeItem(DONE_KEY); } catch (e) {}
+    step = -1;
+    started = false; /* the boot watcher restarts it on the next tick */
+  }
+
+  /* ---- completion detectors (polled; actions melt the hint away) -- */
+  function distTo(x, z) {
+    var p = pose(); if (!p) return 1e9;
+    var dx = p.x - x, dz = p.z - z;
+    return Math.sqrt(dx * dx + dz * dz);
+  }
+  function tick() {
+    if (step < 0) return;
+    if (!inMap()) return;
+    var key = STEPS[step];
+    if (key === 'move') {
+      var p = pose();
+      if (p && stepStartPose) {
+        var dx = p.x - stepStartPose.x, dz = p.z - stepStartPose.z;
+        if (Math.sqrt(dx * dx + dz * dz) >= 2.5) advance();
+      } else if (p) stepStartPose = p;
+    } else if (key === 'jump') {
+      var pj = pose();
+      if (pj) {
+        if (groundY === null || pj.y < groundY) groundY = pj.y;
+        if (typeof pj.y === 'number' && groundY !== null && pj.y - groundY > 0.55) advance();
+      }
+    } else if (key === 'nav') {
+      var kp = null;
+      try { kp = window.__espilKonbiniyaPos; } catch (e) {}
+      if (kp && distTo(kp.x, kp.z) < 6) advance();
+    } else if (key === 'enter') {
+      var inside = false;
+      try { inside = !!window.__espilInside; } catch (e) {}
+      if (inside) advance();
+    } else if (key === 'stall') {
+      var sp = document.getElementById('stall-panel');
+      if (sp && sp.getAttribute('aria-hidden') === 'false') advance();
+    } else if (key === 'map') {
+      var mw = document.getElementById('minimap-wrap');
+      if (mw && Number(mw.getAttribute('data-stage') || '1') >= 2) advance();
+    }
+    /* 'buy' completes through the espil-guide bought event below */
+  }
+  setInterval(tick, 300);
+
+  window.addEventListener('espil-guide', function (e) {
+    var d = e && e.detail; if (!d) return;
+    if (step < 0) return;
+    if (STEPS[step] === 'nav' && d.type === 'nav-arrived') advance();
+    else if (STEPS[step] === 'buy' && d.type === 'bought' && /onigiri|kimbap/i.test(String(d.item || ''))) advance();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (step < 0 || !inMap()) return;
+    if (/INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || '')) return;
+    if (STEPS[step] === 'jump' && (e.key === 'Shift' || e.code === 'ShiftLeft' || e.code === 'ShiftRight')) {
+      /* the pose check in tick confirms the actual jump; the key alone
+         also counts - the player did perform the taught action */
+      advance();
+    }
+  });
+
+  /* ---- boot: fresh players only, Vancouver (the Konbiniya city).
+     The watcher stays alive so the Settings replay can restart the
+     flow at any time; it starts the tutorial once the player has
+     landed, and resumes a saved step after a reload. --- */
+  setInterval(function () {
+    if (done() || step >= 0) return;
+    if (!inMap() || !landed()) return;
+    if (!window.__espilKonbiniyaPos) return; /* not the tutorial city */
+    var saved = 0;
+    try { saved = Number(localStorage.getItem(STEP_KEY) || '0') || 0; } catch (e) {}
+    start(saved);
+  }, 700);
+
+  /* ---- Settings replay button (where the old Guide button sat) ---- */
+  function wireReplay() {
+    if (document.getElementById('set-tutorial')) return;
+    var lo = document.getElementById('set-logout');
+    if (!lo || !lo.parentNode) return;
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'pill-btn';
+    b.id = 'set-tutorial';
+    b.textContent = t('replay');
+    b.addEventListener('click', function () {
+      try {
+        var settings = document.getElementById('settings-panel');
+        if (settings) { settings.classList.remove('open'); settings.setAttribute('aria-hidden', 'true'); }
+      } catch (e) {}
+      restart();
+    });
+    lo.parentNode.insertBefore(b, lo);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wireReplay);
+  else wireReplay();
+  setInterval(wireReplay, 2500);
+
+  window.__espilTutorialState = function () {
+    return { step: step < 0 ? null : STEPS[step], stepIdx: step, done: done(), running: step >= 0 };
+  };
+  window.__espilTutorialRestart = restart;
+})();
+
+</script>
 </body>
 </html>
