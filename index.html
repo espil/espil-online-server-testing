@@ -8154,10 +8154,16 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        settlement arrives with the server (Phase B). */
     var stallOpen=false,stallVisitor=false,stallGroup=null,stallSignMat=null;
     /* --- TIME STONE (Time Machine quest, joint production 2026-10-21):
-       the gateway beat before Zealandia. The stone stands in Auckland
-       on the spawn-to-portal axis (fall point confirmed by the map
-       room: world (10382, -1018), 80.7 m from the spawn and 79.5 m
-       from the portal, 14.6 m clear of every footprint, land class).
+       the gateway beat before Zealandia. CANON (Han, 2026-10-29;
+       storyline v1 sections 1 and 12): the stone reveals itself ON
+       THE WATER of Waitemata Harbour, offshore Auckland - the old
+       downtown fall-point placement (10382, -1018, land) is
+       replaced. World (10298, -1210): open harbour water, 208 m
+       from the spawn, a straight swim north up the channel from
+       the waterfront shore, 46 m clear of every wharf and
+       footprint on all sides; surface Y resolves to 0 over water,
+       so the stone stands on the sea and Lunaris keeps her place
+       4.7 m south of it, on the water too.
        Wiring contract with the UI room: 'espil-arrival' (detail.city)
        is the Dive entry point; entering 3.2 m fires
        'espil-timemachine-near' once per approach (re-arms past 4.5 m);
@@ -8166,7 +8172,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
        espil_timemachine_done. The crack reveal is the UI layer's. The
        final stone mesh comes from the Plushy pipeline; this standing
        placeholder keeps the portal's teal language. --- */
-    var ESPIL_TIMESTONE={x:10382,z:-1018};
+    var ESPIL_TIMESTONE={x:10298,z:-1210};
     window.__espilTimeStonePos={x:ESPIL_TIMESTONE.x,z:ESPIL_TIMESTONE.z};
     window.__espilTimeStoneFootprint={w:3.27,d:2.96}; /* real Meshy asset footprint (Marketing via Zealandia room, 2026-10-21) - the placeholder matches it 1:1 */
     var espilTimeStoneGroup=null, espilTimeStoneNear=false, espilTimeStoneArmed=true;
