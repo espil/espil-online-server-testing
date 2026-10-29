@@ -1763,6 +1763,46 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
   <noscript><style>#loader{display:none}</style></noscript>
   <!-- Leaflet for 3-stage map (QA #7, 2026-10-09) -->
   <link rel="stylesheet" href="assets/leaflet/leaflet.css" />
+  <style id="espil-mobile-fit">
+    /* Mobile fit (Han 2026-10-29): action buttons are never off screen. */
+    .city-info{display:flex;flex-direction:column;overflow:hidden}
+    .city-info-img{flex:0 1 auto;min-height:0}
+    .city-info-name,.city-info-enter,.city-info-credit{flex:none}
+    .modal{display:flex;flex-direction:column;overflow:hidden}
+    .modal>*{flex:none}
+    .modal #auth-box{flex:0 1 auto;overflow-y:auto;min-height:0}
+    .char-card-wrap{display:flex;flex-direction:column;max-height:calc(100dvh - 20px);overflow:hidden}
+    .char-card-wrap>*{flex:none}
+    #espil-cust-box{flex:0 1 auto;min-height:0;overflow:hidden}
+    #espil-app-card{display:flex;flex-direction:column;max-height:calc(100dvh - 32px);overflow:hidden}
+    #espil-app-body{flex:0 1 auto;overflow-y:auto;min-height:0}
+    .locpick-card{max-height:calc(100dvh - 20px)}
+    @media (max-height:560px){
+      .city-info{padding:16px 18px 14px}
+      .city-info-img{height:92px;margin-bottom:10px}
+      .city-info-name{font-size:1.18rem;margin-bottom:9px}
+      .city-info-enter{padding:11px}
+      .modal{padding:18px 20px 14px}
+      .modal h2{font-size:1.02rem}
+      .modal-sub{display:none}
+      .provider{padding:8px 10px;font-size:.78rem}
+      .provider.guest-enter{padding:10px 12px}
+      .modal-divider{margin:9px 0 6px}
+      #auth-box input{padding:8px 10px !important}
+      #auth-box .auth-btn{padding:10px !important}
+      #auth-box label{margin-top:6px !important}
+      .char-card-wrap{padding:16px 18px 14px}
+      .char-sub{margin-bottom:8px}
+      .char-grid{gap:10px}
+      .char-card{padding:10px 8px 8px}
+      .char-face{font-size:1.5rem;margin-bottom:5px}
+      .char-confirm{margin-top:8px;padding:11px 26px}
+      #char-custom #espil-cust-preview{width:76px;height:76px}
+      #espil-cust-box .ecb-sw{width:20px;height:20px}
+      .locpick-card{padding:16px 16px 12px}
+      .locpick-btn{padding:10px 8px}
+    }
+  </style>
 </head>
 <body>
 <script>window.__ESPIL_GAME_PAGE=true;</script>
