@@ -3277,10 +3277,11 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     }
     var bldgNameCache={};
     /* Building-name rule (Han 2026-10-27): the label is the BUILDING's
-       own name, never a store inside it. Places results classify by
-       primary type - building-scale places name the building; shops,
-       food and services are tenants (kept as b.stores, listed inside
-       by the store modal). No building name -> the street address. */
+       own name, never a store inside it. The baked open-data record
+       classifies the same way at build time - building-scale places
+       name the building; shops, food and services are tenants (kept
+       as b.stores, listed inside by the store modal). No building
+       name -> the street address. */
     var ESPIL_BUILDING_TYPES={hotel:1,motel:1,hostel:1,resort_hotel:1,apartment_building:1,apartment_complex:1,condominium_complex:1,office:1,corporate_office:1,coworking_space:1,shopping_mall:1,train_station:1,subway_station:1,transit_station:1,bus_station:1,airport:1,hospital:1,medical_center:1,school:1,university:1,library:1,museum:1,city_hall:1,courthouse:1,embassy:1,post_office:1,church:1,mosque:1,synagogue:1,hindu_temple:1,place_of_worship:1,stadium:1,arena:1,convention_center:1,movie_theater:1,performing_arts_theater:1,concert_hall:1,casino:1,parking:1,marina:1};
     var ESPIL_TENANT_TYPES={cafe:1,coffee_shop:1,bakery:1,bar:1,pub:1,wine_bar:1,juice_bar:1,tea_house:1,food_court:1,meal_takeaway:1,meal_delivery:1,bank:1,atm:1,hair_salon:1,barber_shop:1,beauty_salon:1,nail_salon:1,spa:1,massage:1,gym:1,fitness_center:1,pharmacy:1,dentist:1,doctor:1,clinic:1,physiotherapist:1,chiropractor:1,lawyer:1,accounting:1,real_estate_agency:1,insurance_agency:1,travel_agency:1,laundry:1,car_repair:1,car_wash:1,car_rental:1,gas_station:1,veterinary_care:1,florist:1,locksmith:1,moving_company:1,storage:1,funeral_home:1,market:1,department_store:1,discount_store:1,wholesaler:1,night_club:1,brewery:1,winery:1,distillery:1,tattoo_shop:1,pawn_shop:1};
     function espilIsTenantType(t){
@@ -3302,44 +3303,20 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
          (Re-applied 2026-10-14 after the working-copy overwrite.) */
       var key=b.id?('bldg:'+b.id):(ll.lat.toFixed(4)+','+ll.lng.toFixed(4));
       if(bldgNameCache[key]){b.name=bldgNameCache[key];cb(b.name);return;}
-      /* Google Places API (New) Nearby Search - classify the results:
-         the building names the label, tenants go inside, and the
-         street address is the fallback when no building name exists. */
-      if(GOOGLE_PLACES_KEY&&GOOGLE_PLACES_KEY.indexOf('__PUT_')!==0){
-        fetch(PLACES_PROXY?'/api/places-nearby':'https://places.googleapis.com/v1/places:searchNearby',{
-          method:'POST',
-          headers:{
-            'Content-Type':'application/json',
-            'X-Goog-Api-Key':GOOGLE_PLACES_KEY,
-            'X-Goog-FieldMask':'places.id,places.displayName,places.primaryType,places.types,places.formattedAddress'
-          },
-          body:JSON.stringify({
-            locationRestriction:{circle:{center:{latitude:ll.lat,longitude:ll.lng},radius:50}},
-            maxResultCount:10,
-            rankPreference:'DISTANCE'
-          })
-        })
-        .then(function(r){return r.json();})
-        .then(function(j){
-          var places=j.places||[];
-          var bldg=null,neutral=null,tenants=[];
-          for(var i=0;i<places.length;i++){
-            var p=places[i],t=p.primaryType||'';
-            var premise=(p.types||[]).indexOf('premise')>=0;
-            if(espilIsTenantType(t)&&!premise){tenants.push(p);continue;}
-            if(!bldg&&(premise||ESPIL_BUILDING_TYPES[t])){bldg=p;continue;}
-            if(!neutral)neutral=p;
+      /* Building data (Han 2026-10-29): names and stores come from
+         the baked open-data file (Overture Maps Places +
+         OpenStreetMap, joined per building at build time) - no
+         Google Places, no runtime API cost. The live OSM lookup
+         stays as the fallback for buildings the bake misses. */
+      if(window.__espilBakedFor){
+        window.__espilBakedFor(b).then(function(bp){
+          if(bp){
+            if(bp.stores&&bp.stores.length)b.stores=bp.stores;
+            var bn=bp.name||bp.addr;
+            if(bn){bldgNameCache[key]=bn;b.name=bn;cb(bn);return;}
           }
-          if(tenants.length)b.stores=tenants.map(function(p){return {id:p.id,name:(p.displayName&&p.displayName.text)||'Unknown',type:p.primaryType||''};});
-          var chosen=bldg||neutral;
-          var nm=chosen?(chosen.displayName&&chosen.displayName.text):'';
-          if(!nm){
-            var fa=(chosen&&chosen.formattedAddress)||(places[0]&&places[0].formattedAddress)||'';
-            nm=espilShortAddress(fa)||'Downtown Vancouver';
-          }
-          bldgNameCache[key]=nm;b.name=nm;cb(nm);
-        })
-        .catch(function(){fetchBuildingNameOSM(b,cb);});
+          fetchBuildingNameOSM(b,cb);
+        });
         return;
       }
       fetchBuildingNameOSM(b,cb);
@@ -7170,49 +7147,27 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
          (Re-applied 2026-10-14 after the working-copy overwrite.) */
       var key=b.id?('bldg:'+b.id):(ll.lat.toFixed(4)+','+ll.lng.toFixed(4));
       if(storeCache[key]){cb(storeCache[key]);return;}
-      if(GOOGLE_PLACES_KEY&&GOOGLE_PLACES_KEY.indexOf('__PUT_')!==0){
-        fetch(PLACES_PROXY?'/api/places-nearby':'https://places.googleapis.com/v1/places:searchNearby',{
-          method:'POST',
-          headers:{
-            'Content-Type':'application/json',
-            'X-Goog-Api-Key':GOOGLE_PLACES_KEY,
-            'X-Goog-FieldMask':'places.id,places.displayName,places.primaryType,places.formattedAddress,places.rating,places.userRatingCount'
-          },
-          body:JSON.stringify({
-            locationRestriction:{circle:{center:{latitude:ll.lat,longitude:ll.lng},radius:60}},
-            maxResultCount:20, /* Han 2026-10-14 #2: ALL stores in the building */
-            rankPreference:'DISTANCE'
-          })
-        })
-        .then(function(r){return r.json();})
-        .then(function(j){
-          var places=(j.places||[]).map(function(p){
-            return {
-              id:p.id,
-              name:(p.displayName&&p.displayName.text)||'Unknown',
-              type:p.primaryType||'',
-              address:p.formattedAddress||'',
-              rating:p.rating||0,
-              ratingCount:p.userRatingCount||0
-            };
-          });
-          storeCache[key]=places;cb(places);
-        })
-        .catch(function(){cb([]);});
-      }else{cb([]);}
+      /* Baked open data (Han 2026-10-29): the stores inside this
+         building, joined at build time. No Google Places. */
+      if(window.__espilBakedFor){
+        window.__espilBakedFor(b).then(function(bp){
+          var st=(bp&&bp.stores)||[];
+          storeCache[key]=st;cb(st);
+        });
+        return;
+      }
+      cb([]);
     }
     function fetchPlaceDetails(placeId,cb){
-      if(GOOGLE_PLACES_KEY&&GOOGLE_PLACES_KEY.indexOf('__PUT_')!==0){
-        fetch((PLACES_PROXY?'/api/places-details?placeId=':'https://places.googleapis.com/v1/places/')+placeId,{
-          headers:{
-            'X-Goog-Api-Key':GOOGLE_PLACES_KEY,
-            'X-Goog-FieldMask':'displayName,primaryType,formattedAddress,location,rating,userRatingCount,reviews,photos,websiteUri,regularOpeningHours,priceLevel'
-          }
-        })
-        .then(function(r){return r.json();})
-        .then(function(j){cb(j);})
-        .catch(function(){cb(null);});
-      }else{cb(null);}
+      /* Baked open data (Han 2026-10-29): details come from the
+         baked record (name, type, street address). Reviews and
+         photos are not part of the open data, so those views
+         report none available. No Google Places. */
+      if(window.__espilBakedDetail){
+        window.__espilBakedDetail(placeId).then(function(d){cb(d||null);});
+        return;
+      }
+      cb(null);
     }
     var currentStores=[],currentStore=null,storeSelIdx=0;
     function showStoreModal(stores,buildingName){
@@ -7426,9 +7381,6 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
             var t=document.getElementById('toast');
             if(t){
               var msg='Not a store';
-              if(GOOGLE_PLACES_KEY.indexOf('__PUT_')===0){
-                msg='Store data unavailable (API key needed)';
-              }
               t.textContent=msg;
               t.classList.add('show');
               clearTimeout(t._it);
@@ -8886,16 +8838,17 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     }
     function espilFetchContact(rec, done){
       var ll=mapToLatLng(rec.cx,rec.cz);
-      if(GOOGLE_PLACES_KEY&&GOOGLE_PLACES_KEY.indexOf('__PUT_')!==0){
-        fetch(PLACES_PROXY?'/api/places-nearby':'https://places.googleapis.com/v1/places:searchNearby',{
-          method:'POST',
-          headers:{'Content-Type':'application/json','X-Goog-Api-Key':GOOGLE_PLACES_KEY,'X-Goog-FieldMask':'places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri'},
-          body:JSON.stringify({locationRestriction:{circle:{center:{latitude:ll.lat,longitude:ll.lng},radius:60}},maxResultCount:1,rankPreference:'DISTANCE'})
-        }).then(function(r){return r.json();}).then(function(j){
-          var pl=(j.places&&j.places[0])||null;
-          if(!pl){ done([['Name',espilBldgName],['Address','Not listed'],['Phone','Not listed'],['Website','Not listed'],['Email','Not listed']]); return; }
-          done([['Name',espilBldgName||(pl.displayName&&pl.displayName.text)],['Website',pl.websiteUri||''],['Address',pl.formattedAddress||''],['Phone',pl.nationalPhoneNumber||''],['Email','']]);
-        }).catch(function(){ done([['Name',espilBldgName],['Address',ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)],['Phone','Not listed'],['Website','Not listed'],['Email','Not listed']]); });
+      /* Baked open data (Han 2026-10-29) names the building and
+         gives its street address; phone, website and email are
+         not part of the open data and stay unlisted. */
+      if(window.__espilBakedFor){
+        window.__espilBakedFor({x:rec.cx,z:rec.cz}).then(function(bp){
+          if(bp&&(bp.name||bp.addr)){
+            done([['Name',bp.name||espilBldgName],['Address',bp.addr||'Not listed'],['Phone','Not listed'],['Website','Not listed'],['Email','Not listed']]);
+            return;
+          }
+          done([['Name',espilBldgName],['Address',ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)],['Phone','Not listed'],['Website','Not listed'],['Email','Not listed']]);
+        });
         return;
       }
       done([['Name',espilBldgName],['Address',ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)],['Phone','Not listed'],['Website','Not listed'],['Email','Not listed']]);
@@ -15254,6 +15207,121 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
   else watchPanel();
 })();
 /* __espilCustomizer END */
+
+</script>
+<script>
+/* __espilBakedPlaces v1
+   Baked building data (Han 2026-10-29): building names, street
+   addresses and the stores inside each building, joined at build
+   time from Overture Maps Places + OpenStreetMap and shipped as
+   assets/osm/<city>_places.json. No Google Places and no runtime
+   API cost. The file loads lazily on first use - it is never part
+   of the entry loading gate - and the browser caches it per city.
+   A city without a baked file resolves null, and callers fall
+   back to the live OSM lookup / an empty store list.
+   Record shape: [cx, cz, w, d, name, addr, [[store, type], ...]]
+   where (cx, cz, w, d) is the source polygon's bounding box,
+   which is the AABB the runtime building records carry. */
+(function () {
+  'use strict';
+  var cache = {};
+  var stats = { calls: 0, hits: 0 };
+  function cityKey() {
+    try { return window.__espilCityKey || 'vancouver'; }
+    catch (e) { return 'vancouver'; }
+  }
+  function load(city) {
+    var c = cache[city];
+    if (c) return c.promise;
+    c = cache[city] = { status: 'loading', records: null, grid: {}, promise: null };
+    c.promise = fetch('assets/osm/' + city + '_places.json')
+      .then(function (r) { if (!r.ok) throw new Error('no bake'); return r.json(); })
+      .then(function (doc) {
+        c.records = (doc && doc.b) || [];
+        c.status = 'ready';
+        for (var i = 0; i < c.records.length; i++) {
+          var rec = c.records[i];
+          rec._i = i;
+          var k = Math.floor(rec[0] / 60) + ',' + Math.floor(rec[1] / 60);
+          (c.grid[k] = c.grid[k] || []).push(rec);
+        }
+        return c;
+      })
+      .catch(function () { c.status = 'absent'; c.records = []; return c; });
+    return c.promise;
+  }
+  function match(c, b) {
+    if (!c.records || !c.records.length) return null;
+    var gx = Math.floor(b.x / 60), gz = Math.floor(b.z / 60);
+    var best = null, bestScore = 1e9;
+    for (var ix = gx - 2; ix <= gx + 2; ix++) {
+      for (var iz = gz - 2; iz <= gz + 2; iz++) {
+        var cell = c.grid[ix + ',' + iz];
+        if (!cell) continue;
+        for (var j = 0; j < cell.length; j++) {
+          var rec = cell[j];
+          var dx = b.x - rec[0], dz = b.z - rec[1];
+          var dist = Math.sqrt(dx * dx + dz * dz);
+          var score = -1;
+          if (b.w && b.d && Math.abs(dx) <= 3 && Math.abs(dz) <= 3 &&
+              Math.abs(b.w - rec[2]) <= 5 && Math.abs(b.d - rec[3]) <= 5) {
+            score = dist;                    /* AABB fingerprint */
+          } else if (Math.abs(dx) <= rec[2] / 2 + 3 && Math.abs(dz) <= rec[3] / 2 + 3) {
+            /* Point inside the footprint: adjacent strips overlap,
+               so the winner is the record the point sits deepest
+               in (largest margin to its edges), not the nearest
+               centre - a door point hugs its own building's edge. */
+            var mx = rec[2] / 2 + 3 - Math.abs(dx);
+            var mz = rec[3] / 2 + 3 - Math.abs(dz);
+            score = 100 - Math.min(mx, mz) + dist * 0.001;
+          } else if (dist <= 15) {
+            score = 200 + dist;              /* nearest centre */
+          }
+          if (score >= 0 && score < bestScore) { bestScore = score; best = rec; }
+        }
+      }
+    }
+    return best;
+  }
+  function shape(rec) {
+    if (!rec) return null;
+    var stores = [];
+    var list = rec[6] || [];
+    for (var j = 0; j < list.length; j++) {
+      stores.push({ id: 'baked:' + rec._i + ':' + j, name: list[j][0],
+                    type: list[j][1] || '', address: rec[5] || '',
+                    rating: 0, ratingCount: 0 });
+    }
+    return { name: rec[4] || null, addr: rec[5] || null, stores: stores };
+  }
+  window.__espilBakedFor = function (b) {
+    stats.calls++;
+    return load(cityKey()).then(function (c) {
+      var rec = (c.status === 'ready') ? match(c, b) : null;
+      if (rec) stats.hits++;
+      return shape(rec);
+    });
+  };
+  window.__espilBakedDetail = function (id) {
+    return load(cityKey()).then(function (c) {
+      if (c.status !== 'ready' || !id) return null;
+      var m = /^baked:(\d+):(\d+)$/.exec(String(id));
+      if (!m) return null;
+      var rec = c.records[Number(m[1])];
+      if (!rec || !rec[6] || !rec[6][Number(m[2])]) return null;
+      var s = rec[6][Number(m[2])];
+      return { displayName: { text: s[0] }, primaryType: s[1] || '',
+               formattedAddress: rec[5] || '' };
+    });
+  };
+  window.__espilBakedPlacesState = function () {
+    var city = cityKey();
+    var c = cache[city];
+    return { city: city, status: c ? c.status : 'idle',
+             records: c && c.records ? c.records.length : 0,
+             calls: stats.calls, hits: stats.hits };
+  };
+})();
 
 </script>
 </body>
