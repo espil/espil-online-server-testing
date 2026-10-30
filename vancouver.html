@@ -1803,6 +1803,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       .locpick-btn{padding:10px 8px}
     }
   </style>
+<style id="espil-logo-off">.mapboxgl-ctrl-logo{display:none!important}</style>
 </head>
 <body>
 <script>window.__ESPIL_GAME_PAGE=true;</script>
@@ -3074,12 +3075,12 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     function gateCharacter(){
       var saved=null;
       try{saved=window.localStorage.getItem('espil_character');}catch(e){}
-      if(saved){ espilApplyAvatarGender(espilSavedGender()); if(window.__espilEntryLocationGate){ window.__espilEntryLocationGate(function(){ enterWalkMap(); }); return; } enterWalkMap(); return; } /* already has a character: skip customization (the location pick still applies) */
+      if(saved){ espilApplyAvatarGender(espilSavedGender()); } /* Han 2026-10-30 #2: the character screen opens after EVERY login, guests included - a returning traveler's saved gender and look come pre-selected below, so ENTER simply continues. */
       var panel=document.getElementById('char-custom');
       var note=document.getElementById('char-bypass');
       var csub=panel?panel.querySelector('.char-sub'):null;
       if(csub)csub.textContent=(window.__espilT?window.__espilT('charSub').replace('{city}',espilCityDisplayName()):'Your traveler for '+espilCityDisplayName()+'.');
-      setChosen('male');
+      setChosen(saved?espilSavedGender():'male');
       if(note)note.hidden=true; /* no auto-entry note in the production flow */
       if(panel)panel.setAttribute('aria-hidden','false');
       if(window.EspilAudio&&window.EspilAudio.pop)window.EspilAudio.pop();
@@ -11011,25 +11012,15 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
         maybeShowEntrySub();
         return;
       }
-      /* Slow smooth dive toward the city while the name types out (smoothed 2026-10-06). */
-      (function(){
-        var gen=++zoomStageGen;
-        var fromDist=orbitDistance,startT=performance.now(),durMs=4600;
-        var tick=function(){
-          if(gen!==zoomStageGen||!entryActive)return;
-          var t=Math.min(1,(performance.now()-startT)/durMs);
-          var e=t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
-          targetDistance=fromDist+(1.34-fromDist)*e;
-          if(t<1)requestAnimationFrame(tick);
-        };
-        requestAnimationFrame(tick);
-      })();
-      entryTimers.push(setTimeout(function(){ if(entryActive&&!entryTypedDone)entryTypedDone=true; maybeShowEntrySub(); },12000)); /* safety net - Han 2026-10-17: force the typing gate open so the login gate always arms */
-      if(entryEl)entryEl.setAttribute('aria-hidden','false');
-      if(entrySub)entrySub.classList.remove('show');
-      if(entryEl)try{entryEl.focus({preventScroll:true});}catch(e){}
+      /* Han 2026-10-30 #1: DIVE asks for login at once - no glide or
+         typing theatre in front of the sign-in modal. The preload
+         that started at the Dive click keeps running in parallel,
+         and the single glass loading sequence still runs at the end
+         of the gate chain (after the location pick). */
+      targetDistance=1.34; orbitDistance=1.34;
+      entryTypedDone=true;
       status.textContent='Entering '+selected.userData.name+'…';
-      typeEntryName(selected.userData.name);
+      maybeShowEntrySub();
     }
     function finishCityEntry(){
       if(!entryActive||!entrySubShown)return;
@@ -14903,8 +14894,10 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
 <script>
 /* __espilGameUI v1 - the Espil game UI template (Han's order,
    2026-10-28): the profile, inventory, stall and friend/party
-   windows share ONE game-style template - a deep green game frame
-   with a gold rim, an inset hairline and small-caps gold headers -
+   windows share ONE game-style template - a warm bronze game frame
+   with a gold rim, an inset hairline and small-caps gold headers
+   (palette shifted from deep green to EverPlanet bronze on Han's
+   MMORPG UI order, 2026-10-30) -
    drawn in pure CSS so it loads instantly and matches the world.
    Han's layout law: NO scrolling anywhere except the inventory
    grid; every window must resolve inside a single screen, so the
@@ -14918,15 +14911,17 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
   st.textContent =
     /* ---- the shared game frame (all .skill-tree windows) -------- */
     '.skill-tree .st-card{border:2px solid rgba(201,168,106,.78);border-radius:18px;' +
-      'background:linear-gradient(168deg,#17301f 0%,#101f14 55%,#0a140c 100%);' +
-      'box-shadow:0 24px 60px rgba(0,0,0,.55),0 0 0 1px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,217,122,.28),inset 0 0 34px rgba(90,61,38,.18);' +
+      'background:linear-gradient(168deg,#5d4126 0%,#463118 55%,#2e2010 100%);' +
+      'box-shadow:0 24px 60px rgba(0,0,0,.55),0 0 0 1px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,217,122,.28),inset 0 0 34px rgba(0,0,0,.35);' +
       'max-height:94vh;overflow:hidden;display:flex;flex-direction:column;padding:18px 20px}' +
     '.skill-tree .st-head{flex:none;padding-bottom:10px;margin-bottom:12px;border-bottom:1px solid rgba(201,168,106,.38)}' +
     '.skill-tree .st-head h2{color:#ffd97a;text-shadow:0 0 12px rgba(255,217,122,.35)}' +
     '.skill-tree .st-close{border:2px solid rgba(201,168,106,.85);background:radial-gradient(circle,#3a2c17,#1d1509);color:#ffd97a}' +
     '.skill-tree .st-close:hover{border-color:#ffd97a;box-shadow:0 0 12px rgba(255,217,122,.45)}' +
     '.skill-tree .st-grid{flex:1 1 auto;min-height:0;overflow:hidden}' +
-    '.skill-tree .pill-btn{border:1px solid rgba(201,168,106,.55);background:linear-gradient(180deg,rgba(46,74,47,.9),rgba(26,46,28,.9));color:#f3e9d2;box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}' +
+    '.skill-tree .pill-btn{border:1px solid rgba(201,168,106,.55);background:linear-gradient(180deg,rgba(122,84,44,.92),rgba(74,50,24,.92));color:#f3e9d2;box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}' +
+    /* ---- settings card joins the bronze template ----------------- */
+    '.set-card{background:radial-gradient(420px 300px at 85% -10%, rgba(255,190,90,.20), transparent 60%),linear-gradient(160deg,#4a3319,#2a1d0d 70%)!important}' +
     '.skill-tree .pill-btn:hover{border-color:#ffd97a}' +
     /* ---- inventory: the ONE window allowed to scroll ------------ */
     '#inventory-panel .st-grid{overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(201,168,106,.6) transparent;padding-right:2px}' +
@@ -15349,6 +15344,247 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
     return { city: city, status: c ? c.status : 'idle',
              records: c && c.records ? c.records.length : 0,
              calls: stats.calls, hits: stats.hits };
+  };
+})();
+
+</script>
+<script>
+/* __espilMMOHud v1 - the MMORPG HUD skin (Han's order, 2026-10-30,
+   MapleStory / EverPlanet reference): the existing quickbar becomes
+   a bronze-and-gold hotbar centred at the bottom of the screen, the
+   minimap gains the chunky gold frame, the chat windows take the
+   same translucent bronze, and two new pieces complete the frame -
+   a bottom-left status cluster (portrait medallion painted from
+   the traveler's own look record, name, and the real Leo balance)
+   and an EverPlanet-style green strip along the very bottom edge
+   whose fill is the real tutorial progress and whose label reads
+   the current zone and map coordinates. The module also completes
+   two stub buttons in the quickbar's menu grid: MAP now cycles the
+   real map stages (KeyM, dispatched as the same key event the
+   keyboard sends) and CHAR opens the real self-profile window via
+   window.__espilOpenSelfProfile (the old character panel behind
+   the P key is switched off in this build by espilCharCustomOff,
+   so the profile is the live character surface). */
+(function () {
+  'use strict';
+  if (window.__espilMMOHud) return;
+  window.__espilMMOHud = true;
+
+  var st = document.createElement('style');
+  st.id = 'espil-mmo-hud-style';
+  st.textContent =
+    /* ---- quickbar: EverPlanet bottom-centre hotbar -------------- */
+    '#quickbar{left:50%;right:auto;transform:translateX(-50%);bottom:calc(17px + env(safe-area-inset-bottom));' +
+      'grid-template-columns:repeat(5,46px);gap:6px;padding:8px;border-radius:14px;' +
+      'background:linear-gradient(180deg,rgba(74,51,25,.88),rgba(43,29,13,.93));' +
+      'border:2px solid rgba(217,164,65,.85);' +
+      'box-shadow:0 14px 30px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,217,122,.35),inset 0 0 22px rgba(0,0,0,.35)}' +
+    '#quickbar .move-slot{background:linear-gradient(180deg,rgba(32,21,9,.92),rgba(16,10,4,.95));' +
+      'border:1.5px solid rgba(217,164,65,.6);border-radius:9px;' +
+      'box-shadow:inset 0 1px 0 rgba(255,235,190,.18),inset 0 -8px 14px rgba(0,0,0,.5)}' +
+    '#quickbar .move-slot:hover{border-color:#ffd97a;box-shadow:0 0 10px rgba(255,217,122,.35),inset 0 1px 0 rgba(255,235,190,.25)}' +
+    '#quickbar .flask{width:38px;height:38px}' +
+    '#quickbar .flask .pct{display:block;font-size:8.5px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.9)}' +
+    '@media (pointer:coarse){#quickbar{left:auto;right:12px;transform:none}}' +
+    /* ---- minimap: chunky gold frame, stages 1-2 ------------------- */
+    '#minimap-wrap[data-stage="1"],#minimap-wrap[data-stage="2"]{border:3px solid #8a6a34;' +
+      'outline:1px solid rgba(255,217,122,.55);border-radius:16px;overflow:hidden;' +
+      'box-shadow:0 10px 26px rgba(0,0,0,.5),inset 0 0 0 2px rgba(0,0,0,.35)}' +
+    /* ---- chat windows: translucent bronze ------------------------- */
+    '.chat-window{background:linear-gradient(180deg,rgba(43,29,13,.82),rgba(24,16,7,.87));border:2px solid rgba(217,164,65,.55)}' +
+    '#espil-chat{background:linear-gradient(180deg,rgba(43,29,13,.82),rgba(24,16,7,.87));' +
+      'border:1.5px solid rgba(217,164,65,.5);border-radius:12px;padding:6px 8px;box-shadow:0 10px 24px rgba(0,0,0,.4)}' +
+    '@media (pointer:fine){' +
+      '.chat-window{bottom:calc(96px + env(safe-area-inset-bottom))}' +
+      '#espil-chat{bottom:calc(278px + env(safe-area-inset-bottom))}}' +
+    /* ---- status cluster: portrait + name + Leo --------------------- */
+    '#espil-mmo-status{position:fixed;left:14px;bottom:calc(15px + env(safe-area-inset-bottom));z-index:31;' +
+      'display:flex;align-items:center;gap:10px;padding:7px 15px 7px 8px;border-radius:999px;' +
+      'background:linear-gradient(180deg,rgba(74,51,25,.9),rgba(43,29,13,.94));' +
+      'border:2px solid rgba(217,164,65,.85);' +
+      'box-shadow:0 12px 26px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,217,122,.35);' +
+      'font-family:"Manrope",sans-serif;color:#fff4cf;pointer-events:none}' +
+    '#espil-mmo-status .mmo-medallion{width:52px;height:52px;border-radius:50%;flex:none;overflow:hidden;' +
+      'border:2.5px solid #d9a441;box-shadow:0 0 0 2px rgba(0,0,0,.45);background:#12242f}' +
+    '#espil-mmo-status .mmo-medallion canvas{width:100%;height:100%;display:block}' +
+    '#espil-mmo-status .mmo-who{display:flex;flex-direction:column;gap:1px;min-width:0}' +
+    '#espil-mmo-status .mmo-name{font-weight:900;font-size:14.5px;letter-spacing:.02em;color:#ffe9ad;' +
+      'text-shadow:0 1px 2px rgba(0,0,0,.8);white-space:nowrap}' +
+    '#espil-mmo-status .mmo-sub{font-size:10.5px;font-weight:700;color:rgba(255,244,207,.75);white-space:nowrap}' +
+    '#espil-mmo-status .mmo-leo{display:flex;align-items:center;gap:5px;font-size:11.5px;font-weight:800;color:#ffd97a}' +
+    '#espil-mmo-status .mmo-coin{width:13px;height:13px;border-radius:50%;flex:none;display:inline-block;' +
+      'background:radial-gradient(circle at 35% 30%,#ffe9a8,#d9a441 60%,#8a6a34);border:1px solid #8a6a34}' +
+    '@media (pointer:coarse){#espil-mmo-status{padding:5px 11px 5px 6px;gap:7px}' +
+      '#espil-mmo-status .mmo-medallion{width:40px;height:40px}' +
+      '#espil-mmo-status .mmo-name{font-size:12.5px}#espil-mmo-status .mmo-sub{display:none}}' +
+    /* ---- bottom strip: tutorial progress + zone -------------------- */
+    '#espil-mmo-strip{position:fixed;left:0;right:0;bottom:0;height:13px;z-index:29;overflow:hidden;' +
+      'background:rgba(10,8,4,.75);border-top:1px solid rgba(217,164,65,.5);font-family:"Manrope",sans-serif}' +
+    '#espil-mmo-fill{position:absolute;left:0;top:0;bottom:0;width:0%;' +
+      'background:linear-gradient(180deg,#bfe98a,#7fbf3f 55%,#4e8f24);' +
+      'box-shadow:inset 0 1px 0 rgba(255,255,255,.45);transition:width .6s ease}' +
+    '#espil-mmo-zone{position:relative;text-align:center;font-size:9.5px;font-weight:800;' +
+      'letter-spacing:.14em;color:#fff8e2;text-shadow:0 1px 2px rgba(0,0,0,.9);line-height:13px}' +
+    'body:not(.in-map) #espil-mmo-status,body:not(.in-map) #espil-mmo-strip{display:none!important}';
+  document.head.appendChild(st);
+
+  /* ---- portrait painter (same recipe as the customizer previews) - */
+  var SK = ['#ffe3c2', '#f2c49b', '#dca26b', '#a8703c', '#6f4525'];
+  var HC = ['#3a2a1c', '#7a4a2b', '#b3764a', '#e3c188', '#ececec', '#23262b', '#c94f4f', '#4a6ac9', '#5da873'];
+  var OF = ['#3f7fbf', '#c94f4f', '#57a773', '#e0a83c', '#7a5fc0', '#e77fc0', '#37b8a5', '#e8e4da'];
+  function paintFace(c, gender, look) {
+    var lk = look || {};
+    var skin = SK[typeof lk.skin === 'number' ? lk.skin : 1] || SK[1];
+    var hairCol = HC[typeof lk.hairColor === 'number' ? lk.hairColor : (gender === 'f' ? 1 : 0)] || HC[0];
+    var outfit = OF[typeof lk.outfit === 'number' ? lk.outfit : 0] || OF[0];
+    var hs = typeof lk.hair === 'number' ? lk.hair : 0;
+    var f = (gender === 'f' || gender === 'female');
+    c.clearRect(0, 0, 112, 112);
+    c.save(); c.beginPath(); c.arc(56, 56, 54, 0, Math.PI * 2); c.clip();
+    var grd = c.createLinearGradient(0, 0, 0, 112); grd.addColorStop(0, '#1d4256'); grd.addColorStop(1, '#12242f');
+    c.fillStyle = grd; c.fillRect(0, 0, 112, 112);
+    c.fillStyle = outfit; c.beginPath(); c.moveTo(22, 112); c.quadraticCurveTo(56, 82, 90, 112); c.closePath(); c.fill();
+    c.fillStyle = skin; c.fillRect(50, 74, 12, 16);
+    c.beginPath(); c.arc(56, 58, 26, 0, Math.PI * 2); c.fill();
+    c.fillStyle = hairCol;
+    if (f) {
+      if (hs === 3) { c.beginPath(); c.arc(56, 28, 9, 0, Math.PI * 2); c.fill(); }
+      c.beginPath(); c.arc(56, 40, 27, Math.PI, Math.PI * 2); c.fill();
+      if (hs === 0) { c.fillRect(27, 40, 11, 42); c.fillRect(74, 40, 11, 42); }
+      else if (hs === 1) { c.fillRect(28, 40, 10, 25); c.fillRect(74, 40, 10, 25); }
+      else if (hs === 2) { c.fillRect(77, 38, 9, 36); }
+    } else {
+      if (hs === 1) { c.beginPath(); c.moveTo(31, 42); c.lineTo(37, 25); c.lineTo(45, 36); c.lineTo(53, 23); c.lineTo(61, 36); c.lineTo(69, 25); c.lineTo(77, 38); c.lineTo(83, 43); c.lineTo(31, 43); c.closePath(); c.fill(); }
+      else if (hs === 2) { c.beginPath(); c.arc(56, 47, 25, Math.PI, Math.PI * 2); c.fill(); }
+      else if (hs === 3) { c.beginPath(); c.arc(52, 40, 27, Math.PI, Math.PI * 2); c.fill(); c.fillRect(66, 36, 12, 13); }
+      else { c.beginPath(); c.arc(56, 40, 27, Math.PI, Math.PI * 2); c.fill(); }
+    }
+    c.fillStyle = '#22303a';
+    c.beginPath(); c.arc(47, 58, 3, 0, Math.PI * 2); c.arc(65, 58, 3, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = '#b3764a'; c.lineWidth = 2; c.beginPath(); c.arc(56, 64, 8, 0.15 * Math.PI, 0.85 * Math.PI); c.stroke();
+    c.restore();
+  }
+
+  /* ---- DOM -------------------------------------------------------- */
+  var status = document.createElement('div');
+  status.id = 'espil-mmo-status';
+  status.setAttribute('aria-hidden', 'true');
+  status.innerHTML = '<div class="mmo-medallion"><canvas id="espil-mmo-face" width="112" height="112"></canvas></div>' +
+    '<div class="mmo-who"><div class="mmo-name" id="espil-mmo-name">Guest</div>' +
+    '<div class="mmo-sub" id="espil-mmo-sub">espil.online</div>' +
+    '<div class="mmo-leo"><span class="mmo-coin"></span><span id="espil-mmo-leo">Leo 1,000</span></div></div>';
+  var strip = document.createElement('div');
+  strip.id = 'espil-mmo-strip';
+  strip.setAttribute('aria-hidden', 'true');
+  strip.innerHTML = '<div id="espil-mmo-fill"></div><div id="espil-mmo-zone">Vancouver</div>';
+  function mount() {
+    if (!document.body) return;
+    if (!document.getElementById('espil-mmo-status')) document.body.appendChild(status);
+    if (!document.getElementById('espil-mmo-strip')) document.body.appendChild(strip);
+  }
+  if (document.body) mount(); else document.addEventListener('DOMContentLoaded', mount);
+
+  var CITY_NAMES = { vancouver: 'Vancouver', auckland: 'Auckland', tokyo: 'Tokyo', newyork: 'New York', paris: 'Paris', london: 'London', seoul: 'Seoul' };
+  var TUT_STEPS = ['landingNav', 'landingEnter', 'move', 'jump', 'nav', 'enter', 'buy', 'stall', 'map'];
+  var lastRec = '';
+  function refresh() {
+    mount();
+    var inMap = document.body && document.body.classList.contains('in-map');
+    status.setAttribute('aria-hidden', inMap ? 'false' : 'true');
+    strip.setAttribute('aria-hidden', inMap ? 'false' : 'true');
+    if (!inMap) return;
+    /* portrait follows the saved character record */
+    var recRaw = null, rec = null;
+    try { recRaw = localStorage.getItem('espil_character'); rec = recRaw ? JSON.parse(recRaw) : null; } catch (_) {}
+    if (recRaw !== lastRec) {
+      lastRec = recRaw;
+      var cv = document.getElementById('espil-mmo-face');
+      if (cv && cv.getContext) { var c2 = cv.getContext('2d'); if (c2) paintFace(c2, rec && rec.gender === 'female' ? 'f' : 'm', rec ? rec.look : null); }
+    }
+    /* name: display name for accounts, the adopted Guest N for guests */
+    var un = ''; try { un = localStorage.getItem('espil_username') || ''; } catch (_) {}
+    var disp = un;
+    try {
+      var accts = JSON.parse(localStorage.getItem('espil_accounts_v1') || '{}');
+      var a = accts[(un || '').toLowerCase()];
+      if (a && a.display) disp = a.display;
+    } catch (_) {}
+    var nameEl = document.getElementById('espil-mmo-name');
+    if (nameEl) nameEl.textContent = disp || 'Guest';
+    var subEl = document.getElementById('espil-mmo-sub');
+    if (subEl) subEl.textContent = (un && un !== disp) ? ('@' + un) : (/^guest/i.test(un) ? 'Guest traveler' : 'espil.online');
+    /* Leo balance */
+    var bal = 1000;
+    try { var v = parseInt(localStorage.getItem('espil_leo_balance'), 10); if (!isNaN(v)) bal = v; } catch (_) {}
+    var leoEl = document.getElementById('espil-mmo-leo');
+    if (leoEl) leoEl.textContent = 'Leo ' + bal.toLocaleString('en-US');
+    /* zone label + tutorial progress strip */
+    var key = window.__espilCityKey || 'vancouver';
+    var zone = CITY_NAMES[key] || 'Vancouver';
+    var pose = null;
+    try { pose = window.__espilPlayerPose ? window.__espilPlayerPose() : null; } catch (_) {}
+    var zoneEl = document.getElementById('espil-mmo-zone');
+    if (zoneEl) zoneEl.textContent = zone.toUpperCase() + (pose ? '  ·  ' + Math.round(pose.x) + ', ' + Math.round(-pose.z) : '');
+    var fill = document.getElementById('espil-mmo-fill');
+    if (fill) {
+      var pct = 100, dim = true;
+      try {
+        var ts = window.__espilTutorialState ? window.__espilTutorialState() : null;
+        if (ts && !ts.done && ts.step) { var ix = TUT_STEPS.indexOf(ts.step); if (ix >= 0) { pct = Math.round(ix / TUT_STEPS.length * 100); dim = false; } }
+      } catch (_) {}
+      fill.style.width = pct + '%';
+      fill.style.opacity = dim ? '.38' : '1';
+    }
+  }
+  refresh();
+  setInterval(refresh, 600);
+
+  /* ---- complete the quickbar's two stub menu buttons --------------- */
+  function sendKey(key, code) {
+    ['keydown', 'keyup'].forEach(function (t) {
+      document.dispatchEvent(new KeyboardEvent(t, { key: key, code: code, bubbles: true, cancelable: true }));
+    });
+  }
+  var kbTries = 0;
+  var kbTimer = setInterval(function () {
+    kbTries++;
+    if (kbTries > 150) { clearInterval(kbTimer); return; }
+    var kbm = document.getElementById('kb-menu');
+    if (!kbm || !kbm.children.length) return;
+    var doneMap = false, doneChar = false;
+    Array.prototype.forEach.call(kbm.children, function (b) {
+      var mn = b.querySelector('.mn');
+      var label = mn ? mn.textContent : '';
+      if (label === 'MAP' && !b.__mmoWired) {
+        var nb = b.cloneNode(true);
+        nb.__mmoWired = true;
+        nb.addEventListener('pointerdown', function (e) { e.preventDefault(); sendKey('m', 'KeyM'); });
+        b.parentNode.replaceChild(nb, b);
+        doneMap = true;
+      } else if (label === 'CHAR' && !b.__mmoWired) {
+        b.__mmoWired = true;
+        b.disabled = false;
+        b.classList.remove('is-off');
+        b.removeAttribute('aria-disabled');
+        b.addEventListener('pointerdown', function (e) {
+          e.preventDefault();
+          if (window.__espilOpenSelfProfile) window.__espilOpenSelfProfile();
+          else sendKey('p', 'KeyP');
+        });
+        doneChar = true;
+      }
+    });
+    if ((doneMap || kbm.querySelector('.mn') === null) && doneChar) clearInterval(kbTimer);
+  }, 800);
+
+  window.__espilMMOHudState = function () {
+    return {
+      built: true,
+      status: !!document.getElementById('espil-mmo-status'),
+      strip: !!document.getElementById('espil-mmo-strip'),
+      name: (document.getElementById('espil-mmo-name') || {}).textContent || '',
+      leo: (document.getElementById('espil-mmo-leo') || {}).textContent || ''
+    };
   };
 })();
 
