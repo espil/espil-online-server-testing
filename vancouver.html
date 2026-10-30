@@ -1803,7 +1803,25 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       .locpick-btn{padding:10px 8px}
     }
   </style>
-<style id="espil-logo-off">.mapboxgl-ctrl-logo{display:none!important}</style>
+<style id="espil-logo-off">.mapboxgl-ctrl-logo{display:none!important}
+#signin-modal .modal{background:linear-gradient(180deg,#fffbf0,#fff3dc);border:2px solid #d9b380;color:#5a4020;box-shadow:0 24px 60px rgba(90,60,20,.35)}
+#signin-modal .modal h2{color:#6b4a1f;text-shadow:none}
+#signin-modal .modal-sub{color:#8a6a3b}
+#signin-modal .modal-close{color:#8a6a3b}
+#signin-modal .modal-divider{color:#a8742c}
+#signin-modal .provider{background:linear-gradient(180deg,#fffdf6,#ffeecd);border:2px solid #cfa96f;color:#6b4a1f;box-shadow:inset 0 -3px 0 rgba(207,169,111,.35)}
+#signin-modal .provider:disabled{opacity:.55}
+#signin-modal .provider.guest-enter{background:linear-gradient(180deg,#ffb84d,#f08c1a);border-color:#d97f10;color:#fff;text-shadow:0 1px 2px rgba(120,60,0,.5);box-shadow:0 4px 12px rgba(190,110,10,.4)}
+#char-custom .char-card-wrap{background:linear-gradient(180deg,#fffbf0,#fff3dc);border:2px solid #d9b380;color:#5a4020;box-shadow:0 24px 60px rgba(90,60,20,.35)}
+#char-custom .char-card-wrap h2{color:#6b4a1f;text-shadow:none}
+#char-custom .char-sub{color:#8a6a3b}
+#char-custom .char-card{background:linear-gradient(180deg,#fffef8,#ffedcb);border:2px solid #cfa96f;color:#5a4020;box-shadow:inset 0 -3px 0 rgba(207,169,111,.3)}
+#char-custom .char-card.is-selected{border-color:#b57708;background:linear-gradient(180deg,#ffe9b8,#ffd98c);box-shadow:0 2px 8px rgba(150,100,20,.35)}
+#char-custom #char-confirm{background:linear-gradient(180deg,#ffb84d,#f08c1a);border:2px solid #d97f10;color:#fff;text-shadow:0 1px 2px rgba(120,60,0,.5);box-shadow:0 4px 12px rgba(190,110,10,.4)}
+#char-custom input[type="text"]{background:#fffdf6;border:1.5px solid #d9b380;color:#5a4020}
+#signin-modal #auth-box{visibility:hidden}
+#signin-modal #auth-box[data-entryflow="1"]{visibility:visible}
+</style>
 </head>
 <body>
 <script>window.__ESPIL_GAME_PAGE=true;</script>
@@ -14076,14 +14094,14 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
     st.textContent =
       '#espil-tut{position:fixed;top:86px;left:50%;transform:translateX(-50%);z-index:60;' +
       'display:none;align-items:center;gap:10px;max-width:92vw;padding:10px 18px;border-radius:999px;' +
-      'background:rgba(10,24,28,.88);border:1px solid rgba(142,247,232,.55);color:#eafffd;' +
+      'background:rgba(255,251,240,.93);border:2px solid #d9b380;color:#6b4a1f;' +
       'font:700 .92rem/1.35 Manrope,sans-serif;letter-spacing:.02em;pointer-events:none;' +
-      'box-shadow:0 6px 24px rgba(0,0,0,.35);text-align:center}' +
+      'box-shadow:0 8px 18px rgba(90,60,20,.22);text-align:center}' +
       '#espil-tut .tx{display:inline-flex;align-items:center}' +
       '#espil-tut .kb{display:inline-flex;align-items:center;justify-content:center;min-width:23px;height:23px;' +
-      'padding:0 4px;margin-right:4px;border-radius:6px;background:linear-gradient(180deg,#2b3f47,#16242a);' +
-      'border:1px solid rgba(234,255,253,.5);border-bottom-width:3px;color:#eafffd;font-size:.8rem;font-weight:800}' +
-      '#espil-tut.done{border-color:rgba(255,217,122,.7)}';
+      'padding:0 4px;margin-right:4px;border-radius:6px;background:linear-gradient(180deg,#fffdf6,#ffeecd);' +
+      'border:1.5px solid #cfa96f;border-bottom-width:3px;color:#6b4a1f;font-size:.8rem;font-weight:800}' +
+      '#espil-tut.done{border-color:#b57708}';
     document.head.appendChild(st);
     chip = document.createElement('div');
     chip.id = 'espil-tut';
@@ -14640,23 +14658,23 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
   var css = document.createElement('style');
   css.textContent =
     '.eauth-tabs{display:flex;gap:8px;margin:0 0 12px}' +
-    '.eauth-tab{flex:1;padding:9px 0;border-radius:10px;border:1px solid rgba(140,240,225,.35);background:rgba(10,30,34,.35);color:#cfe8e2;font:700 .8rem/1 "Manrope",sans-serif;letter-spacing:.06em;cursor:pointer}' +
-    '.eauth-tab.on{background:linear-gradient(135deg,#1a7f78,#0e4f4c);color:#eafffd;border-color:rgba(140,240,225,.7)}' +
-    '.eauth-label{display:block;font:700 .66rem/1.4 "Manrope",sans-serif;letter-spacing:.14em;color:#8fb8b3;margin:8px 0 5px}' +
-    '.eauth-pane input{display:block;width:100%;box-sizing:border-box;background:rgba(6,12,18,.85);border:1px solid rgba(134,238,228,.45);border-radius:9px;padding:10px 11px;font-size:14px;color:#fff;outline:none}' +
-    '.eauth-pane .espil-auth-btn{display:block;width:100%;appearance:none;border:1px solid rgba(134,238,228,.55);border-radius:12px;padding:12px;margin-top:12px;background:rgba(18,44,50,.8);color:#eafffd;font:800 .78rem/1 "Manrope",sans-serif;letter-spacing:.08em;cursor:pointer}' +
-    '#auth-msg{min-height:1.2em;margin:9px 0 0;font-size:.76rem;line-height:1.5;color:#ffd97a}' +
-    '#auth-session{margin:4px 0 0;font-size:.76rem;line-height:1.5;color:#8ef7e8}' +
+    '.eauth-tab{flex:1;padding:9px 0;border-radius:10px;border:2px solid #cfa96f;background:linear-gradient(180deg,#fffdf6,#ffeecd);color:#8a6a3b;font:700 .8rem/1 "Manrope",sans-serif;letter-spacing:.06em;cursor:pointer}' +
+    '.eauth-tab.on{background:linear-gradient(180deg,#ffe9b8,#ffd98c);color:#6b4a1f;border-color:#b57708}' +
+    '.eauth-label{display:block;font:700 .66rem/1.4 "Manrope",sans-serif;letter-spacing:.14em;color:#8a6a3b;margin:8px 0 5px}' +
+    '.eauth-pane input{display:block;width:100%;box-sizing:border-box;background:#fffdf6;border:1.5px solid #d9b380;border-radius:9px;padding:10px 11px;font-size:14px;color:#5a4020;outline:none}' +
+    '.eauth-pane .espil-auth-btn{display:block;width:100%;appearance:none;border:2px solid #d97f10;border-radius:12px;padding:12px;margin-top:12px;background:linear-gradient(180deg,#ffb84d,#f08c1a);color:#fff;text-shadow:0 1px 2px rgba(120,60,0,.5);box-shadow:0 4px 12px rgba(190,110,10,.4);font:800 .78rem/1 "Manrope",sans-serif;letter-spacing:.08em;cursor:pointer}' +
+    '#auth-msg{min-height:1.2em;margin:9px 0 0;font-size:.76rem;line-height:1.5;color:#c2571b}' +
+    '#auth-session{margin:4px 0 0;font-size:.76rem;line-height:1.5;color:#8a6a3b}' +
     '#espil-locpick{position:fixed;inset:0;z-index:61;display:none;align-items:center;justify-content:center;background:rgba(4,12,14,.8);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}' +
     '#espil-locpick[aria-hidden="false"]{display:flex}' +
-    '.locpick-card{width:min(430px,92vw);border-radius:18px;padding:22px 22px 16px;background:linear-gradient(160deg,rgba(16,42,46,.96),rgba(8,22,26,.97));border:1px solid rgba(120,230,210,.28);box-shadow:0 24px 60px rgba(0,0,0,.5);color:#eafffd;font-family:"Manrope",sans-serif}' +
+    '.locpick-card{width:min(430px,92vw);border-radius:18px;padding:22px 22px 16px;background:linear-gradient(180deg,#fffbf0,#fff3dc);border:2px solid #d9b380;box-shadow:0 24px 60px rgba(90,60,20,.35);color:#5a4020;font-family:"Manrope",sans-serif}' +
     '.locpick-card h3{margin:0 0 4px;font-size:1.05rem;letter-spacing:.02em}' +
     '.locpick-card p{margin:0 0 14px;font-size:.8rem;opacity:.75}' +
     '.locpick-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}' +
-    '.locpick-btn{padding:13px 10px;border-radius:12px;border:1px solid rgba(140,240,225,.3);background:rgba(14,44,48,.6);color:#eafffd;font:700 .82rem/1.25 "Manrope",sans-serif;cursor:pointer;text-align:center}' +
-    '.locpick-btn:hover,.locpick-btn:focus-visible{border-color:rgba(245,197,66,.8);background:rgba(24,64,60,.75);outline:none}' +
-    '.locpick-btn.wide{grid-column:1/-1;border-color:rgba(245,197,66,.55)}' +
-    '.locpick-msg{min-height:18px;margin:10px 0 0;font-size:.78rem;color:#ffd97a;text-align:center}';
+    '.locpick-btn{padding:13px 10px;border-radius:12px;border:2px solid #cfa96f;background:linear-gradient(180deg,#fffdf6,#ffeecd);color:#6b4a1f;font:700 .82rem/1.25 "Manrope",sans-serif;cursor:pointer;text-align:center;box-shadow:inset 0 -3px 0 rgba(207,169,111,.35)}' +
+    '.locpick-btn:hover,.locpick-btn:focus-visible{border-color:#b57708;background:linear-gradient(180deg,#ffe9b8,#ffd98c);outline:none}' +
+    '.locpick-btn.wide{grid-column:1/-1;background:linear-gradient(180deg,#ffb84d,#f08c1a);border-color:#d97f10;color:#fff;text-shadow:0 1px 2px rgba(120,60,0,.5)}' +
+    '.locpick-msg{min-height:18px;margin:10px 0 0;font-size:.78rem;color:#c2571b;text-align:center}';
   document.head.appendChild(css);
 
   /* ---------------- accounts (same store as the social module) --- */
@@ -14676,7 +14694,7 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
     h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
     return Promise.resolve('fnv:' + (h2 >>> 0).toString(16) + (h1 >>> 0).toString(16));
   }
-  function authMsg(msg, ok) { var el = $('auth-msg'); if (el) { el.textContent = msg || ''; el.style.color = ok ? '#8ef7e8' : '#ffd97a'; } }
+  function authMsg(msg, ok) { var el = $('auth-msg'); if (el) { el.textContent = msg || ''; el.style.color = ok ? '#4a7d2a' : '#c2571b'; } }
   function completeGate() {
     try { if (window.__espilLoginGatePending && window.__espilLoginGatePending()) { window.__espilLoginGateDone(); return; } } catch (_) {}
     try { if (window.__espilLoginBypass && window.__espilLoginBypass()) return; } catch (_) {}
@@ -14894,10 +14912,10 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
 <script>
 /* __espilGameUI v1 - the Espil game UI template (Han's order,
    2026-10-28): the profile, inventory, stall and friend/party
-   windows share ONE game-style template - a warm bronze game frame
-   with a gold rim, an inset hairline and small-caps gold headers
-   (palette shifted from deep green to EverPlanet bronze on Han's
-   MMORPG UI order, 2026-10-30) -
+   windows share ONE game-style template - the deep green game
+   frame with a wood-brown rim and parchment buttons, in the exact
+   values of the Zealandia client's shell (.st-card / .pill-btn),
+   per Han's order that the UI match Zealandia (2026-10-30) -
    drawn in pure CSS so it loads instantly and matches the world.
    Han's layout law: NO scrolling anywhere except the inventory
    grid; every window must resolve inside a single screen, so the
@@ -14910,18 +14928,17 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
   st.id = 'espil-game-ui';
   st.textContent =
     /* ---- the shared game frame (all .skill-tree windows) -------- */
-    '.skill-tree .st-card{border:2px solid rgba(201,168,106,.78);border-radius:18px;' +
-      'background:linear-gradient(168deg,#5d4126 0%,#463118 55%,#2e2010 100%);' +
-      'box-shadow:0 24px 60px rgba(0,0,0,.55),0 0 0 1px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,217,122,.28),inset 0 0 34px rgba(0,0,0,.35);' +
+    '.skill-tree .st-card{border:2px solid #6b4a2f;border-radius:24px;color:#e8f5e9;' +
+      'background:linear-gradient(180deg,#1e3320 0%,#142414 50%,#0d1a0d 100%);' +
+      'box-shadow:0 0 44px rgba(63,125,68,.25),0 24px 60px rgba(0,0,0,.5),inset 0 0 30px rgba(90,61,38,.15);' +
       'max-height:94vh;overflow:hidden;display:flex;flex-direction:column;padding:18px 20px}' +
     '.skill-tree .st-head{flex:none;padding-bottom:10px;margin-bottom:12px;border-bottom:1px solid rgba(201,168,106,.38)}' +
     '.skill-tree .st-head h2{color:#ffd97a;text-shadow:0 0 12px rgba(255,217,122,.35)}' +
-    '.skill-tree .st-close{border:2px solid rgba(201,168,106,.85);background:radial-gradient(circle,#3a2c17,#1d1509);color:#ffd97a}' +
+    '.skill-tree .st-close{border:2px solid #6b4a2f;background:radial-gradient(circle,#2d4a2f,#1a2e1c);color:#ffd97a}' +
     '.skill-tree .st-close:hover{border-color:#ffd97a;box-shadow:0 0 12px rgba(255,217,122,.45)}' +
     '.skill-tree .st-grid{flex:1 1 auto;min-height:0;overflow:hidden}' +
-    '.skill-tree .pill-btn{border:1px solid rgba(201,168,106,.55);background:linear-gradient(180deg,rgba(122,84,44,.92),rgba(74,50,24,.92));color:#f3e9d2;box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}' +
-    /* ---- settings card joins the bronze template ----------------- */
-    '.set-card{background:radial-gradient(420px 300px at 85% -10%, rgba(255,190,90,.20), transparent 60%),linear-gradient(160deg,#4a3319,#2a1d0d 70%)!important}' +
+    '.skill-tree .pill-btn{border:1px solid #a8854f;background:linear-gradient(180deg,#f8f3e6,#e6dabd);color:#3b2f28;box-shadow:inset 0 1px 0 rgba(255,255,255,.75),0 2px 10px rgba(0,0,0,.35)}' +
+    '.skill-tree .pill-btn:hover{border-color:#d3ab63;background:linear-gradient(180deg,#fffaf0,#f1e7cd)}' +
     '.skill-tree .pill-btn:hover{border-color:#ffd97a}' +
     /* ---- inventory: the ONE window allowed to scroll ------------ */
     '#inventory-panel .st-grid{overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(201,168,106,.6) transparent;padding-right:2px}' +
@@ -15070,15 +15087,15 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
   var CSS = [
     '#espil-cust-box{display:flex;gap:16px;align-items:center;margin-top:16px;text-align:left}',
     '#espil-cust-box .ecb-preview{flex:none}',
-    '#espil-cust-preview{width:118px;height:118px;border-radius:50%;border:2px solid rgba(134,238,228,.4);background:#12242f;display:block}',
+    '#espil-cust-preview{width:118px;height:118px;border-radius:50%;border:2px solid #d9b380;background:#12242f;display:block}',
     '#espil-cust-box .ecb-rows{flex:1;display:flex;flex-direction:column;gap:9px;min-width:0}',
     '.ecb-row{display:flex;align-items:center;gap:10px}',
-    '.ecb-label{flex:none;width:74px;color:rgba(181,255,248,.65);font:700 .6rem/1.3 "Manrope",sans-serif;letter-spacing:.12em}',
+    '.ecb-label{flex:none;width:74px;color:#8a6a3b;font:700 .6rem/1.3 "Manrope",sans-serif;letter-spacing:.12em}',
     '.ecb-opts{display:flex;gap:6px;flex-wrap:wrap}',
-    '.ecb-sw{appearance:none;width:24px;height:24px;border-radius:50%;border:2px solid rgba(255,255,255,.18);cursor:pointer;padding:0}',
-    '.ecb-sw.on{border-color:#ffd97a;box-shadow:0 0 0 2px rgba(255,217,122,.35);transform:scale(1.12)}',
-    '.ecb-chip{appearance:none;padding:5px 10px;border-radius:999px;border:1px solid rgba(134,238,228,.3);background:rgba(14,32,38,.6);color:#ddfffc;font:700 .62rem/1 "Manrope",sans-serif;letter-spacing:.05em;cursor:pointer}',
-    '.ecb-chip.on{border-color:#ffd97a;color:#ffd97a;background:rgba(255,217,122,.12)}',
+    '.ecb-sw{appearance:none;width:24px;height:24px;border-radius:50%;border:2px solid rgba(90,60,20,.35);cursor:pointer;padding:0}',
+    '.ecb-sw.on{border-color:#b57708;box-shadow:0 0 0 2px rgba(181,119,8,.45);transform:scale(1.12)}',
+    '.ecb-chip{appearance:none;padding:5px 10px;border-radius:999px;border:1.5px solid #cfa96f;background:#fffdf6;color:#6b4a1f;font:700 .62rem/1 "Manrope",sans-serif;letter-spacing:.05em;cursor:pointer}',
+    '.ecb-chip.on{border-color:#b57708;color:#6b4a1f;background:linear-gradient(180deg,#ffe9b8,#ffd98c)}',
     '@media (max-width:560px){#espil-cust-box{flex-direction:column}#espil-cust-box .ecb-rows{width:100%}}'
   ].join('\n');
 
@@ -15349,22 +15366,27 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
 
 </script>
 <script>
-/* __espilMMOHud v1 - the MMORPG HUD skin (Han's order, 2026-10-30,
-   MapleStory / EverPlanet reference): the existing quickbar becomes
-   a bronze-and-gold hotbar centred at the bottom of the screen, the
-   minimap gains the chunky gold frame, the chat windows take the
-   same translucent bronze, and two new pieces complete the frame -
-   a bottom-left status cluster (portrait medallion painted from
-   the traveler's own look record, name, and the real Leo balance)
-   and an EverPlanet-style green strip along the very bottom edge
-   whose fill is the real tutorial progress and whose label reads
-   the current zone and map coordinates. The module also completes
-   two stub buttons in the quickbar's menu grid: MAP now cycles the
-   real map stages (KeyM, dispatched as the same key event the
-   keyboard sends) and CHAR opens the real self-profile window via
-   window.__espilOpenSelfProfile (the old character panel behind
-   the P key is switched off in this build by espilCharCustomOff,
-   so the profile is the live character surface). */
+/* __espilMMOHud v1 - the in-game UI in Zealandia's own skin (Han's
+   order, 2026-10-30: "UI는 Zealandia처럼 해주세요", superseding the
+   same day's dark bronze pass). The values are taken from the
+   Zealandia client as it now stands: the z.css cream storybook
+   skin (cream paper panels #fffbf0 to #fff3dc, border #d9b380,
+   warm brown text #5a4020 / #6b4a1f / #8a6a3b, cream slots #fffdf6
+   to #ffeecd with border #cfa96f, an orange primary button #ffb84d
+   to #f08c1a, a circular gold-rimmed minimap), the shell.css panel
+   template (via game_ui_module.js), and the client's v35-v36 bottom
+   bar: ONE dark wooden tray (gradient #7c5a36 to #5e4023, 3px
+   #3a2817 border) holding the HP and MP orbs and the shortcut
+   column, 42 px round pastel menu buttons with the key letter as
+   a corner badge, and a slim progress bar hanging under the tray
+   centre. espil has no HP/MP values of its own, so the orbs keep
+   showing the game's own flask percentages - no numbers are
+   invented. The module also keeps its status cluster (portrait
+   painted from the traveler's look record, name, real Leo
+   balance) and the under-tray zone strip (real tutorial progress
+   as the fill, the current zone as the label), and completes the
+   quickbar's stub MAP / CHAR buttons (real map-stage cycle, real
+   self-profile). */
 (function () {
   'use strict';
   if (window.__espilMMOHud) return;
@@ -15373,58 +15395,116 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
   var st = document.createElement('style');
   st.id = 'espil-mmo-hud-style';
   st.textContent =
-    /* ---- quickbar: EverPlanet bottom-centre hotbar -------------- */
-    '#quickbar{left:50%;right:auto;transform:translateX(-50%);bottom:calc(17px + env(safe-area-inset-bottom));' +
-      'grid-template-columns:repeat(5,46px);gap:6px;padding:8px;border-radius:14px;' +
-      'background:linear-gradient(180deg,rgba(74,51,25,.88),rgba(43,29,13,.93));' +
-      'border:2px solid rgba(217,164,65,.85);' +
-      'box-shadow:0 14px 30px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,217,122,.35),inset 0 0 22px rgba(0,0,0,.35)}' +
-    '#quickbar .move-slot{background:linear-gradient(180deg,rgba(32,21,9,.92),rgba(16,10,4,.95));' +
-      'border:1.5px solid rgba(217,164,65,.6);border-radius:9px;' +
-      'box-shadow:inset 0 1px 0 rgba(255,235,190,.18),inset 0 -8px 14px rgba(0,0,0,.5)}' +
-    '#quickbar .move-slot:hover{border-color:#ffd97a;box-shadow:0 0 10px rgba(255,217,122,.35),inset 0 1px 0 rgba(255,235,190,.25)}' +
-    '#quickbar .flask{width:38px;height:38px}' +
-    '#quickbar .flask .pct{display:block;font-size:8.5px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.9)}' +
-    '@media (pointer:coarse){#quickbar{left:auto;right:12px;transform:none}}' +
-    /* ---- minimap: chunky gold frame, stages 1-2 ------------------- */
-    '#minimap-wrap[data-stage="1"],#minimap-wrap[data-stage="2"]{border:3px solid #8a6a34;' +
-      'outline:1px solid rgba(255,217,122,.55);border-radius:16px;overflow:hidden;' +
-      'box-shadow:0 10px 26px rgba(0,0,0,.5),inset 0 0 0 2px rgba(0,0,0,.35)}' +
-    /* ---- chat windows: translucent bronze ------------------------- */
-    '.chat-window{background:linear-gradient(180deg,rgba(43,29,13,.82),rgba(24,16,7,.87));border:2px solid rgba(217,164,65,.55)}' +
-    '#espil-chat{background:linear-gradient(180deg,rgba(43,29,13,.82),rgba(24,16,7,.87));' +
-      'border:1.5px solid rgba(217,164,65,.5);border-radius:12px;padding:6px 8px;box-shadow:0 10px 24px rgba(0,0,0,.4)}' +
+    /* ---- quickbar: the Zealandia v36 bottom bar (fine pointers) ---- */
     '@media (pointer:fine){' +
-      '.chat-window{bottom:calc(96px + env(safe-area-inset-bottom))}' +
-      '#espil-chat{bottom:calc(278px + env(safe-area-inset-bottom))}}' +
-    /* ---- status cluster: portrait + name + Leo --------------------- */
+      '#quickbar{display:flex;align-items:center;gap:12px;left:50%;right:auto;' +
+        'transform:translateX(-50%) scale(.85);transform-origin:bottom center;' +
+        'bottom:calc(38px + env(safe-area-inset-bottom));' +
+        'background:transparent;border:none;box-shadow:none;' +
+        'backdrop-filter:none;-webkit-backdrop-filter:none;padding:0}' +
+      /* v36: the wooden tray wraps only the centre panel; orbs outside */
+      '#quickbar .kb-main{display:flex;flex-direction:row;flex-wrap:nowrap;width:max-content;' +
+        'align-items:center;gap:8px;order:2;padding:8px 10px;' +
+        'background:linear-gradient(180deg,#7c5a36,#5e4023);border:3px solid #3a2817;border-radius:18px;' +
+        'box-shadow:0 12px 28px rgba(40,25,8,.4),inset 0 1px 0 rgba(255,230,180,.35)}' +
+      '#quickbar .mmo-keys{display:flex;flex-direction:column;gap:5px}' +
+      '#quickbar .kb-main #item-row{display:flex}' +
+      '#quickbar .kb-main #move-row{display:grid}' +
+      '#quickbar .kb-main #kb-menu{display:grid;grid-template-columns:repeat(2,42px);gap:5px}' +
+      '#quickbar #hp-flask-wrap{order:1}#quickbar #mp-flask-wrap{order:3}' +
+      '#quickbar .flask-wrap{width:92px;height:92px;background:transparent;border-radius:50%}' +
+      '#quickbar .flask{width:84px;height:84px;border:2px solid rgba(255,255,255,.75);' +
+        'box-shadow:0 8px 20px rgba(40,25,8,.35)}' +
+      '#quickbar .flask .pct{display:flex;font-size:15px}' +
+      /* v35 menu buttons: 42px round pastels, key as a corner badge */
+      '#quickbar #kb-menu .move-slot{position:relative;width:42px;height:42px;border-radius:50%;padding:0}' +
+      '#quickbar #kb-menu .move-slot .mn{display:none}' +
+      '#quickbar #kb-menu .move-slot .key{position:absolute;top:-5px;right:-5px;width:16px;height:16px;' +
+        'border-radius:50%;background:#fffdf6;border:1.5px solid #cfa96f;color:#6b4a1f;' +
+        'font-size:9px;display:flex;align-items:center;justify-content:center}' +
+      '#quickbar #kb-menu .move-slot:nth-child(1){background:linear-gradient(180deg,#ffe3ae,#ffd28a)}' +
+      '#quickbar #kb-menu .move-slot:nth-child(2){background:linear-gradient(180deg,#ffd2c4,#ffab96)}' +
+      '#quickbar #kb-menu .move-slot:nth-child(3){background:linear-gradient(180deg,#cdeecb,#a5dba8)}' +
+      '#quickbar #kb-menu .move-slot:nth-child(4){background:linear-gradient(180deg,#c2e4fb,#93c8f2)}' +
+      '#quickbar #kb-menu .move-slot:nth-child(5){background:linear-gradient(180deg,#ecd9fb,#d3aef5)}' +
+      '#quickbar #kb-menu .move-slot:nth-child(6){background:linear-gradient(180deg,#fff3ae,#ffe985)}' +
+    '}' +
+    /* ---- quickbar on touch screens: the same wooden tray ------------ */
+    '@media (pointer:coarse){' +
+      '#quickbar{background:linear-gradient(180deg,#7c5a36,#5e4023);' +
+        'border:3px solid #3a2817;box-shadow:0 12px 28px rgba(40,25,8,.4)}' +
+      '#quickbar .flask .pct{display:block;font-size:8.5px}' +
+      '#espil-mmo-strip{display:none}' +
+    '}' +
+    /* ---- slots: cream storybook ------------------------------------ */
+    '#quickbar .move-slot{background:linear-gradient(180deg,#fffdf6,#ffeecd);' +
+      'border:2px solid #cfa96f;border-radius:12px;color:#6b4a1f;' +
+      'box-shadow:inset 0 -3px 0 rgba(207,169,111,.35),0 2px 4px rgba(90,60,20,.16);text-shadow:none}' +
+    '#quickbar .move-slot .key{color:#b3854d;text-shadow:none}' +
+    '#quickbar .move-slot .mn{color:#8a6a3b;text-shadow:none}' +
+    '#quickbar .move-slot .cd{color:#a05a2c}' +
+    '#quickbar .move-slot:hover{border-color:#b57708}' +
+    '#quickbar .move-slot.is-locked{background:linear-gradient(180deg,#f1ebdb,#e6ddc9);' +
+      'border-color:#c9bb9d;opacity:.62;box-shadow:none}' +
+    /* ---- minimap: circular, gold rim (stages 1-2) ------------------- */
+    '#minimap-wrap[data-stage="1"],#minimap-wrap[data-stage="2"]{border:3px solid #e7c88f;' +
+      'border-radius:50%;overflow:hidden;box-shadow:0 8px 20px rgba(90,60,20,.3)}' +
+    /* ---- chat windows: cream ---------------------------------------- */
+    '.chat-window{background:rgba(255,251,240,.92);border:2px solid #d9b380;border-radius:18px;' +
+      'color:#5a4020;box-shadow:0 10px 24px rgba(90,60,20,.22)}' +
+    '.chat-window .chat-log{color:#5a4020}' +
+    '.chat-window .chat-log .sys{color:#a8742c}' +
+    '.chat-channel{color:#8a6a3b;border-radius:999px}' +
+    '.chat-channel.is-active{background:rgba(217,179,128,.35);color:#6b4a1f}' +
+    '#chat-input{background:#fffdf6;border:1.5px solid #d9b380;border-radius:10px;color:#5a4020}' +
+    '#chat-bubble{background:rgba(255,251,240,.95);color:#5a4020;border:1.5px solid #d9b380}' +
+    '#espil-chat{background:rgba(255,251,240,.92);border:1.5px solid #d9b380;border-radius:12px;' +
+      'padding:6px 8px;box-shadow:0 10px 24px rgba(90,60,20,.22)}' +
+    '.espil-chat-line{background:rgba(255,255,255,.5);border:1px solid rgba(207,169,111,.45);color:#5a4020}' +
+    '@media (pointer:fine){' +
+      '.chat-window{bottom:calc(246px + env(safe-area-inset-bottom))}' +
+      '#espil-chat{bottom:calc(428px + env(safe-area-inset-bottom))}}' +
+    /* v36: the top-left EXP readout is gone - the bottom bar carries it */
+    '#map-status{display:none}' +
+    /* ---- top-left status pill --------------------------------------- */
+    '#map-status{background:rgba(255,251,240,.92);border:2px solid #d9b380;border-radius:999px;' +
+      'color:#6b4a1f;box-shadow:0 6px 16px rgba(90,60,20,.2)}' +
+    '#map-status span,#map-status div{color:#6b4a1f}' +
+    /* ---- tutorial objective chip: cream card ------------------------- */
+    '#espil-tut{background:rgba(255,251,240,.93);color:#6b4a1f;border:2px solid #d9b380;' +
+      'border-radius:14px;box-shadow:0 8px 18px rgba(90,60,20,.22);text-shadow:none}' +
+    '#espil-tut .kb{background:#fffdf6;border:1.5px solid #cfa96f;color:#6b4a1f;box-shadow:none}' +
+    /* (the static entry gates - sign-in modal and character gate -
+       wear the same cream from the static head style, so they are
+       skinned from the first paint: see apply_zskin_head.py.) */
+    /* ---- status cluster: cream pill ----------------------------------- */
     '#espil-mmo-status{position:fixed;left:14px;bottom:calc(15px + env(safe-area-inset-bottom));z-index:31;' +
       'display:flex;align-items:center;gap:10px;padding:7px 15px 7px 8px;border-radius:999px;' +
-      'background:linear-gradient(180deg,rgba(74,51,25,.9),rgba(43,29,13,.94));' +
-      'border:2px solid rgba(217,164,65,.85);' +
-      'box-shadow:0 12px 26px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,217,122,.35);' +
-      'font-family:"Manrope",sans-serif;color:#fff4cf;pointer-events:none}' +
+      'background:rgba(255,251,240,.94);border:2px solid #d9b380;' +
+      'box-shadow:0 6px 16px rgba(90,60,20,.25),inset 0 1px 0 rgba(255,255,255,.9);' +
+      'font-family:"Manrope",sans-serif;color:#5a4020;pointer-events:none}' +
     '#espil-mmo-status .mmo-medallion{width:52px;height:52px;border-radius:50%;flex:none;overflow:hidden;' +
-      'border:2.5px solid #d9a441;box-shadow:0 0 0 2px rgba(0,0,0,.45);background:#12242f}' +
+      'border:2.5px solid #d9b380;box-shadow:0 2px 6px rgba(90,60,20,.3);background:#12242f}' +
     '#espil-mmo-status .mmo-medallion canvas{width:100%;height:100%;display:block}' +
     '#espil-mmo-status .mmo-who{display:flex;flex-direction:column;gap:1px;min-width:0}' +
-    '#espil-mmo-status .mmo-name{font-weight:900;font-size:14.5px;letter-spacing:.02em;color:#ffe9ad;' +
-      'text-shadow:0 1px 2px rgba(0,0,0,.8);white-space:nowrap}' +
-    '#espil-mmo-status .mmo-sub{font-size:10.5px;font-weight:700;color:rgba(255,244,207,.75);white-space:nowrap}' +
-    '#espil-mmo-status .mmo-leo{display:flex;align-items:center;gap:5px;font-size:11.5px;font-weight:800;color:#ffd97a}' +
+    '#espil-mmo-status .mmo-name{font-weight:900;font-size:14.5px;letter-spacing:.02em;color:#6b4a1f;white-space:nowrap}' +
+    '#espil-mmo-status .mmo-sub{font-size:10.5px;font-weight:700;color:#8a6a3b;white-space:nowrap}' +
+    '#espil-mmo-status .mmo-leo{display:flex;align-items:center;gap:5px;font-size:11.5px;font-weight:800;color:#a8742c}' +
     '#espil-mmo-status .mmo-coin{width:13px;height:13px;border-radius:50%;flex:none;display:inline-block;' +
       'background:radial-gradient(circle at 35% 30%,#ffe9a8,#d9a441 60%,#8a6a34);border:1px solid #8a6a34}' +
     '@media (pointer:coarse){#espil-mmo-status{padding:5px 11px 5px 6px;gap:7px}' +
       '#espil-mmo-status .mmo-medallion{width:40px;height:40px}' +
       '#espil-mmo-status .mmo-name{font-size:12.5px}#espil-mmo-status .mmo-sub{display:none}}' +
-    /* ---- bottom strip: tutorial progress + zone -------------------- */
-    '#espil-mmo-strip{position:fixed;left:0;right:0;bottom:0;height:13px;z-index:29;overflow:hidden;' +
-      'background:rgba(10,8,4,.75);border-top:1px solid rgba(217,164,65,.5);font-family:"Manrope",sans-serif}' +
+    /* ---- under-tray strip (v35's exp-bar slot): cream + green --------- */
+    '#espil-mmo-strip{position:fixed;left:50%;transform:translateX(-50%);right:auto;' +
+      'bottom:calc(8px + env(safe-area-inset-bottom));width:min(560px,92vw);height:15px;z-index:29;overflow:hidden;' +
+      'background:rgba(255,251,240,.94);border:2px solid #d9b380;border-radius:999px;' +
+      'box-shadow:0 4px 10px rgba(90,60,20,.22);font-family:"Manrope",sans-serif}' +
     '#espil-mmo-fill{position:absolute;left:0;top:0;bottom:0;width:0%;' +
-      'background:linear-gradient(180deg,#bfe98a,#7fbf3f 55%,#4e8f24);' +
+      'background:linear-gradient(180deg,#bfe98a,#8fce6e 55%,#5da244);' +
       'box-shadow:inset 0 1px 0 rgba(255,255,255,.45);transition:width .6s ease}' +
     '#espil-mmo-zone{position:relative;text-align:center;font-size:9.5px;font-weight:800;' +
-      'letter-spacing:.14em;color:#fff8e2;text-shadow:0 1px 2px rgba(0,0,0,.9);line-height:13px}' +
+      'letter-spacing:.14em;color:#6b4a1f;line-height:13px}' +
     'body:not(.in-map) #espil-mmo-status,body:not(.in-map) #espil-mmo-strip{display:none!important}';
   document.head.appendChild(st);
 
@@ -15551,6 +15631,19 @@ leaveBuilding:{en:'Leave building',ko:'건물 나가기',fr:'Quitter le bâtimen
     if (kbTries > 150) { clearInterval(kbTimer); return; }
     var kbm = document.getElementById('kb-menu');
     if (!kbm || !kbm.children.length) return;
+    /* Zealandia v36 layout: the menu grid lives inside the centre
+       panel, right of a keys column wrapping the two shortcut rows */
+    var kbMain = document.querySelector('#quickbar .kb-main');
+    if (kbMain && kbm.parentNode !== kbMain) kbMain.appendChild(kbm);
+    if (kbMain && !kbMain.querySelector('.mmo-keys')) {
+      var keys = document.createElement('div');
+      keys.className = 'mmo-keys';
+      kbMain.insertBefore(keys, kbMain.firstChild);
+      ['item-row', 'move-row'].forEach(function (id) {
+        var row = document.getElementById(id);
+        if (row && row.parentNode === kbMain) keys.appendChild(row);
+      });
+    }
     var doneMap = false, doneChar = false;
     Array.prototype.forEach.call(kbm.children, function (b) {
       var mn = b.querySelector('.mn');
