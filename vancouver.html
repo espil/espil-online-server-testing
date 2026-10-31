@@ -8335,6 +8335,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
     var espilStoneGlbBusy=false, espilLunarisBusy=false, espilLunarisState=null, espilLunarisCycle=0;
     function espilAuckLoader(){ var l=new THREE.GLTFLoader(); try{ if(window.MeshoptDecoder)l.setMeshoptDecoder(window.MeshoptDecoder); }catch(e){} return l; }
     function espilFitHeight(obj,h){ var b=new THREE.Box3().setFromObject(obj); var s=b.max.y-b.min.y; if(s>0)obj.scale.setScalar(h/s); var b2=new THREE.Box3().setFromObject(obj); obj.position.y-=b2.min.y; }
+    function espilFitSkinnedHeight(obj,h){ obj.updateMatrixWorld(true); var mn=Infinity,mx=-Infinity,v=new THREE.Vector3(); obj.traverse(function(n){ if(n.isBone){ n.getWorldPosition(v); if(v.y<mn)mn=v.y; if(v.y>mx)mx=v.y; } }); var s=mx-mn; if(s>0&&isFinite(s))obj.scale.setScalar(h/s); }
     function espilNoCull(obj){ obj.traverse(function(n){ if(n.isMesh||n.isSkinnedMesh)n.frustumCulled=false; }); }
     function espilBuildStoneGlb(){
       if(espilStoneGlbBusy||window.__espilTimeStoneGlb||!espilTimeStoneGroup)return;
@@ -8350,7 +8351,7 @@ window.__ESPIL_ENV_READY__=(window.fetch?fetch('/.env').then(function(r){return 
       if(espilLunarisBusy||espilLunarisState||espilCityKey()!=='auckland'||typeof mapScene==='undefined'||!mapScene)return;
       espilLunarisBusy=true;
       espilAuckLoader().load('assets/zealandia/lunaris.glb',function(gltf){
-        var obj=gltf.scene; espilNoCull(obj); espilFitHeight(obj,1.8);
+        var obj=gltf.scene; espilNoCull(obj); espilFitSkinnedHeight(obj,1.8);
         var x=ESPIL_TIMESTONE.x, z=ESPIL_TIMESTONE.z+4.7;
         var y=0; try{ var sy=espilOwnSurfaceY(x,z); if(typeof sy==='number')y=sy; }catch(e){}
         obj.position.set(x,y,z); obj.lookAt(ESPIL_TIMESTONE.x,y,ESPIL_TIMESTONE.z);
